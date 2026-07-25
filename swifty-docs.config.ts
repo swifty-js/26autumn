@@ -21,7 +21,6 @@ export default defineConfig({
           { text: "前端综合面试题", link: "fe/fe-qa" },
           { text: "CSS 面试题", link: "fe/css-qa" },
           { text: "Vite 面试题", link: "fe/vite-qa" },
-          { text: "简历面试题", link: "fe/r-qa" },
           { text: "A2UI 面试题", link: "fe/a2ui-qa" },
         ],
       },

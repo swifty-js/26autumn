@@ -72,16 +72,12 @@
 
 ## Task G
 
-你是一个资深前端工程师, 阅读我的简历 (一个 JSON 文件) $HOME/github/r/src/i18n/zh.json, 针对我的简历, 提问我的技能、工作经历, 整理、优化、完善前端面试 QA 文档到 docs/fe/r-qa.md
+全面探索 $HOME/github/swifty-chatbot 项目, 该项目是一个 AI Chatbot 全栈项目, 整理、优化、完善高级 Agent 工程师面试 QA 文档到 docs/fe/swifty-chatbot-qa.md, 重点关注流式传输、流式渲染方面的工程实践
 
 ## Task H
 
-全面探索 $HOME/github/swifty-chatbot 项目, 该项目是一个 AI Chatbot 全栈项目, 整理、优化、完善高级 Agent 工程师面试 QA 文档到 docs/fe/swifty-chatbot-qa.md, 重点关注流式传输、流式渲染方面的工程实践
-
-## Task I
-
 你是一个资深前端工程师, review 并整理、优化、完善 docs/fe/vite-qa.md 这个前端工程化面试 QA 文档
 
-## Task J
+## Task I
 
 全面探索 $HOME/github/swifty-cli monorepo 仓库下的 $HOME/github/swifty-cli/apps/swifty-code 项目, 该项目是一个双进程 CLI Coding Agent, 整理、优化、完善高级 Agent 工程师面试 QA 文档到 docs/fe/swifty-code-qa.md

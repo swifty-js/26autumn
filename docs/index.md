@@ -13,7 +13,6 @@
 - [前端综合面试题](fe/fe-qa.md)
 - [CSS 面试题](fe/css-qa.md)
 - [Vite 面试题](fe/vite-qa.md)
-- [简历面试题](fe/r-qa.md)
 - [A2UI 面试题](fe/a2ui-qa.md)
 
 ### Swifty 前端
