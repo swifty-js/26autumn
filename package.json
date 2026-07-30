@@ -21,7 +21,7 @@
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^11.16.0",
     "@preact/preset-vite": "^2.10.6",
-    "@swifty.js/docs": "^0.0.4",
+    "@swifty.js/docs": "file:../swifty.js/packages/swifty-docs",
     "@swifty.js/sentry": "^0.0.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "24.13.3",
