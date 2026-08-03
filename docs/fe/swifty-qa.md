@@ -44,7 +44,7 @@ Swifty 是一个运行在终端中的 Coding Agent，本质区别不在于"CLI"�
 2. Agent 循环层（`src/agent/agent.ts`）：核心是一个 `async *run(): AsyncGenerator<AgentEvent>` 生成器，把"思考-行动"循环抽象为事件流。
 3. LLM 抽象层（`src/llm/`）：统一 `LLMClient` 接口（`stream()` + `setSystemPrompt()`），适配 anthropic / openai / openai-compat 三种协议。
 4. 工具层（`src/tools/`）：统一 `Tool` 接口（`schema()` + `execute()`），按 `category: read | write | command` 分类，支撑并行调度与权限决策。
-5. 表现层（`src/tui/`）：Ink（React for CLI）渲染，`app.tsx`（约 1850 行）作为编排者消费 AgentEvent 流。
+5. 表现层（`src/tui/`）：Ink（React for CLI）渲染，`app.tsx`（约 2000 行）作为编排者消费 AgentEvent 流。
 6. 横切支撑层：权限（`permissions/`）、上下文压缩（`compact/`）、会话持久化（`session/`）、记忆（`memory/`）、钩子（`hooks/`）、MCP、技能、多智能体（`subagent/`、`teams/`）。
 
 关键设计洞察：四种运行模式消费的是同一个 AgentEvent 流，Agent 核心对 UI 完全无感知 —— 这是"表现层与领域层彻底解耦"的体现。
@@ -177,21 +177,20 @@ main.tsx ──┬── TUI      → Ink <App>，消费 AgentEvent → React st
 
 `src/agent/agent.ts` 的 `run()` 是一个 `while (looping)` 循环（约 line 137），单轮迭代按严格顺序执行：
 
-1. 最大迭代守卫：`iteration > maxIterations` 时 yield error 并返回，防止失控死循环。
+1. 最大迭代守卫：`maxIterations > 0 && iteration > maxIterations` 时 yield error 并返回，防止失控死循环（默认 `maxIterations = 0` 即不限制，200 是 spawnSubagent 的默认值）。
 2. 计划模式提醒：若权限模式为 `plan`，注入 system-reminder —— 第 1 轮和每第 5 轮用完整版，其余轮用一行精简版（`plan-mode.ts`，`reminderInterval = 5`），在"持续约束模型行为"与"节省 token"之间折中。
 3. 排空旁路通知：把两类异步消息 drain 成 system-reminder 注入对话 —— Hook 引擎排队的通知（`hookEngine.drainNotifications()`）和团队邮箱消息（`notificationFn()`）。
 4. 生命周期钩子：依次 fire `turn_start`、`pre_send`。
-5. Layer 1 — 工具结果预算：`applyBudget()` 就地修剪超大工具结果（单结果 >50KB 或聚合 >200KB 时落盘为文件，替换为 2KB 预览+路径）。
-6. Layer 2 — 自动压缩：`manageContext()` 估算 token，超过自动阈值则执行压缩；压缩后重新 applyBudget 并重新注入长期记忆。
-7. 调用 LLM 流式接口：`client.stream()` 返回 AsyncGenerator<StreamEvent>，Agent 把内部事件映射为 AgentEvent 转发给消费方（`text_delta→stream_text`、`thinking_delta→thinking_text`、`tool_call_complete→tool_use` 等），同时累积 `fullText`、`thinkingBlocks`、`toolUses`、`stopReason`。
-8. 错误自愈（见 Q9）：`ContextTooLongError` → 强制压缩重试；`RateLimitError` → 按 Retry-After 等待重试。
-9. post_receive 钩子。
-10. assistant 消息落历史：`addAssistantFull(fullText, thinkingBlocks, toolUses)`。
-11. 分支：
-    - 有工具调用 → `executeTools()`（分批+权限+钩子），结果落历史，fire `turn_end`，进入下一轮；
+5. Layer 1 — 自动压缩：`manageContext()` 估算 token，超过自动阈值则执行压缩，压缩后重新注入长期记忆。注意此处不做预算修剪 —— 工具结果在入历史时已完成预算处理（agent.ts 注释 "Tool results are already budget-processed at the time they enter history"），transcript 里的消息尺寸是终态，直接从它们估算 token 即可。
+6. 调用 LLM 流式接口：`client.stream()` 返回 AsyncGenerator<StreamEvent>，Agent 把内部事件映射为 AgentEvent 转发给消费方（`text_delta→stream_text`、`thinking_delta→thinking_text`、`tool_call_complete→tool_use` 等），同时累积 `fullText`、`thinkingBlocks`、`toolUses`、`stopReason`。
+7. 错误自愈（见 Q9）：`ContextTooLongError` → 强制压缩重试；`RateLimitError` → 按 Retry-After 等待重试。
+8. post_receive 钩子。
+9. assistant 消息落历史：`addAssistantFull(fullText, thinkingBlocks, toolUses)`。
+10. 分支：
+    - 有工具调用 → `executeTools()`（分批+权限+钩子）；结果入历史前做预算处理：先对单条超 `MAX_OUTPUT_CHARS = 50000` 字符的结果调 `persistLargeResult()` 落盘，替换为 2KB 预览+路径，再调 `applyBudget()` 管聚合 —— 一条消息内全部结果字符总数超 `MESSAGE_AGGREGATE_LIMIT = 200000` 时从最大者起逐个落盘直到达标（读回落盘文件的结果与本轮已落盘者经 exemptIds 豁免）；然后落历史，fire `turn_end`，进入下一轮；
     - 无工具调用 → `looping = false`，文件历史快照，yield `loop_complete`，fire `session_end`，循环结束。
 
-值得强调的是顺序设计：预算修剪在压缩之前 —— 先把显式的大结果"溢出"到磁盘（廉价、无损），仍超阈值才做摘要压缩（昂贵、有损）。这是"先低成本手段、后高成本手段"的分层降级思想。
+值得强调的是位置设计：预算处理发生在"工具结果入历史时"而不是"每轮调 LLM 前" —— 处理完成消息即为终态，此后永不修改，Prompt Cache 前缀天然稳定，token 估算也可直接按 transcript 尺寸计算。压缩则是窗口将满才触发的"有损"兜底，与"先无损落盘、后摘要压缩"的两级降级思想一致：显式的大结果先落盘（廉价、无损，原文可 ReadFile 回读），仍不够才动用丢失细节的摘要。
 
 ---
 
@@ -233,12 +232,12 @@ for (const tu of toolUses) {
 
 答：
 
-Swifty 有四类自愈机制，都在 `agent.ts` 中：
+Swifty 有三类自愈机制，都在 `agent.ts` 中：
 
 1. 上下文超长（ContextTooLongError）→ 强制压缩重试
 
 - 触发：LLM API 返回 413 或消息匹配 `/prompts?\s+too\s+long/i`（OpenAI 侧还检查 400 + `context_length_exceeded`）。
-- 策略：applyBudget → `forceCompact()` → 清除 usage anchor → 重新注入长期记忆 → yield `compact` 事件 → `continue` 重试本轮。若压缩本身失败才向上抛错。
+- 策略：`forceCompact()` → 清除 usage anchor → 重新注入长期记忆 → yield `compact` 事件 → `continue` 重试本轮。若压缩本身失败才向上抛错。
 
 2. 限流（RateLimitError）→ 退避重试
 
@@ -250,11 +249,9 @@ Swifty 有四类自愈机制，都在 `agent.ts` 中：
 - Phase 1（升级）：首次 `stop_reason === "max_tokens"` 时，把输出上限提升到 `MAX_TOKENS_CEILING = 64000`，把已生成的部分文本作为 assistant 消息落历史，追加用户消息"从断点直接继续"，立即重试。
 - Phase 2（多轮恢复）：若升级后仍截断，最多再做 `MAX_OUTPUT_TOKENS_RECOVERIES = 3` 轮续写，提示词改为"把剩余工作拆成更小的块"。任何非 max_tokens 的停止原因都会重置计数器。
 
-4. 未知工具熔断
+三类都是资源/瞬态问题，用"修正上下文后重试"恢复。另一类相关机制是未知工具的处理（`streaming-executor.ts:65-76`）：模型幻觉出不存在的工具名时，执行器不做任何计数或熔断，只是返回一条 `Error: unknown tool 'xxx'` 错误结果（源码注释写明 "let the model self-correct with another tool; keep the loop running"），让模型看到错误后自行纠正 —— 循环照常继续。
 
-- 模型幻觉出不存在的工具时，返回 `Error: unknown tool` 结果并让模型自我纠正；但连续 3 次全是未知工具（`consecutiveUnknown >= 3`）则判定模型陷入幻觉循环，直接 yield error 终止循环，避免无意义烧 token。
-
-设计哲学：区分"可恢复故障"与"致命故障" —— 前三类是资源/瞬态问题，用"修正上下文后重试"恢复；第四类是模型行为异常，重试无意义，熔断止损。所有恢复路径都通过 yield 事件让 UI 可见（用户能看到"retrying..."、"compacting..."），不是静默魔法。
+设计哲学：可恢复故障优先"修正上下文后重试"而不是直接失败。所有恢复路径都通过 yield 事件让 UI 可见（用户能看到"retrying..."、"compacting..."），不是静默魔法。
 
 ---
 
@@ -336,8 +333,8 @@ Swifty 用 Promise-based suspension（Promise 悬挂） 把"同步阻塞等待�
 
 多层防线：
 
-1. maxIterations 硬上限：`Agent` 构造参数 `maxIterations`（子代理默认 200），超过即 yield error 终止。这是最基础的保险丝。
-2. 未知工具熔断（见 Q9）：连续 3 次调用不存在的工具 → 终止。
+1. maxIterations 硬上限：`Agent` 构造参数 `maxIterations`（默认 `0` 即不限制；子代理 `spawnSubagent` 默认传 200），超过即 yield error 终止。这是最基础的保险丝。
+2. 未知工具错误回灌：模型幻觉出不存在的工具时，执行器返回 `Error: unknown tool 'xxx'` 错误结果并继续循环（不做计数或熔断），把纠错交给模型自己（见 Q9）。
 3. 压缩熔断器：`MAX_CONSECUTIVE_FAILURES = 3` —— 自动压缩连续失败 3 次后跳过自动压缩（除非达到硬阻塞阈值强制压缩），避免"压缩失败 → 上下文仍超长 → 再压缩"的抖动循环。
 4. 工具结果回灌机制：模型调错工具时，错误信息（如 `Error: unknown tool 'xxx'`）作为 tool_result 回喂给模型，模型通常会在下一轮自我纠正 —— 大多数"潜在死循环"在一两轮内就被模型自己化解，硬上限只是兜底。
 5. 成本控制视角：每轮都有 `usage` 事件流出，状态栏实时显示 token 消耗，用户可以 Ctrl+C 中断（`interruptibleSleep` 和 abort signal 贯穿全链路）。
@@ -581,20 +578,24 @@ interface Tool {
 
 ---
 
-### Q24：Bash 工具为什么用 `spawnSync` 而不是 `exec`/`spawn`？超时与输出处理怎么做？
+### Q24：Bash 工具是如何执行命令的？为什么必须用异步 API 而不是同步？
 
 答：
 
-`tools/bash.ts` 用 `spawnSync("bash", ["-c", command], { timeout, maxBuffer: 10MB, stdio: pipe })` 同步执行。初看"同步阻塞"是反模式，但在这里是合理选择：
+`tools/bash.ts` 用异步 `execFile("bash", ["-c", command], { timeout, killSignal: "SIGTERM", maxBuffer: 10MB })` 包在 Promise 里执行。源码注释记录了这段演进史：最初用同步执行，结果在整条命令执行期间 TUI 冻结（spinner 动画、elapsed 计时器、键盘输入全部卡死）；换成异步执行后 Node 事件循环保持空闲，UI 才能继续响应。
 
-1. 工具执行模型本就是 await 语义：Agent 在 `await tool.execute(...)` 处等待结果，异步只是让出事件循环，逻辑上同样阻塞。而工具的并发调度已由上层（`Promise.all` 并行批）负责 —— 每个工具调用内部的执行方式不影响批间并行度。
-2. 同步 API 的语义简单性：`spawnSync` 一次性返回 `{ stdout, stderr, status, signal, error }`，不需要手动拼接流、处理 close/exit 竞态，代码量减半且边界情况（超时杀进程、buffer 超限）由 Node 统一处理。
-3. 超时可靠性：`timeout` 参数由 Node 内核实现 SIGTERM 强杀，比手写 `setTimeout + kill()` 少了"进程已退出但定时器未清"等竞态。默认 120s，硬上限 `MAX_TIMEOUT = 600s`。
+异步是必然选择的原因：
 
-输出处理：
+1. TUI 由事件循环驱动：Ink 渲染、定时器（spinner 动画、elapsed 计时）、`useInput` 键盘事件都依赖事件循环空闲。同步 API 阻塞主线程，任何耗时稍长的命令都会让整屏冻结；
+2. 工具执行模型本就是 await 语义：Agent 在 `await tool.execute(...)` 处等待结果，异步只是让出事件循环 —— 逻辑上同样阻塞，但等待期间 UI 事件照常处理；
+3. 上层并行批仍然有效：并行批 `Promise.all` 下多个 execFile 子进程真正并发执行，同步 API 则会让并行批退化为串行。
 
+超时与输出处理：
+
+- timeout：由 Node 内核实现，到时用 `killSignal: "SIGTERM"` 强杀子进程。默认 120s，硬上限 `MAX_TIMEOUT = 600` 秒；
+- abortSignal：`ctx.abortSignal` 接入 execFile 的 `signal`，用户按 Esc 可中断子进程（AbortError → "Error: command interrupted"）；
+- `maxBuffer: 10MB` 是最后防线：超限则子进程被杀、截断后的输出照常返回；真正的体积控制在上层（agent 层单结果超 `MAX_OUTPUT_CHARS = 50000` 落盘、budget 层管聚合，见 Q39）；
 - stdout/stderr 分别捕获后拼接（不加前缀，避免污染模型对输出的解析）；
-- `maxBuffer: 10MB` 是最后防线，真正的体积控制在上层（agent 层 `MAX_OUTPUT_CHARS = 10000` 落盘、budget 层 50KB 单结果落盘）；
 - 非零退出码附加语义提示（`exitCodeHint()`）：如 grep 退出码 1 提示"no matches found"、diff 退出码 1 提示"files differ" —— 把 Unix 退出码惯例翻译成模型能理解的自然语言，避免模型把"无匹配"误判为"命令失败"而反复重试。
 
 沙箱包装在执行前：`if (sandbox?.available()) actualCommand = sandbox.wrap(command, config)` —— 见 Q28。
@@ -614,7 +615,7 @@ interface Tool {
 - Layer 3 — 危险命令黑名单：命中危险模式（如 `rm -rf /`、`git push --force`、fork 炸弹）→ 直接 deny，不问用户 —— 有些操作连"用户误点允许"的风险都不能冒。
 - Layer 3.5 — 沙箱自动放行：OS 沙箱可用且命令非危险 → allow。命令将在内核级隔离中运行，即使恶意也伤不到宿主，HITL 询问无增量价值。
 - Layer 4 — 路径沙箱（PathSandbox）：文件类工具限定在项目目录 + tmpdir 内；敏感路径（如 `~/.ssh`）在拒绝写名单 → deny/ask。
-- Layer 4b — 会话级临时白名单：用户点过"不再询问"的模式存在内存中（进程级，不持久化）→ allow。
+- Layer 4b — "allow always" 规则：用户点"不再询问"后，`allowAlways()`（`checker.ts:532-554`）把授权转为一条 scoped 规则并持久化 —— 文件类工具按"父目录 + `/*`"，命令类按"前 1-2 个词 + `*`"（即整个命令族），经 `ruleEngine.appendLocalRule()`（`checker.ts:336-354`）写入项目本地规则 YAML（同 `Tool(pattern)` 格式、去重）。该规则下次检查经 Layer 5 的规则引擎命中 → allow，且跨会话重启仍然生效。
 - Layer 5 — YAML 规则引擎（RuleEngine）：用户/项目/本地三级 YAML 规则文件，`ToolName(pattern)` 形式的 glob 规则 → 按规则 allow/deny/ask。规则文件每次检查时重新读取，改规则立即生效。
 - Layer 6 — 模式矩阵兜底（`modeDecide()`）：`default`（read 放行，write/command 询问）、`acceptEdits`（write 放行，command 询问）、`plan`（write/command 均询问）、`bypassPermissions`（全放行）。
 
@@ -657,7 +658,7 @@ interface Tool {
 - plan 模式是一套完整工作流：进入时保存原模式（`prePlanMode`）；Agent 循环每轮注入 plan 提醒（第 1/5/10... 轮完整版、其余精简版）；模型通过 `ExitPlanModeTool` 结束规划；循环结束时弹出 `PlanApprovalDialog`，用户可选 yolo（切 bypass 执行）/ manual（恢复原模式执行）/ feedback（打回反馈继续规划）。权限模式在这里扮演了状态机的状态。
 - bypassPermissions 配合沙箱才有意义：Layer 3.5 的"沙箱自动放行"与 bypass 的区别是 —— 沙箱放行有内核隔离背书，bypass 是裸奔。生产实践中 bypass 应只在容器/VM 中使用。
 
-模式的持久化：`permission_mode` 可写入 YAML 配置作为会话默认值，但"不再询问"的会话白名单只在内存 —— 刻意不持久化，防止一次授权永久生效。
+模式的持久化：`permission_mode` 可写入 YAML 配置作为会话默认值；而"不再询问"的授权会被持久化为本地规则 YAML 中的 scoped 规则（`allowAlways()` → `appendLocalRule()`，见 Q25 Layer 4b）—— 授权粒度被收敛到"目录/命令族"，且 deny > ask > allow 的优先级保证任何 deny 规则都无法压制它，跨会话生效。
 
 ---
 
@@ -688,7 +689,7 @@ interface Tool {
 1. 规则引擎的表达能力升级：当前 YAML 规则是 glob 匹配 `ToolName(pattern)`，无法表达参数级语义（如"`Bash(npm install *)` 允许但 `Bash(npm publish *)` 拒绝"之外的组合条件）。可引入类似 Cedar/OPA 的策略语言，支持参数解构、正则、组合条件，并附带 `swifty policy test` 的本地规则测试器。
 2. 权限审计与回放：当前决策无持久审计日志。应落盘"时间、工具、参数摘要、命中层、决策、用户选择"五元组，配合 `--audit` 回放 —— 企业场景的合规刚需，也为规则调优提供数据。
 3. 风险分级询问：当前 ask 是同质化的。可对参数做风险评分（路径敏感度、命令的破坏半径、网络出向），低风险询问可合并批量确认（"允许本次会话所有 npm test 类命令"），减少打断频次。
-4. "不再询问"的作用域细化：会话白名单目前是进程级整体。可细化为"本会话/本项目/全局"三档 + 过期时间，并让用户在 `/permission` 命令中可视化管理。
+4. "不再询问"的作用域细化：allowAlways 目前固定写入项目本地规则，模式自动放宽到"目录/*"或"命令族*"。可细化为"本会话/本项目/全局"三档 + 过期时间，并让用户在 `/permission` 命令中可视化管理这些规则。
 5. 沙箱覆盖度补齐：当前沙箱只包 bash；网络出向控制可上提到 LLM API 之外（MCP server、WebFetch 类工具），形成统一的网络策略面；Windows 平台可用 Job Object + 受限 token 补齐第三后端。
 
 回答这类问题的结构模板：指出现状局限（证明读过代码）→ 给出方案（证明能设计）→ 说明权衡（证明有工程判断力）。
@@ -787,7 +788,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 ---
 
-### Q33：`app.tsx` 约 1850 行、30+ 个状态，是如何避免变成"巨石组件"失控的？它的状态分层策略是什么？
+### Q33：`app.tsx` 约 2042 行、30+ 个状态，是如何避免变成"巨石组件"失控的？它的状态分层策略是什么？
 
 答：
 
@@ -847,7 +848,7 @@ if (!scheduled) {
 
 能力探测读取 `TERM_PROGRAM`、`TERM`、环境变量白名单，tmux 下禁用（tmux 会吞掉该序列）—— 探测失败时静默不启用，优雅降级。
 
-类比：BSU/ESU 就是终端世界的 vsync / 双缓冲交换 —— 浏览器里你把所有 DOM 修改放进一个 rAF 回调，渲染引擎在垂直同步时一次性合成；这里把所有 ANSI 写入放进一个同步信封，终端在信封闭合时一次性上屏。配套的 `alternate-screen.tsx`（`\x1b[?1049h/l` 切换备用屏幕缓冲区）则类似"离屏画布" —— 程序退出时切回主屏幕，不污染用户的 shell 历史。
+类比：BSU/ESU 就是终端世界的 vsync / 双缓冲交换 —— 浏览器里你把所有 DOM 修改放进一个 rAF 回调，渲染引擎在垂直同步时一次性合成；这里把所有 ANSI 写入放进一个同步信封，终端在信封闭合时一次性上屏，用户看到的永远是完整的一帧，而不是拼到一半的残影。
 
 ---
 
@@ -895,7 +896,7 @@ if (!scheduled) {
 2. turn_summary 之前的中间渲染：工具执行期间 `activeTools` 每次状态变化都整体重渲染动态区。`ToolDisplay` 已是 memo 友好结构，可进一步给每个 ToolBlock 加 `React.memo` + 稳定 key（toolId）。
 3. markdown 渲染的双通道：`StreamingText` 缓存了稳定前缀，但 `MessageBlock`（assistant 提交后）会再次全量解析同一文本 —— 提交时可把已解析结果随消息传递，避免提交瞬间的一次全量重解析。
 4. 文件扫描缓存的失效策略：`fileCacheRef` 在 InputBox 生命周期内不失效，长会话中新建文件无法被 `@` 补全。可加 mtime 失效或定时刷新。
-5. 500ms 团队轮询可升级为混合模式：in-process teammate 直接回调，仅跨进程回退轮询 —— `detectBackend()` 当前永远返回 `"in-process"`，恰有条件做此优化。
+5. 500ms 团队轮询可升级为混合模式：in-process teammate 直接回调，仅跨进程回退轮询 —— `detectBackend()`（`backend.ts:43-68`）在非 win32 且 TMUX/ITERM_SESSION_ID 均不存在时即返回 `"in-process"`（本地最常见形态），恰有条件做此优化。
 6. 大输出的字符串成本：工具结果拼接到消息 content 是 O(n) 字符串复制，超长会话下 GC 压力可观；可考虑结构化存储（消息只持引用，渲染时物化）。
 
 回答框架仍然是：定位真实瓶颈（引用具体机制）→ 给出方案 → 说明为什么当前不急着做（YAGNI / 收益成本比）—— 这才体现工程判断力而非背优化清单。
@@ -904,21 +905,21 @@ if (!scheduled) {
 
 ## 七、上下文管理与压缩
 
-### Q39：上下文管理的"两道防线"是什么？为什么必须先 applyBudget 再 compact？
+### Q39：上下文管理的"两道防线"是什么？为什么预算落盘在前、compact 在后？
 
 答：
 
-Agent 循环每轮在调用 LLM 之前，按序执行两道防线（`agent.ts:182-203`）：
+膨胀源治理分两级，关键是预算处理的时机 —— 它不在每轮调 LLM 前做，而在工具结果"入历史时"完成（`agent.ts:456-502`）。agent.ts 注释写明 "Tool results are already budget-processed at the time they enter history"，因此 transcript 中的消息尺寸即终态，后续压缩阈值估算可直接基于它们。
 
-Layer 1 — `applyBudget()`（`tool-result/budget.ts`，廉价、无损）：就地修剪超大工具结果：
+第一道 — 工具结果预算（廉价、无损），分两个环节：
 
-- Pass 1：单个 toolResult 超过 `SINGLE_RESULT_LIMIT = 50000` 字符 → 全文写入 `.swifty/sessions/{id}/tool_results/{toolUseId}`，原位置替换为 2000 字符预览 + 文件路径（模型需要时可 ReadFile 读回）；
-- Pass 2：一条消息内全部 toolResult 聚合超 `MESSAGE_AGGREGATE_LIMIT = 200000` → 按大小降序逐个落盘直到达标；
-- 幂等保护：已替换的（`[Result of ` 前缀）跳过；`isSpillReadback()` 防止"读回落盘文件的结果再次被落盘"的无限循环。
+- 单结果落盘：结果入历史前，长度超过 `MAX_OUTPUT_CHARS = 50000`（`agent.ts:63`，注释解释了取 5 万的原因：让模型一次就能看到足够内容，免一次 ReadFile 回读往返）→ 调 `persistLargeResult()` 全文写入 `.swifty/sessions/{id}/tool-results/{toolUseId}.txt`（注意目录名是连字符 `tool-results`），原位置替换为 `<persisted-output>` 包裹的 2000 字符预览 + 文件路径（`budget.ts:75`，模型需要时可 ReadFile 读回）；
+- 聚合预算：`applyBudget()`（`tool-result/budget.ts`）处理整批 —— 一条消息内全部结果字符总数超 `MESSAGE_AGGREGATE_LIMIT = 200000` 时，按大小降序逐个落盘直到达标（单条 ≤ 预览长度的不落盘，写了也没省到空间）。并行批的多个结果落进同一条消息，单条阈值管不住总和，所以需要这层聚合；
+- 防回环：`isSpillReadback()`（`budget.ts:92`）识别"读回落盘文件的 ReadFile 调用"，agent.ts 把它（以及本轮已单条落盘者）收集进 `exemptIds` 豁免集合 —— 豁免条目既不会被聚合预算再次落盘，也不会被单条落盘二次处理（详见 Q43 的回环场景）。
 
-Layer 2 — `manageContext()`（`compact/compact.ts`，昂贵、有损）：估算 token 超过自动阈值才触发，用 LLM 生成摘要重写历史（见 Q40）。
+第二道 — `manageContext()`（`compact/compact.ts`，昂贵、有损）：每轮调 LLM 前估算 token，超过自动阈值才触发，用 LLM 生成摘要重写历史（见 Q40）。
 
-顺序的原因：budget 是"显式冗余消除"，compact 是"语义有损压缩"。工具结果大是最常见的上下文膨胀源（日志、构建输出），把它们落盘是无损的（原文可回读），应先做；只有无损手段仍不够时，才动用会丢失细节的摘要压缩。压缩后还会再跑一次 budget —— 新保留的尾部里可能仍有大结果。
+顺序的原因：budget 是"显式冗余消除"，compact 是"语义有损压缩"。工具结果大是最常见的上下文膨胀源（日志、构建输出），把它们落盘是无损的（原文可回读），应优先；只有无损手段仍不够时，才动用会丢失细节的摘要压缩。另外把预算放在"入历史时"而非"发送前"有一个工程红利：消息一旦进历史就永不修改，Prompt Cache 前缀稳定，token 估算也可以直接按 transcript 尺寸算，不需要在每轮发送前重新遍历修剪。
 
 这与前端性能优化同理：先压缩图片/删 dead code（无损），再上 tree-shaking 激进的语义化精简（有损）—— 降本手段按"无损 → 有损"排序。
 
@@ -992,7 +993,7 @@ PTL 重试：摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()
 
 这个设计的精妙之处：持久化格式与运行时压缩共用同一份数据结构 —— 压缩算法产出的 (summary, keep) 二元组直接序列化为 boundary，恢复算法就是压缩重建算法的镜像。不需要单独的"检查点格式"，语义自洽且单调：JSONL 是纯追加的，恢复时只需线性扫描。
 
-附带机制：会话 30 天过期清理（连 `tool_results/` 落盘目录一起删）；`newSessionId()` 用 `Date.now().toString(36) + "-" + randomBytes(4).hex` 保证可读性与唯一性。
+附带机制：会话 30 天过期清理（删 jsonl 后尝试连带删 `tool_results/` 落盘目录）—— 值得注意源码本身的一处不一致：budget 落盘写入的是 `tool-results`（连字符，`budget.ts:41`），而 `session.ts:448` 过期清理删的却是 `tool_results`（下划线），目录名不匹配意味着清理时删不到真实落盘目录。这种"写入方与清理方各执一词"的目录名漂移是真实项目里常见的 bug 形态。另 `newSessionId()` 用 `Date.now().toString(36) + "-" + randomBytes(4).hex` 保证可读性与唯一性。
 
 ---
 
@@ -1002,11 +1003,11 @@ PTL 重试：摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()
 
 场景还原：
 
-1. 模型执行 Bash 产生 100KB 输出 → applyBudget 落盘到 `tool_results/{toolUseId}`，上下文里替换为 2KB 预览 + "完整结果在 xxx 路径"；
+1. 模型执行 Bash 产生 100KB 输出 → 入历史时超 `MAX_OUTPUT_CHARS`，`persistLargeResult()` 落盘到 `tool-results/{toolUseId}.txt`，上下文里替换为 `<persisted-output>` 包裹的 2KB 预览 + "完整结果在 xxx 路径"；
 2. 模型（按设计）用 ReadFile 去读那个落盘文件 → ReadFile 返回 100KB 内容；
-3. 如果没有 `isSpillReadback()`：这个新结果又超 50KB → 又被落盘 → 新路径给模型 → 模型再读 → 无限循环，磁盘被无意义复制撑爆。
+3. 如果没有防回环：这个新结果又超 50KB → 又被落盘 → 新路径给模型 → 模型再读 → 无限循环，磁盘被无意义复制撑爆，模型永远看不到全文。
 
-防御（`budget.ts:60`）：Pass 1 落盘前检查该 toolResult 对应的 tool_use 是否是"读取 spill 目录的 ReadFile" —— 是则跳过落盘，让结果原样留在上下文（它是用户/模型主动要看的，属于"回读"而非"冗余"）。
+防御：`isSpillReadback()`（`budget.ts:92`）判断"该工具调用是否是读取 spill 目录的 ReadFile"。它在每轮工具结果入历史之前由 agent.ts 统一执行：命中的 tool_use_id 被收集进 `exemptIds` 豁免集合，既跳过单结果的 `persistLargeResult` 落盘，也在聚合预算 `applyBudget` 中跳过 —— 回读内容原样留在上下文（它是模型主动要看的，属于"回读"而非"冗余"）。
 
 这是自指防护（self-reference guard）的经典案例：任何"把 X 移出主存储并留下指针"的系统，都必须处理"指针被解引用后产物再次进入主存储"的回环。GC 的 card marking、操作系统的 swap-in 页不再立即 swap-out 候选，都是同构问题。
 
@@ -1176,7 +1177,7 @@ JSONL（每行一条 JSON，纯追加）的优势在该场景下非常契合：
 
 lead 侧感知：`TeamManager.drainLeads()` 把各邮箱未读消息包装为 `<task-notification team="...">` XML，经 Agent 循环的 `notificationFn` 注入主线 system-reminder（复用 Q7 第 3 步的 drain 通道）。
 
-后端（`backend.ts`）：`detectBackend()` 当前固定返回 `"in-process"`（同进程协程）；`detectPaneBackend()` 可探测 tmux（每 teammate 一个窗格）；iterm 未实现。
+后端（`backend.ts`）：`detectBackend()`（line 43-68）在 win32 上直接返回 `"in-process"`，否则调 `detectBackendFromEnv()` 按环境探测 —— 检测到 `TMUX` 环境变量返回 `"tmux"`（每 teammate 一个 tmux 窗口），检测到 `ITERM_SESSION_ID` 返回 `"iterm"`，都没有才回退 `"in-process"`。iterm 后端已实现（line 150-178）：用 osascript 驱动 iTerm2 AppleScript，在当前窗口开新标签页执行 teammate 命令（镜像 tmux 的 new-window 行为）；标签页没有可编程句柄，取消动作交给邮箱 shutdown 流程。tmux 后端则是 `tmux new-window` 失败时回退 `new-session -d` 建独立会话。
 
 为什么用文件而不是 IPC/socket：跨后端可移植 —— 同一套协议在 in-process、子进程、tmux 窗格间都成立；崩溃恢复天然（邮箱是持久化的）；调试友好（直接 cat 邮箱文件）。代价是轮询延迟与锁竞争，在" teammate 数量少、消息频率低"的场景下完全可接受。
 
@@ -1192,17 +1193,17 @@ inline 模式（`executor.ts`）：技能正文替换 `$ARGUMENTS` 占位符（�
 
 fork 模式：技能在隔离子代理中运行，自带上下文，`fork_context` 控制父上下文继承量：`none`（默认，完全隔离）/ `recent`（带父对话最近 5 条）/ `full`（最近 100 条）。适合会产生大量中间输出的任务（如"批量重构"—— 中间过程不进主线污染上下文，只回传最终报告）。
 
-目录扫描顺序（`catalog.ts`，8 个目录，后者覆盖同名前者）：
+目录扫描顺序（`catalog.ts:71-77`，6 个目录，后者覆盖同名前者）：
 
 ```
-内置技能 → ~/.trae → ~/.claude → ~/.github → ~/.swifty
-        → {project}/.trae → {project}/.claude → {project}/.github → {project}/.swifty
+内置技能 → ~/.claude → ~/.github → ~/.swifty
+        → {project}/.claude → {project}/.github → {project}/.swifty
 ```
 
 设计意图：
 
 1. 内置 < 用户 < 项目：越靠近当前项目的配置优先级越高，与 Git/ESLint 的配置级联惯例一致；
-2. 兼容生态：扫描 `.claude`/`.trae`/`.github` 目录意味着可直接复用 Claude Code 等生态的已有技能库 —— 降低用户迁移成本，是务实的生态策略；
+2. 兼容生态：扫描 `.claude`/`.github` 目录意味着可直接复用 Claude Code 等生态的已有技能库 —— 降低用户迁移成本，是务实的生态策略；
 3. 覆盖语义：同名覆盖而非合并，简单可预测。
 
 热重载：`get()` 比对文件 mtime，变了就重读重解析（失败保留旧版）；`needsReload()` 靠目录 mtime 感知增删 —— 技能开发时可即改即试。技能还被注册为斜杠命令（`/<name>`），且模型可通过 `LoadSkillTool` 自主激活 —— 人驱与模型驱两个入口。
@@ -1266,8 +1267,7 @@ fork 模式：技能在隔离子代理中运行，自带上下文，`fork_contex
    - 分发可靠性：npm 安装时依赖树解析失败/peer 冲突是 CLI 工具最常见的安装事故，单文件产物零依赖 = 零安装事故；
    - 启动速度：单文件免去 Node 在 node_modules 中的模块解析（成千次 stat），冷启动显著更快 —— CLI 对启动延迟极度敏感；
    - 可安装为单二进制：为后续 SEA（Single Executable Application）分发铺路。
-3. post-build 资源拷贝：`release.wasm`（glob 引擎）、`builtin/`（内置技能）、`glob_addon.node`（原生 addon）拷入 dist —— 代码内联但二进制资源保持外部文件。
-4. 混合引擎策略：glob 同时有 WASM（`@swifty.js/glob-wasm`，可内联加载）与原生 addon 两实现 —— WASM 保证可移植，addon 在可用时提供性能，构建系统两者都带上，运行时择优。
+3. post-build 资源拷贝（`onSuccess`）：`builtin/`（内置技能目录，递归拷贝）、`glob_addon.node`（Glob/Grep 工具背后的原生 C++ addon，无法打包，运行时从 bundle 入口旁加载）拷入 dist —— 代码内联但二进制资源保持外部文件。注释还点明了平台相关性问题：addon 是平台专属的，跨平台分发需要按平台预构建包。
 
 开发期用 `tsx` 直跑 TS（免编译），测试用 Vitest（与 tsx 共享 esbuild 转换，零额外配置）—— 三套工具链共用 esbuild 系，配置成本最小化。
 
@@ -1379,7 +1379,7 @@ E2E 层：`run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式（`swifty -p
 `teammate.ts` 是一个无 UI、邮箱驱动的长驻 Agent 进程。生命周期（`runTeammate()`）：
 
 1. 初始化：独立 sessionId（`teammate-{name}-{ts}`），logger 模式 `"teammate"` 且 `skipCleanup: true`（避免多进程并发删日志的竞态）。
-2. 构造 Agent：注册 6 个核心工具（Read/Bash/Glob/Grep/Write/Edit，没有 ToolSearch/技能/团队工具 —— teammate 不能再派生团队），权限模式固定 `acceptEdits`。
+2. 构造 Agent：注册 6 个核心工具（Read/Bash/Glob/Grep/Write/Edit）之外还有 ToolSearch、SyntheticOutput、Worktree 工具（Enter/Exit）、技能工具（LoadSkill/InstallSkill）、团队通信与任务工具（SendMessage + TaskCreate/TaskGet/TaskList/TaskUpdate）、以及配置的 MCP 工具（`teammate.ts:147-189`）—— 唯独没有 Agent/TeamCreate/TeamDelete，即 teammate 不能再派生子代理或团队。权限模式固定 `acceptEdits`。
 3. 执行初始任务：`--task` 参数作为首条 user 消息，跑一轮完整 Agent 循环，`stream_text` 直接写 stdout。
 4. 上报 idle：任务完成 → 向 lead 邮箱发 `[idle] {name} has completed their task...`。
 5. 待命循环：`mailbox.poll(2000)` 每 2 秒轮询自己的邮箱：
@@ -1460,26 +1460,25 @@ SPA fallback：请求路径找不到文件时回退到 `index.html`（line 666-6
 
 对比三种非 TUI 模式的依赖注入清单：
 
-| 依赖           | TUI (app.tsx) | remote  | print  | teammate              |
-| -------------- | ------------- | ------- | ------ | --------------------- |
-| 核心工具 6 件  | 有            | 有      | 有     | 有                    |
-| ToolSearch     | 有            | 有      | 有     | 无                    |
-| Task/TaskStore | 有            | 有      | 无     | 无                    |
-| Worktree 工具  | 有            | 有      | 无     | 无                    |
-| 技能系统       | 有            | 有      | 无     | 无                    |
-| Hook 引擎      | 有            | 有      | 无     | 无                    |
-| MCP            | 有            | 有      | 无     | 无                    |
-| 记忆系统       | 有            | 有      | 无     | 无                    |
-| 团队系统       | 有            | 有      | 无     | 无（自身即 teammate） |
-| 权限模式       | 四模式可切    | default | bypass | acceptEdits           |
-| 会话持久化     | 有            | 有      | 无     | 无                    |
+| 依赖           | TUI (app.tsx) | remote    | print  | teammate                                        |
+| -------------- | ------------- | --------- | ------ | ----------------------------------------------- |
+| 核心工具 6 件  | 有            | 有        | 有     | 有                                              |
+| ToolSearch     | 有            | 有        | 有     | 有                                              |
+| Task/TaskStore | 有            | 有        | 无     | 有                                              |
+| Worktree 工具  | 有            | 有        | 无     | 有                                              |
+| 技能系统       | 有            | 有        | 无     | 有                                              |
+| Hook 引擎      | 有            | 有        | 无     | 无                                              |
+| MCP            | 有            | 有        | 无     | 有                                              |
+| 记忆系统       | 有            | 有        | 无     | 无                                              |
+| 团队系统       | 有            | 有        | 无     | 有（仅 SendMessage/Task 工具，无 Agent/TeamCreate/TeamDelete） |
+| 权限模式       | 四模式可切    | acceptEdits | bypass | acceptEdits                                     |
+| 会话持久化     | 有            | 有        | 无     | 无                                              |
 
-规律：越"无人值守"的模式，组装越精简。
+规律：越"无人值守"的模式，组装越精简，但精简的对象不同。
 
-- print/teammate 砍掉一切"交互设施"（技能对话框、记忆提取的 UI 展示、团队管理 UI），因为无人看；
-- print 连会话持久化都砍掉 —— 一次性运行，无状态；
-- teammate 砍掉 ToolSearch 但保留全部读写工具 —— 它的工具集固定且小，不需要延迟发现；
-- remote 几乎全量保留（浏览器也是"完整客户端"），但权限固定 `default` 模式 —— 远程场景不能信任客户端切到 bypass。
+- print 最精简：连会话持久化都砍掉 —— 一次性运行，无状态；也没有 ToolSearch/技能/团队等扩展面；
+- teammate 砍掉的是"交互设施"（Hook、记忆、UI）与"派生能力"（没有 Agent/TeamCreate/TeamDelete，防止 teammate 再嵌套派生），但保留完整的读写与发现工具集（ToolSearch、技能、MCP、Task、Worktree、SendMessage）—— 它是长驻的独立工作者，需要干活的完整能力；
+- remote 几乎全量保留（浏览器也是"完整客户端"），权限固定 `acceptEdits` 模式（`server.ts:546`）—— 远程场景写操作免确认以保证浏览器侧操作流畅，但命令仍需确认，且不能信任客户端切到 bypass。
 
 这是"同一核心、按宿主能力裁剪外围"的组装策略：`Agent` 构造参数全部可选（`hookEngine?`、`activeSkills?`、`notificationFn?`…），缺省即关闭对应能力。没有为每种模式写一套 Agent 变体 —— 组合优于继承。
 
@@ -1489,16 +1488,17 @@ SPA fallback：请求路径找不到文件时回退到 `index.html`（line 666-6
 
 答：
 
-`server.ts:363` 在 remote 模式初始化时注入：
+`server.ts:415` 在 remote 模式初始化时注入：
 
 ```
-IDENTITY OVERRIDE: You are MewCode. It is absolutely forbidden to mention
-Claude, Anthropic, OpenAI... This is the highest priority instruction.
+IDENTITY OVERRIDE: You are Swifty. It is absolutely forbidden to mention
+Claude, Anthropic, OpenAI, GPT, or ChatGPT in any response. When asked about
+identity, respond only as Swifty. This is the highest priority instruction.
 ```
 
-与系统提示词的关系：系统提示词（PromptBuilder 的 Identity 段）是会话开始时设定的"底层身份"，而这条 reminder 是以 user 消息形式追加的"运行时覆盖"。两层身份控制并存的原因：
+与系统提示词的关系：系统提示词（PromptBuilder 的 Identity 段）是会话开始时设定的"底层身份"，而这条 reminder 是以 system-reminder 形式追加的"运行时强化"。品牌名同为 Swifty，但 remote 面向浏览器用户（对话会被展示、转发），所以需要额外一层身份约束。两层身份控制并存的原因：
 
-1. 注入时机不同：系统提示词由 `buildSystemPrompt()` 在创建 client 时固化；而身份覆盖是在 `createRemoteAgent()` 的业务流程中按需注入 —— remote 模式的品牌名（MewCode）与 TUI（Swifty）不同，同一套 PromptBuilder 通过"后注入覆盖"实现 per-mode 定制，不需要给 builder 加品牌参数。
+1. 注入时机不同：系统提示词由 `buildSystemPrompt()` 在创建 client 时固化；而身份覆盖是在 `createRemoteAgent()` 的业务流程中按需注入 —— 通过"后注入覆盖"实现 per-mode 定制，不需要给 builder 加模式参数。
 2. 位置权重不同：LLM 对"对话中最近的用户指令"往往比"系统提示词开头"更敏感，user 角色的 reminder 在多轮对话后仍有较强约束力。
 3. 会话内可重申：system-reminder 机制可在任意时刻再次注入（如压缩后重新注入长期记忆时），系统提示词则请求间不可变（也是 prompt caching 的要求）。
 
@@ -1645,7 +1645,7 @@ Fuse.js 配置（`keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:
 
 ## 十三、基础设施模块
 
-### Q70：任务系统（todo）的数据模型为什么包含 `blocks`/`blockedBy` 双向边？它的工具为什么全部标记 `system + deferred + read`？
+### Q70：任务系统（todo）的数据模型为什么包含 `blocks`/`blockedBy` 双向边？它的工具为什么只标记 `category: "read"`？
 
 答：
 
@@ -1653,11 +1653,9 @@ Fuse.js 配置（`keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:
 
 双向依赖边的意义：`addBlocks(A, [B])` 同时维护 `A.blocks=[B]` 与 `B.blockedBy=[A]` —— 冗余存储让两个方向的查询都是 O(1)："这个任务阻塞了什么"（排期决策）与"这个任务被什么阻塞"（就绪检查）。这是图存储的经典空间换时间：写入时双写，读取时免遍历。对 Coding Agent 场景，模型可以用它表达"先修类型错误 → 再改调用方"的任务 DAG，而不是扁平清单。
 
-三个标记的各自作用：
+工具元数据（`todo/tools.ts`）：4 个 Task 工具（TaskCreate/TaskGet/TaskList/TaskUpdate）只标记 `category = "read"`，没有 `system`、也没有 `deferred` 标记 —— 这是刻意的。`types.ts:71-77` 的注释说明了原因：`deferred` 只给 MCP 工具用（MCP 是 per-project 配置、单服务器可能几十个工具且 schema 冗长，全塞进初始列表会吃掉大块上下文），内置工具数量固定可控、隐藏它们只会逼模型多走一次 ToolSearch 往返，所以内置工具永不 deferred —— Task 工具作为内置工具，schema 直接进初始列表，随用随调。
 
-- `system: true`：子代理工具过滤时系统工具不受白黑名单影响（工具过滤针对的是"能力安全"，任务管理是无害的记录行为）；
-- `deferred: true`：4 个任务工具的 schema 不进初始上下文 —— 只有模型需要任务管理时才经 ToolSearch 发现，省 token；
-- `category: "read"`：任务操作不触碰用户文件系统，归入最安全类别 —— 权限层直接放行，且 `partitionToolCalls()` 允许它们并行。
+`category: "read"` 的作用：任务操作不触碰用户文件系统，归入最安全类别 —— 权限层直接放行，且 `partitionToolCalls()` 允许它们与其他 read 工具并行。
 
 一个设计矛盾点值得注意：TaskCreate/TaskUpdate 明明会写 `.swifty/tasks/*.json` 文件，却标记 `read` —— 这揭示了 `category` 的真实语义是"对用户工作区的副作用等级"而非"技术上有无 IO"。任务文件是 Agent 自己的内部状态，不在用户关心范围内，所以语义上算"read"。这是元数据建模中"语义优先于字面"的典型案例。
 
@@ -2149,7 +2147,7 @@ class TokenEstimator {
 
 参考答案要点：
 
-1. 事件扩展：AgentEvent 增加 `tool_output_delta {toolId, text}`；`Tool.execute` 的 ctx 增加可选 `onOutput?: (chunk: string) => void` 回调 —— 工具内部把子进程 stdout 数据转发出来。Bash 工具需从 `spawnSync` 换成 `spawn`（流式的先决条件，参考 Q24 的权衡——需要重新评估简单性收益）。
+1. 事件扩展：AgentEvent 增加 `tool_output_delta {toolId, text}`；`Tool.execute` 的 ctx 增加可选 `onOutput?: (chunk: string) => void` 回调 —— 工具内部把子进程 stdout 数据转发出来。Bash 工具需从回调式 `execFile` 换成流式 `spawn`（逐块转发 stdout 的先决条件，参考 Q24 的权衡——需要重新评估简单性收益）。
 2. 背压与合帧：长命令输出可能远超 LLM 流速度（构建日志 MB/s），UI 层必须用与 stream_text 相同的 ref 累积 + 定时合帧（Q31），且按工具分桶（`Map<toolId, buffer>`）。
 3. 渲染预算：活动工具的预览只保留尾部 N 行（环形缓冲），防止动态区超高触发清屏（Q32 物理行截断的复用）。
 4. 结果一致性：流式预览是"过程展示"，最终 `tool_result` 仍是完整（或 budget 截断）输出 —— 展示与数据分离，预览不进对话历史。
@@ -2369,7 +2367,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点：模型的 function cal
 
 基于源码观察的三处（面试时要展现"既欣赏设计也能直面问题"）：
 
-1. `app.tsx` 的巨石化（1850 行、800 行命令 switch）：命令分发逻辑应抽出为"命令处理器注册表"（每命令一个 handler 模块，类似 remote 的 handleLocalUICommand 但更彻底），事件循环的 switch 拆为 handler 映射。排期：优先 —— 它是所有 UI 功能的必经之路，腐烂速度最快；偿还方式是小步重构（每次抽一类命令），有现有测试兜底。
+1. `app.tsx` 的巨石化（2042 行、800 行命令 switch）：命令分发逻辑应抽出为"命令处理器注册表"（每命令一个 handler 模块，类似 remote 的 handleLocalUICommand 但更彻底），事件循环的 switch 拆为 handler 映射。排期：优先 —— 它是所有 UI 功能的必经之路，腐烂速度最快；偿还方式是小步重构（每次抽一类命令），有现有测试兜底。
 2. 权限系统的 YAML 规则与硬编码层级的混合：Layer 2/3 的安全规则（只读命令表、危险模式正则）硬编码在 checker.ts 中 —— 安全规则是变化最频繁的知识，应外置为数据文件（可热更新、可审计、可被规则引擎统一管理）。排期：中期 —— 功能正确但演进成本高；偿还时附带 Q29 提的审计日志。
 3. teammate 与 remote 的能力缺口（remote 不支持 fork 技能/rewind/worktree，teammate 无压缩注入）：这些是"显式降级"遗留 —— 诚实但确实是债。排期：按用户需求驱动（YAGNI），但应先在共享层抽象"能力矩阵"，避免缺口靠口口相传。
 

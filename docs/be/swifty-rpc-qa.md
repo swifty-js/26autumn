@@ -224,7 +224,7 @@ msg := &protocol.Message{
 Codec 通过全局工厂注册表实现插件化:
 
 ```go
-var codecs = map[Type]Factory{}  // sync.RWMutex 保护
+var factories = make(map[Type]Factory)  // sync.RWMutex 保护
 
 func Register(t Type, f Factory) {
     // nil factory -> panic
@@ -253,17 +253,17 @@ Protobuf 约束: `Marshal`/`Unmarshal` 内部做类型断言 `v.(proto.Message)`
 ```go
 type TCPClient struct {
     conn    *TCPConnection
-    seq     uint64          // atomic 递增, 起始 1
+    seq     atomic.Uint64   // 递增, 起始 1
     pending sync.Map        // map[uint64]*Future (unary)
     streams sync.Map        // map[uint64]*ClientStreamConn (stream)
-    closed  int32           // atomic flag
+    closed  atomic.Int32    // 关闭标志
     writeMu sync.Mutex      // 写串行化
 }
 ```
 
 多路复用原理:
 
-1. 每次发送分配唯一 RequestID (`atomic.AddUint64(&c.seq, 1)`)。
+1. 每次发送分配唯一 RequestID (`nextSeq()` 内部 `c.seq.Add(1)`)。
 2. 将 Future/ClientStreamConn 以 RequestID 为 key 存入对应 Map。
 3. 帧写入共享连接 (writeMu 保证帧完整性)。
 4. 唯一的 `readLoop` goroutine 读取响应帧, 按 RequestID 路由到对应 Future/Stream。
@@ -315,7 +315,7 @@ func (c *TCPClient) readLoop() {
 
 ```go
 func (c *TCPClient) shutdown(err error) {
-    if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
+    if !c.closed.CompareAndSwap(0, 1) {
         return  // 只执行一次
     }
     c.conn.Close()
@@ -347,7 +347,7 @@ func (c *TCPClient) shutdown(err error) {
 
 ```go
 func (c *TCPClient) SendAsyncWithCodec(msg, cc) (*Future, error) {
-    if atomic.LoadInt32(&c.closed) == 1 {
+    if c.closed.Load() == 1 {
         return nil, errors.New("connection closed")
     }
     seq := c.nextSeq()
@@ -356,7 +356,7 @@ func (c *TCPClient) SendAsyncWithCodec(msg, cc) (*Future, error) {
     c.pending.Store(seq, future)
 
     // 关键: Store 之后再次检查
-    if atomic.LoadInt32(&c.closed) == 1 {
+    if c.closed.Load() == 1 {
         if _, loaded := c.pending.LoadAndDelete(seq); loaded {
             return nil, errors.New("connection closed")
         }
@@ -606,11 +606,9 @@ Unary: `Process` 同步调用 handler, 写回响应后才回到 `Read` 循环。
 Stream: `invoke` 检测到流式签名后, 启动独立 goroutine:
 
 ```go
-streamWg.Add(1)
-go func() {
-    defer streamWg.Done()
+streamWg.Go(func() {
     run()  // 执行 handler, 发送 StreamEnd/StreamError
-}()
+})
 return (nil, true, nil)  // Process 立即返回, 继续 Read 循环
 ```
 
@@ -915,10 +913,10 @@ type TokenBucket struct {
 RoundRobin (轮询):
 
 ```go
-type RoundRobin struct { idx uint64 }
+type RoundRobin struct { idx atomic.Uint64 }
 
 func (r *RoundRobin) Select(list []Instance) Instance {
-    i := atomic.AddUint64(&r.idx, 1)
+    i := r.idx.Add(1)
     return list[(i-1) % uint64(len(list))]
 }
 ```
@@ -1115,8 +1113,8 @@ Watch 持续更新:
 | `sync.WaitGroup`   | Server.wg                    | 等待所有连接 goroutine                   |
 | `sync.WaitGroup`   | Server.serveWg               | 等待 accept 循环退出                     |
 | `sync.WaitGroup`   | Handle.streamWg (局部)       | 等待该连接上所有流 handler               |
-| `atomic.AddUint64` | TCPClient.seq                | 无锁 RequestID 分配                      |
-| `atomic.AddUint64` | RoundRobin.idx               | 无锁轮询计数                             |
+| `atomic.Uint64`    | TCPClient.seq                | 无锁 RequestID 分配 (.Add(1))            |
+| `atomic.Uint64`    | RoundRobin.idx               | 无锁轮询计数 (.Add(1))                   |
 | `atomic.Int32`     | TCPClient.closed             | 无锁关闭标志                             |
 | `chan struct{}`    | Future.done                  | 阻塞唤醒 (close 广播)                    |
 | `chan struct{}`    | ClientStreamConn.termCh      | 终结信号广播                             |

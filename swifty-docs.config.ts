@@ -29,7 +29,6 @@ export default defineConfig({
         items: [
           { text: "Swifty 面试题", link: "fe/swifty-qa" },
           { text: "Swifty Agent 面试题", link: "fe/swifty-agent-qa" },
-          { text: "Swifty Code 面试题", link: "fe/swifty-code-qa" },
           {
             text: "Swifty Chatbot 面试题",
             link: "fe/swifty-chatbot-qa",

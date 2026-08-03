@@ -462,22 +462,34 @@ window.addEventListener("online", () => {
 3. 服务端故障恢复（server-recovery.ts）：
 
 ```typescript
-function scheduleServerRecovery(retryTimer, callbacks) {
-  // 定时发送 HEAD 请求探测 DSN 可达性
-  const timer = setInterval(async () => {
-    try {
-      const res = await fetch(dsn, { method: "HEAD" });
-      if (res.ok) {
-        clearInterval(timer);
-        setOnline(true);
-        loadOfflineCache();
-        flush();
+export function scheduleServerRecovery(
+  retryTimer: ReturnType<typeof setTimeout> | undefined,
+  callbacks: ServerRecoveryCallbacks,
+): ReturnType<typeof setTimeout> {
+  callbacks.setOnline(false);
+  if (retryTimer) clearTimeout(retryTimer);
+  // setTimeout 单次调度，失败后递归重新安排下一轮
+  const nextRetryTimer = setTimeout(() => {
+    testServerAvailable(callbacks);
+  }, sentry.options.retryIntervalMilliseconds); // 默认 60s
+  callbacks.setRetryTimer(nextRetryTimer);
+  return nextRetryTimer;
+}
+
+function testServerAvailable(callbacks: ServerRecoveryCallbacks): void {
+  fetch(sentry.options.dsn, { method: "HEAD" })
+    .then((res) => {
+      if (!res.ok) {
+        scheduleServerRecovery(undefined, callbacks); // 不可用：递归安排重试
+        return;
       }
-    } catch {
-      /* 继续等待下一轮 */
-    }
-  }, retryIntervalMilliseconds); // 默认 60s
-  return timer;
+      callbacks.setOnline(true);
+      callbacks.loadOfflineCache();
+      void callbacks.flush();
+    })
+    .catch(() => {
+      scheduleServerRecovery(undefined, callbacks); // 异常：递归安排重试
+    });
 }
 ```
 
@@ -695,7 +707,7 @@ PerformancePlugin 是 SDK 最重的插件，采集以下指标类别：
 - 首字节时间（responseStart - requestStart）
 - 内容传输耗时（responseEnd - responseStart）
 - DOM 解析耗时（domInteractive - responseEnd）
-- 资源加载耗时（loadEventEnd - domContentLoadedEventEnd）
+- 资源加载耗时（loadEventStart - domContentLoadedEventEnd）
 - 重定向耗时、Unload 耗时
 
 3. Resource Timing（PerformanceObserver）：
@@ -779,7 +791,7 @@ class MinHeap<T extends { timestamp: number }> {
 
 dump() 的调用时机：
 
-仅在错误上报时调用 `breadcrumb.dump()` 获取有序面包屑列表，附加到错误报告中，帮助还原用户操作路径。
+`dump()` 返回按时间戳排序的有序面包屑列表。需要注意的是，当前代码中它尚未被接线：src 内没有任何 `.dump()` 调用点，面包屑目前只进不出，没有被附加到上报数据中。这是一个预留能力，设计上可以在上报时导出有序面包屑帮助还原用户操作路径。
 
 ---
 
@@ -921,20 +933,19 @@ React 集成（react.ts）：
 
 ```typescript
 class ReactErrorBoundary extends React.Component {
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // 复用核心的 framework-error 上报逻辑
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    this.setState({ error, errorInfo });
+    // 使用独立的 EventType.React，原样携带 error 对象与 React 上下文
     reportFrameworkError({
-      type: EventType.Error,
-      name: "ReactErrorBoundary",
-      message: error.message,
-      stack: error.stack,
-      extra: errorInfo.componentStack,
+      type: EventType.React,
+      error,
+      context: errorInfo, // ErrorInfo，包含 componentStack
     });
   }
 
-  render() {
-    if (this.state.hasError) return this.props.fallback ?? null;
-    return this.props.children;
+  override render() {
+    if (this.state.error) return this.props.fallback ?? null;
+    return this.props.children ?? null;
   }
 }
 ```
@@ -942,21 +953,20 @@ class ReactErrorBoundary extends React.Component {
 Vue 集成（vue.ts）：
 
 ```typescript
-const vuePlugin = {
-  install(app: App) {
-    app.config.errorHandler = (err, instance, info) => {
-      reportFrameworkError({
-        type: EventType.Error,
-        name: "VueErrorHandler",
-        message: err.message,
-        stack: err.stack,
-        extra: info, // 如 "mounted hook"
-      });
-    };
-  },
+export const vuePlugin: Plugin = (app, options: InitOptions) => {
+  const handler = app.config.errorHandler; // 保存用户原有的 errorHandler
+  app.config.errorHandler = (err, vueInstance, info) => {
+    reportFrameworkError({
+      type: EventType.Vue,
+      error: err,
+      context: { vueInstance, info }, // info 如 "mounted hook"
+    });
+    handler?.call(null, err, vueInstance, info); // 链式调用原 errorHandler
+  };
+  init(options); // 插件安装时顺带初始化 SDK
 };
 
-// 使用：app.use(vuePlugin)
+// 使用：app.use(vuePlugin, { dsn: "..." })
 ```
 
 Preact 集成（preact.ts）：
@@ -967,7 +977,7 @@ Vite/Webpack 开发服务器插件（vite.ts / webpack.ts）：
 
 - 在开发环境提供 mock 的 DSN 接收端点
 - 避免开发时上报请求 404 报错
-- Vite 版本提供 `sentryPlugin()`（Vite 7+）和 `sentryPlugin7()`（兼容旧版）
+- Vite 版本提供 `sentryPlugin()`（基于当前 vite，peerDependencies 为 `"^7.0.0 || ^8.0.0"`）和 `sentryPlugin7()`（基于别名依赖 vite7 即 vite@7.3.3，用于旧版 vite 环境）
 - Webpack 版本提供 devServer middleware
 
 设计原则：
@@ -1008,9 +1018,14 @@ function shouldQueuePayload(payload: TReportPayload): boolean {
 ```typescript
 // 配置：excludeApis: ["/api/health", /^https:\/\/analytics/]
 function isExcludedApi(api: string): boolean {
-  return sentry.options.excludeApis.some((pattern) =>
-    typeof pattern === "string" ? api.includes(pattern) : pattern.test(api),
-  );
+  for (const excludedApi of sentry.options.excludeApis) {
+    if (typeof excludedApi === "string") {
+      if (api === excludedApi) return true; // 字符串：严格相等匹配
+    } else {
+      if (excludedApi.test(api)) return true; // 正则：test 匹配
+    }
+  }
+  return false;
 }
 ```
 
@@ -1115,50 +1130,52 @@ static reset(): void {
 
 属性约定：
 
-| 属性            | 含义          | 示例                       |
-| --------------- | ------------- | -------------------------- |
-| `s-swifty-ev`   | 事件 ID       | `s-swifty-ev="btn_submit"` |
-| `s-swifty-msg`  | 事件描述      | `s-swifty-msg="提交订单"`  |
-| `s-swifty-view` | 所属视图/页面 | `s-swifty-view="checkout"` |
-| `s-swifty-*`    | 自定义参数    | `s-swifty-price="99.9"`    |
+| 属性                 | 含义        | 示例                              |
+| -------------------- | ----------- | --------------------------------- |
+| `swifty-sentry-ev`   | 事件 ID     | `swifty-sentry-ev="btn_submit"`   |
+| `swifty-sentry-msg`  | 事件描述    | `swifty-sentry-msg="提交订单"`    |
+| `swifty-sentry-el`   | 元素追踪标记 | `swifty-sentry-el="checkout_btn"` |
+| `swifty-sentry-*`    | 自定义参数  | `swifty-sentry-price="99.9"`      |
 
 实现逻辑（utils/click-data.ts）：
 
 ```typescript
-function getClickData(event: MouseEvent): IClickData | null {
-  // 1. 从 event.composedPath() 获取完整事件路径（穿透 Shadow DOM）
-  const path = event.composedPath();
+export function getDeclarativeClickData(event: MouseEvent): DeclarativeClickData | null {
+  // 1. event.composedPath() 穿透 Shadow DOM，过滤出 HTMLElement 路径
+  const path = getComposedElementPath(event);
+  const fallbackPath = path.length > 0 ? path : getElementPath(event.target);
 
-  // 2. 向上遍历路径，寻找带有 s-swifty-* 属性的元素
-  for (const el of path) {
-    if (el.hasAttribute?.("s-swifty-ev") || el.hasAttribute?.("s-swifty-msg")) {
-      // 3. 提取所有 s-swifty-* 属性
-      const params = extractSwiftyAttributes(el);
-      return {
-        eventId: params.ev,
-        message: params.msg,
-        view: params.view,
-        x: event.clientX,
-        y: event.clientY,
-        path: dom2str(el).slice(0, 128), // CSS 路径，截断 128 字符
-        timestamp: Date.now(),
-        ...params.custom,
-      };
-    }
-  }
-  return null; // 无标记元素，不追踪
+  // 2. 寻找路径中第一个带 swifty-sentry-el/ev/msg 属性的元素
+  const trackingTarget = fallbackPath.find(hasTrackingAttribute);
+  if (!trackingTarget) return null;
+
+  // 3. 组装点击数据
+  return {
+    ev: getEventId(fallbackPath), // 优先级：swifty-sentry-ev > title > swifty-sentry-el > 标签名
+    msg: getMessage(trackingTarget), // swifty-sentry-msg > title > textContent > aria-label > 标签名
+    triggerPageUrl: location.href,
+    x, y, // 元素绝对坐标（getBoundingClientRect + 滚动偏移）
+    params: getParams(fallbackPath), // 收集 swifty-sentry-* 自定义参数（view/msg/ev 保留键除外）
+    elementPath: getNodeXPath(trackingTarget).slice(-128), // 自研 XPath，尾部截取 128 字符
+    triggerTime: Date.now(),
+  };
 }
 ```
+
+其中 `getNodeXPath()` 自研实现：从元素向上遍历到 body，将各级标签名小写后用 `>` 连接（如 `div>span>button`），未使用 dom2str。
 
 事件监听安装（decorates.ts）：
 
 ```typescript
-// 使用 capture 阶段，确保在业务 stopPropagation 之前捕获
-document.addEventListener("click", handler, { capture: true });
-
-// 支持节流配置
-if (clickThrottleDelay > 0) {
-  handler = throttle(rawHandler, clickThrottleDelay);
+function pubClick(): Cleanup {
+  // 节流作用在 pub 本身（clickThrottleDelay 默认 0）
+  const throttledPub = throttle(pub, sentry.options.clickThrottleDelay);
+  const listener = function (ctx: MouseEvent) {
+    throttledPub(EventType.Click, { ...getBaseData(), type: EventType.Click, extra: ctx });
+  };
+  // 冒泡阶段监听（未传 capture）
+  document.addEventListener("click", listener);
+  return () => document.removeEventListener("click", listener);
 }
 ```
 
@@ -1168,7 +1185,7 @@ if (clickThrottleDelay > 0) {
 2. 不侵入逻辑：不与业务事件处理耦合
 3. Shadow DOM 支持：`composedPath()` 穿透 Shadow DOM 边界
 4. 自动化：配合框架的模板系统，可以批量为组件添加追踪属性
-5. XPath 路径：`dom2str()` 生成元素的 CSS 选择器路径，便于定位
+5. 元素路径：自研 `getNodeXPath()` 生成 `>` 连接的标签名路径，`slice(-128)` 保留尾部（离元素最近的部分）
 
 ---
 
@@ -1189,14 +1206,30 @@ if (clickThrottleDelay > 0) {
 设备指纹生成（CRC32 Canvas）：
 
 ```typescript
-function getDeviceFingerprint(): string {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  ctx.fillText("swifty-sentry-fingerprint", 0, 0);
-  const dataUrl = canvas.toDataURL();
-  return crc32(dataUrl).toString(16);
+function getClientFingerprint(): string {
+  try {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.textBaseline = "top";
+      ctx.font = "14px 'Arial'";
+      ctx.fillStyle = "#f60";
+      ctx.fillRect(125, 1, 62, 20); // 橙色矩形
+      ctx.fillStyle = "#069";
+      ctx.fillText("@swifty.js/sentry", 2, 15); // 同一段文本绘制两次
+      ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+      ctx.fillText("@swifty.js/sentry", 4, 17);
+      // dataUrl 去掉 base64 前缀，atob 解码后计算 crc32
+      const b64 = canvas.toDataURL().replace("data:image/png;base64,", "");
+      const bin = atob(b64);
+      return crc32(bin).toString(16);
+    }
+  } catch {
+    return getFallbackFingerprint();
+  }
+  return getFallbackFingerprint();
 }
-// 降级：crypto.randomUUID()
+// 降级：crypto.randomUUID()，再降级 Date.now() + 随机数
 ```
 
 FingerprintJS 集成：
@@ -1220,19 +1253,26 @@ async function initIdentity(): Promise<void> {
 }
 ```
 
-设备信息采集（UA 解析）：
+设备信息采集（utils/sentry.ts，扁平结构）：
 
 ```typescript
 import { UAParser } from "ua-parser-js";
 
-const parser = new UAParser(navigator.userAgent);
-const deviceInfo = {
-  browser: parser.getBrowser(), // { name: "Chrome", version: "120.0" }
-  os: parser.getOS(), // { name: "macOS", version: "14.0" }
-  device: parser.getDevice(), // { type: "mobile", model: "iPhone" }
-  language: navigator.language,
-  screen: `${screen.width}x${screen.height}`,
-};
+constructor() {
+  const res = new UAParser().getResult();
+  this.deviceInfo = {
+    browserName: res.browser.name ?? UNKNOWN,
+    browserVersion: res.browser.version ?? UNKNOWN,
+    osName: res.os.name ?? UNKNOWN,
+    osVersion: res.os.version ?? UNKNOWN,
+    userAgent: res.ua,
+    deviceModel: res.device.model ?? UNKNOWN,
+    deviceType: res.device.type ?? UNKNOWN,
+    fingerprint: getClientFingerprint(), // Canvas 指纹，见上
+    language: getLanguage(), // navigator.language
+    screenResolution: getScreenResolution(), // 如 "1920x1080"
+  };
+}
 ```
 
 设计考量：
@@ -1283,7 +1323,7 @@ TypeScript 配置：
 测试工程：
 
 - Vitest + jsdom 环境
-- 16 个测试文件覆盖核心模块
+- 14 个测试文件覆盖核心模块
 - v8 coverage，阈值 70%（lines/functions/branches/statements）
 - 自定义 fake：`fake-intersection-observer.ts`、`report-payloads.ts`
 
@@ -1406,50 +1446,65 @@ isFlushing 的作用：
 
 答：
 
-路由监听实现在 `core/decorate-route.ts`，分别处理两种模式：
+路由监听分为两处：History 模式在 `core/decorate-route.ts`，Hash 模式在 `core/decorates.ts`。
 
-History 模式拦截：
+History 模式拦截（decorate-route.ts）：
 
 ```typescript
-function pubHistory(): Cleanup {
-  // 装饰 pushState 和 replaceState
-  const cleanupPush = decorateProp(history, "pushState", (old) => {
-    return function(...args) {
-      const result = old.apply(this, args);
-      pub(EventType.RouteChange, { from: prevUrl, to: location.href });
-      return result;
-    };
-  });
+export function pubHistory(): Cleanup {
+  // 1. popstate（前进/后退）：劫持 globalThis.onpopstate，而非 addEventListener
+  const oldOnpopstate = globalThis.onpopstate;
+  latestHref = getCurrentRouteUrl();
+  globalThis.onpopstate = function (this: Window, ev: PopStateEvent) {
+    const from = latestHref;
+    const to = getCurrentRouteUrl();
+    if (from !== to) {
+      latestHref = to;
+      pub(EventType.History, { ...getBaseData(), type: EventType.History, from, to });
+    }
+    return oldOnpopstate?.call(this, ev); // 链式调用原有 handler
+  };
 
-  const cleanupReplace = decorateProp(history, "replaceState", (old) => {
-    return function(...args) {
-      const result = old.apply(this, args);
-      pub(EventType.RouteChange, { from: prevUrl, to: location.href });
-      return result;
+  // 2. 装饰 pushState 和 replaceState，二者共用同一个装饰器
+  const historyDecorator = (oldPropsVal: History["pushState"]) => {
+    return function (this: History, data: unknown, unused: string, url?: string | URL | null) {
+      if (url) {
+        const from = latestHref;
+        const to = normalizeRouteUrl(url);
+        if (from !== to) {
+          latestHref = to;
+          pub(EventType.History, { ...getBaseData(), type: EventType.History, from, to });
+        }
+      }
+      return oldPropsVal.call(this, data, unused, url);
     };
-  });
-
-  // 监听 popstate（前进/后退）
-  const onPopState = () => pub(EventType.RouteChange, { ... });
-  window.addEventListener("popstate", onPopState);
+  };
+  const cleanupPushState = decorateProp(globalThis.history, "pushState", historyDecorator);
+  const cleanupReplaceState = decorateProp(globalThis.history, "replaceState", historyDecorator);
 
   return () => {
-    cleanupPush();
-    cleanupReplace();
-    window.removeEventListener("popstate", onPopState);
+    globalThis.onpopstate = oldOnpopstate;
+    cleanupReplaceState();
+    cleanupPushState();
   };
 }
 ```
 
-Hash 模式拦截：
+注意：EventType 枚举中没有专门的路由变化事件类型，History 模式发布 `EventType.History`，Hash 模式发布 `EventType.HashChange`，下游分别订阅处理。
+
+Hash 模式拦截（decorates.ts）：
 
 ```typescript
 function pubHashChange(): Cleanup {
-  const onHashChange = (e: HashChangeEvent) => {
-    pub(EventType.RouteChange, { from: e.oldURL, to: e.newURL });
+  const listener = function (ctx: HashChangeEvent) {
+    pub(EventType.HashChange, {
+      ...getBaseData(),
+      type: EventType.HashChange,
+      extra: ctx,
+    });
   };
-  window.addEventListener("hashchange", onHashChange);
-  return () => window.removeEventListener("hashchange", onHashChange);
+  globalThis.addEventListener("hashchange", listener);
+  return () => globalThis.removeEventListener("hashchange", listener);
 }
 ```
 
@@ -1469,12 +1524,10 @@ enableHashChange: true, // 是否监听 hashchange
 
 路由变化的下游处理（handle-route.ts）：
 
-路由变化事件触发后：
+handleHistory / handleHashChange 分别订阅 EventType.History / EventType.HashChange，事件触发后：
 
-1. 发送上一页的 `PageDwell`（停留时长）
-2. 发送新页面的 `PageView`
-3. 记录面包屑
-4. 如果开启了白屏检测，重置采样
+1. 记录面包屑（`breadcrumb.push`，userAction 由 event2breadcrumb 生成）
+2. 调用 pv-lifecycle.ts 的路由 PV 处理：先发送上一页停留时长，再发送新页面 PV（详见 Q24）
 
 ---
 
@@ -1482,62 +1535,78 @@ enableHashChange: true, // 是否监听 hashchange
 
 答：
 
-实现在 `core/pv-lifecycle.ts`。
+实现在 `core/pv-lifecycle.ts`。PV 和停留时长不是独立的事件类型，二者都是 `type: EventType.PV`，通过 `name` 字段区分。
 
 PV（Page View）追踪：
 
 ```typescript
-function initPageView(): void {
-  // 初始化时立即发送首次 PV
-  sendPageView();
-
-  // 路由变化时发送新 PV + 上一页停留时长
-  sub(EventType.RouteChange, ({ from, to }) => {
-    sendPageDwell(from); // 上一页停留
-    sendPageView(to); // 新页面 PV
-  });
-}
-```
-
-停留时长（Dwell Time）计算：
-
-```typescript
-let pageEnterTime = Date.now();
-let currentPageUrl = location.href;
-
-function sendPageDwell(url: string): void {
-  const dwellTime = Date.now() - pageEnterTime;
-
-  // 过滤极短停留（< 100ms），避免路由重定向产生无意义数据
-  if (dwellTime <= 100) return;
-
-  reporter.send({
+// SDK 初始化时（setup.ts 调用 pv-lifecycle 的初始化函数）立即发送首次 PV，immediate = true
+reporter.send(
+  {
     ...getBaseData(),
-    type: EventType.PageDwell,
-    name: "PageDwell",
-    url,
-    dwellTime,
-  });
-
-  pageEnterTime = Date.now(); // 重置计时
-}
+    type: EventType.PV,
+    name: "PageLoad",
+    message: location.href,
+    status: Status.OK,
+    extra: { url: location.href, referrer: document.referrer, entryTime: Date.now() },
+  },
+  true,
+);
 ```
 
-页面关闭时的停留时长：
+路由变化时由 handle-route.ts 调用 pv-lifecycle.ts 的路由处理函数：
 
 ```typescript
-window.addEventListener("beforeunload", () => {
-  sendPageDwell(currentPageUrl);
-  // 此时 reporter 会使用 sendBeacon 确保数据发出
+// 1. 目标 URL 经 new URL 归一化，与当前页相同则不重复上报
+// 2. 先发送上一页停留时长（见下）
+// 3. 重置当前页状态（url/referrer/name/startedAt），发送新页面 PV
+reporter.send(
+  {
+    ...getBaseData(),
+    type: EventType.PV,
+    name, // HistoryChange 或 HashChange
+    message: url,
+    status: Status.OK,
+    extra: { url, referrer, entryTime },
+  },
+  false,
+);
+```
+
+停留时长上报：
+
+```typescript
+// 过滤极短停留（<= 100ms），避免路由重定向产生无意义数据
+if (duration <= 100) return;
+
+reporter.send(
+  {
+    ...getBaseData(),
+    type: EventType.PV, // 与 PV 共用 EventType.PV，靠 name 区分
+    name: "Page" + "Dwell", // name 字面量为 Page 与 Dwell 拼接
+    message: page.url,
+    status: Status.OK,
+    extra: { url: page.url, referrer: page.referrer, duration }, // 时长字段为 extra.duration
+  },
+  immediate,
+);
+```
+
+页面关闭时的停留时长（setup.ts）：
+
+```typescript
+globalThis.addEventListener("beforeunload", () => {
+  // flush 当前页停留时长，immediate = true，走 sendBeacon 保证发出
 });
 ```
 
-数据模型：
+数据模型（均为 type: EventType.PV）：
 
-| 事件类型  | 触发时机           | 关键字段                 |
-| --------- | ------------------ | ------------------------ |
-| PageView  | 页面加载、路由切换 | url, referrer, timestamp |
-| PageDwell | 路由切换、页面关闭 | url, dwellTime(ms)       |
+| name（区分字段）         | 触发时机           | extra 关键字段              |
+| ------------------------ | ------------------ | --------------------------- |
+| PageLoad                 | SDK 初始化         | url, referrer, entryTime    |
+| HistoryChange/HashChange | 路由切换           | url, referrer, entryTime    |
+| Page + Dwell             | 路由切换、页面关闭 | url, referrer, duration(ms) |
 
 设计要点：
 

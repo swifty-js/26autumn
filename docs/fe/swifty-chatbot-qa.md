@@ -78,7 +78,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 选择 pnpm monorepo 的核心原因:
 
-1. 类型共享: 前后端共享 TypeScript 类型定义 (如 `Message`、`Session`、`ModelType`), 避免接口不一致
+1. 类型同仓: 前后端代码同仓管理。注意项目并没有共享类型 package (`pnpm-workspace.yaml` 只声明了 `client` 和 `server` 两个包), `Message`、`Session`、`ModelType` 等类型由前后端各自复制定义, 靠约定保持一致; monorepo 的价值在于让接口变更可以在同一仓库内原子化完成
 2. 统一依赖管理: pnpm 的硬链接机制避免重复安装, 磁盘效率高
 3. 原子化变更: 一次 PR 可以同时修改前后端代码, 保证接口变更的原子性
 4. 开发体验: 根目录 `package.json` 通过 `concurrently` 一条命令同时启动前后端开发服务器
@@ -109,7 +109,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 前端采用三层状态管理策略:
 
-1. Jotai atoms (客户端状态): 管理 auth token、主题偏好、语言选择、模型类型等纯客户端状态。通过 `atomWithStorage` 将关键状态持久化到 localStorage, 刷新后自动恢复。
+1. Jotai atoms (客户端状态): 管理 auth token、主题偏好、语言选择、模型类型等纯客户端状态。其中 token 用普通 `atom` 创建, 初值取 `localStorage.getItem("token")`, 由写入 action atom 手动调用 `localStorage.setItem/removeItem` 持久化 (stores/auth.ts); 主题、语言、模型类型则通过 `atomWithStorage` 持久化到 localStorage (stores/settings.ts), 刷新后自动恢复。
 
 2. TanStack React Query (服务端状态): 管理 sessions 列表、聊天历史等需要与后端同步的数据。利用其缓存失效、后台重新获取、乐观更新等能力。
 
@@ -136,22 +136,31 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 答:
 
-使用 react-router-dom v7 的 BrowserRouter, 定义了 4 条路由: `/login`、`/register`、`/menu`、`/ai-chat`。
+使用 react-router-dom v7 的 `createBrowserRouter` + `RouterProvider`, 定义了 5 条路由: `/` (loader 中 `redirect("/login")`)、`/login`、`/register`、`/menu`、`/ai-chat`。页面组件均通过 `lazy` + `withLazy` 懒加载, `/menu` 和 `/ai-chat` 额外包裹 `withAuth`。
 
 权限控制通过 `withAuth` HOC 实现:
 
-```typescript
+```tsx
 // hoc/with-auth.tsx
-function withAuth(Component) {
-  return function AuthenticatedComponent(props) {
-    const [isAuthenticated] = useAtom(isAuthenticatedAtom);
-    if (!isAuthenticated) return <Navigate to="/login" replace />;
-    return <Component {...props} />;
+function withAuth<P extends object>(WrappedComponent: ComponentType<P>) {
+  return function (props: P) {
+    const isAuthenticated = useAtomValue(isAuthenticatedAtom);
+    const navigate = useNavigate();
+    useEffect(() => {
+      if (!isAuthenticated) {
+        navigate("/login", { replace: true });
+      }
+    }, [isAuthenticated, navigate]);
+
+    if (!isAuthenticated) {
+      return null;
+    }
+    return <WrappedComponent {...props} />;
   };
 }
 ```
 
-`isAuthenticatedAtom` 是一个派生 atom, 基于 token atom 是否存在来计算。token 通过 `atomWithStorage` 持久化, 刷新页面后自动恢复登录态。
+`isAuthenticatedAtom` 是一个派生 atom, 基于 token atom 是否存在来计算。token 用普通 `atom(localStorage.getItem("token"))` 创建, 登录/登出时通过 action atom (`setTokenAtom`) 手动调用 `localStorage.setItem("token", ...)` / `localStorage.removeItem("token")` 持久化, 刷新页面后由 atom 初值恢复登录态。
 
 ---
 
@@ -168,7 +177,7 @@ function withAuth(Component) {
          -> Koa Controller (res.writeHead SSE headers)
          -> SessionService -> AiAgent.responseStream()
          -> ChatOllama.stream() (async iterator)
-         -> 逐 token 回调 -> res.write(`data: ${token}\n\n`)
+         -> 逐 token 回调 -> res.write(`data: ${JSON.stringify(token)}\n\n`)
          -> 客户端 ReadableStream reader.read() 循环
          -> 逐行解析 SSE data 协议
          -> fullContent 累加写入 useRef (零 React 渲染)
@@ -340,7 +349,7 @@ export async function createStreamSessionAndSendMessageStream(ctx: Context) {
 }
 ```
 
-Service 层内部调用 `AiAgent.responseStream()`, 该方法接收一个 `StreamCallback`, 每产生一个 token 就执行 `res.write(`data: ${token}\n\n`)`。全部完成后发送 `data: [DONE]\n\n` 作为结束哨兵。
+Service 层内部调用 `AiAgent.responseStream()`, 该方法接收一个 `StreamCallback`, 每产生一个 token 就执行 `res.write(`data: ${JSON.stringify(chunk)}\n\n`)`, 即 token 以 JSON 字符串编码写入 (客户端 `JSON.parse` 还原, 避免特殊字符破坏 SSE 帧)。全部完成后发送 `data: [DONE]\n\n` 作为结束哨兵。
 
 ### Q14: 为什么 SSE 要绕过 Koa 的响应处理直接操作 res?
 
@@ -429,14 +438,13 @@ if (agent) {
 
 答:
 
-服务启动时执行上下文重建:
+服务启动时 `main.ts` 中的 `loadDataFromDb()` 执行上下文重建:
 
-1. 从 MySQL `sessions` 表查询所有未删除的 session
-2. 对每个 session, 从 `messages` 表按 `created_at` 排序加载历史消息
-3. 为每个 session 创建 `AiAgent` 实例, 将历史消息注入 `messages` 数组
-4. 注册到 `AiAgentManager` 的 Map 中
+1. 调用 `getAllMessages()` 从 MySQL `messages` 表按 `created_at` 升序加载全部历史消息 (不查询 `sessions` 表, session 按消息中携带的字段隐式恢复)
+2. 逐条消息调用 `AiAgentManager.getOrCreateAiAgent(username, session_id, ...)` 获取或创建对应 session 的 `AiAgent` 实例
+3. 通过 `agent.addMessage(..., false)` 将消息注入 `messages` 数组, 第 4 个参数传 `false` 表示仅恢复内存状态, 不再重复写回数据库
 
-这确保了即使服务崩溃重启, 用户再次进入对话时, AI 仍然 "记得" 之前的对话内容。代价是启动时间随历史消息量线性增长。
+这确保了即使服务崩溃重启, 用户再次进入对话时, AI 仍然 "记得" 之前的对话内容。代价是启动时间随历史消息量线性增长。另外, 恢复时统一使用 `ModelType.OLLAMA_MODEL` 创建 Agent, 若用户上次使用的是 RAG 模型, 需等下一次请求携带新 `model_type` 时通过热切换纠正。
 
 ---
 
@@ -450,7 +458,7 @@ if (agent) {
 用户上传文件 (.md/.txt/.json)
   -> multer 接收, CRC32 命名去重, 存入 uploads/{username}/
 
-用户发送消息 (model_type = rag)
+用户发送消息 (model_type = "ollama-rag")
   -> DocumentLoader.loadFromDirectory() 读取用户目录下所有文件
   -> RecursiveCharacterTextSplitter 分块 (chunkSize=1000, overlap=200)
   -> OllamaEmbeddings (nomic-embed-text, 1024维) 向量化
@@ -517,7 +525,7 @@ Please provide an accurate and complete answer:
 标准流程:
 
 1. 用户登录/注册 -> 服务端验证凭据 -> 签发 JWT (payload: `{id, username}`, 有效期 8760h)
-2. 前端将 token 存入 localStorage (通过 Jotai atomWithStorage)
+2. 前端将 token 存入 localStorage (Jotai atom 的写入 action 手动调用 `localStorage.setItem`)
 3. 后续请求在 `Authorization: Bearer <token>` header 中携带
 4. 服务端 `auth` 中间件解析验证 token, 将 `username` 注入 `ctx.state`
 
@@ -590,15 +598,15 @@ messages 表:
 
 答:
 
-`db/cache.ts` 提供统一的缓存抽象层:
+`db/cache.ts` 提供统一的缓存抽象层。实现上没有抽象类/接口, 而是导出模块级函数 `cacheGet` / `cacheSet` / `cacheDelete`, 内部通过 `isRedisEnabled()` 布尔分发:
 
 ```
-CacheInterface
-  ├── RedisCache (ioredis)     -- 优先使用
-  └── LRUCache (lru-cache)    -- 降级方案
+db/cache.ts
+  ├── cacheGet / cacheSet / cacheDelete (模块级函数, 统一入口)
+  ├── isRedisEnabled() ? Redis (db/redis.ts 的独立函数) : LRU (lru-cache 实例)
 ```
 
-降级策略: 服务启动时尝试连接 Redis, 连接失败则自动切换到进程内 LRU 缓存:
+降级策略: `initCache()` 在服务启动时按配置尝试连接 Redis (`initRedis` + `testRedisConnection`), 连接成功则置 `redisEnabled = true`; 连接失败则回退, 初始化进程内 LRU 缓存实例:
 
 - 最大条目数: 10,000
 - 最大内存: 256MB
@@ -643,7 +651,7 @@ CacheInterface
 ```
 
 - client: `vite` (HMR, 端口 5173, 代理 /api -> localhost:8088)
-- server: `tsx watch src/index.ts` (文件监听自动重启, 端口 8088)
+- server: `tsx watch src/main.ts` (文件监听自动重启, 端口 8088)
 
 代码规范:
 
@@ -666,7 +674,7 @@ CacheInterface
 | 观察者/回调 | StreamCallback                              | 解耦 token 生成与 SSE 写入                         |
 | 中间件模式  | Koa auth middleware                         | 横切关注点 (鉴权) 与业务逻辑分离                   |
 | 分层架构    | Router->Controller->Service->DAO            | 关注点分离, 各层可独立测试和替换                   |
-| 适配器模式  | Cache 抽象层 (Redis/LRU)                    | 统一接口, 底层实现可替换                           |
+| 适配器模式  | 缓存层模块级函数 (Redis/LRU 布尔分发)       | 统一入口, 底层实现可替换                           |
 
 扩展新模型示例:
 
@@ -731,7 +739,7 @@ factory.registerModel("openai", (config) => new OpenAIModel(config));
 
 - 语言包: `src/i18n/locales/zh.json` 和 `en.json`
 - 语言检测: 通过 `navigator.language` 自动检测浏览器语言
-- 持久化: 用户手动切换后存入 localStorage (通过 Jotai atom)
+- 持久化: `SettingsBar` 切换语言时写入 `languageAtom` (`atomWithStorage`, key 为 `language`), 同时调用 `i18n.changeLanguage()` 即时生效。但存在一个源码 bug: `i18n/index.ts` 初始化时读取的是 `localStorage.getItem("lang")`, 全仓库没有任何代码写入 `lang` 这个 key, 因此切换语言虽然会被持久化到 `language` key, 刷新页面后 i18n 仍会因 key 不匹配而回落到浏览器语言检测, 用户的选择不被恢复
 - 使用方式: 组件中 `const { t } = useTranslation()`, 模板中 `t("chat.empty_title")`
 - 切换组件: `SettingsBar` 提供语言下拉选择器, 切换后全局即时生效, 无需刷新
 

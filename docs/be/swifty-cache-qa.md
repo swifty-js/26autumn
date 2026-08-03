@@ -37,12 +37,12 @@ swifty_cache 是一个仿 Google groupcache 的分布式缓存框架，核心设
 
 整体架构分为四层:
 
-| 层次   | 组件                          | 职责                                  |
-| ------ | ----------------------------- | ------------------------------------- |
-| 接口层 | `Group`                       | 命名空间隔离，对外暴露 Get/Set/Delete |
-| 缓存层 | `Cache` -> `lruStore`         | 分桶双层 LRU，字节预算淘汰            |
-| 路由层 | `ClientPicker` + `ConHashMap` | 一致性哈希选节点，etcd 动态发现       |
-| 传输层 | `Server` / `Client` (gRPC)    | 节点间 RPC 通信                       |
+| 层次   | 组件                                 | 职责                                  |
+| ------ | ------------------------------------ | ------------------------------------- |
+| 接口层 | `Group`                              | 命名空间隔离，对外暴露 Get/Set/Delete |
+| 缓存层 | `Cache` -> `lruStore`                | 分桶双层 LRU，字节预算淘汰            |
+| 路由层 | `ClientPicker` + `ConsistentHashMap` | 一致性哈希选节点，etcd 动态发现       |
+| 传输层 | `Server` / `Client` (gRPC)           | 节点间 RPC 通信                       |
 
 ```
   调用方
@@ -59,7 +59,7 @@ swifty_cache 是一个仿 Google groupcache 的分布式缓存框架，核心设
     | 未命中
     v
 +----------------------------------------------------------+
-| 路由层  ClientPicker + ConHashMap (一致性哈希选节点)     |
+| 路由层  ClientPicker + ConsistentHashMap (一致性哈希选节点) |
 |         etcd 动态服务发现                                |
 +----------------------------------------------------------+
     | 归属远端
@@ -85,7 +85,7 @@ swifty_cache 是一个仿 Google groupcache 的分布式缓存框架，核心设
 Q: 详细描述一次 Get 请求的完整链路。
 
 ```
-  调用方          Group           Cache        SingleFlight     ConHashMap       远端节点/数据源
+  调用方          Group           Cache        SingleFlight     ConsistentHashMap  远端节点/数据源
     |               |               |               |               |               |
     |-- Get(key) -->|               |               |               |               |
     |               |-- lookup ---->|               |               |               |
@@ -138,8 +138,8 @@ Q: Set 和 Delete 操作如何保证多节点间的数据一致性?
 2. 判断来源: 通过 `isPeerRequest(ctx)` 判断请求是否来自其他节点的转发
 3. 异步传播: 如果不是来自 peer 的请求，启动 goroutine 调用 `syncToPeers`:
    - 通过 `PickPeer(key)` 找到 key 的归属节点
-   - 如果归属远端，调用 `peer.Set(ctx, group, key, value)` 或 `peer.Delete`
-   - 使用 3 秒超时的 context
+   - 如果归属远端，调用 `peer.Set(ctx, group, key, value)` 或 `peer.Delete(group, key)`
+   - Set 分支使用 3 秒超时的 context；`Peer.Delete` 接口没有 ctx 参数，不传 context (Client 内部自带 3 秒超时)
    - 标记 `withPeerRequest(ctx)` 防止接收方再次转发
 
 Q: 这种写传播方案的一致性保证是什么级别? 有什么局限?
@@ -163,7 +163,7 @@ Q: lruStore 的分桶双层设计解决了什么问题?
 type lruStore struct {
     locks          []sync.Mutex   // 每个桶一把锁
     caches         [][2]*cache    // [bucket][level], L1=热数据, L2=温数据
-    maxBucketBytes int64          // MaxBytes / bucketCount
+    maxBucketBytes int64          // MaxBytes / (mask+1)
     mask           int32          // 桶选择的位掩码
 }
 ```
@@ -200,7 +200,7 @@ type cache struct {
 
 Q: 字节预算 (byte budget) 淘汰是如何工作的?
 
-每个桶有独立的字节预算 `maxBucketBytes = MaxBytes / bucketCount`:
+每个桶有独立的字节预算 `maxBucketBytes = MaxBytes / (mask+1)` (mask+1 即实际桶数):
 
 1. `Set` 写入新数据后，检查桶的总字节数
 2. 如果超出预算，循环调用 `evictFromBucket(idx)`:
@@ -273,15 +273,19 @@ swifty_cache 的实现会 recover panic 并将其包装为 error 返回给所有
 
 ## 7. 一致性哈希
 
-Q: ConHashMap 的实现细节? 虚拟节点的作用是什么?
+Q: ConsistentHashMap 的实现细节? 虚拟节点的作用是什么?
 
-对应 `con_hash.go`:
+对应 `consistent_hash.go`:
 
 ```go
-type ConHashMap struct {
-    keys      []int            // 排序的虚拟节点哈希值
-    hashMap   map[int]string   // 哈希值 -> 物理节点
-    nodeHashes map[string][]int // 物理节点 -> 其所有虚拟哈希
+type ConsistentHashMap struct {
+    mu            sync.RWMutex       // 保护哈希环读写
+    config        *ConHashConfig     // 虚拟节点数、哈希函数等配置
+    keys          []int              // 排序的虚拟节点哈希值
+    hashMap       map[int]string     // 哈希值 -> 物理节点
+    nodeHashes    map[string][]int   // 物理节点 -> 其所有虚拟哈希
+    nodeCounts    map[string]*int64  // 物理节点 -> 命中次数 (原子累加)
+    totalRequests atomic.Int64       // 总请求次数
 }
 ```
 
@@ -289,7 +293,7 @@ type ConHashMap struct {
 
 - 解决数据倾斜: 3 个物理节点只有 3 个哈希点，key 分布极不均匀
 - 50 个虚拟节点使分布趋近均匀 (标准差随虚拟节点数增加而减小)
-- 哈希函数: CRC32 (IEEE)，对字符串 `"{node}#{i}"` 计算
+- 哈希函数: CRC32 (IEEE)，对字符串 `"{node}-{i}"` (如 `fmt.Appendf(nil, "%s-%d", node, i)`) 计算
 
 查找过程:
 
@@ -360,8 +364,8 @@ Server 侧 (`server.go`):
 
 Client 侧 (`client.go`):
 
-- `grpc.WithInsecure()` (内网通信，无 TLS)
-- `grpc.WithBlock()` + `WaitForReady(true)`: 连接未就绪时排队而非立即失败
+- `grpc.NewClient` + `grpc.WithTransportCredentials(insecure.NewCredentials())` (内网通信，无 TLS)
+- `grpc.WithDefaultCallOptions(grpc.WaitForReady(true))`: 连接未就绪时排队而非立即失败
 - Get/Delete 使用 3 秒超时 context
 - Set 使用调用方传入的 context (支持上层超时传播)
 
@@ -390,7 +394,11 @@ func withPeerRequest(ctx context.Context) context.Context {
 }
 
 func isPeerRequest(ctx context.Context) bool {
-    return ctx.Value(peerRequestContextKey{}) != nil
+    if ctx == nil {
+        return false
+    }
+    value, ok := ctx.Value(peerRequestContextKey{}).(bool)
+    return ok && value
 }
 ```
 
@@ -413,12 +421,12 @@ Q: 项目中使用了哪些并发控制手段? 如何避免死锁?
 | `lruStore`                 | `[]sync.Mutex`    | 每桶一把，写入只锁一个桶   |
 | `Cache`                    | `sync.RWMutex`    | 保护 store 指针 (懒初始化) |
 | `Group.peersMu`            | `sync.RWMutex`    | 保护 PeerPicker 引用       |
-| `ConHashMap`               | `sync.RWMutex`    | 保护哈希环读写             |
+| `ConsistentHashMap`        | `sync.RWMutex`    | 保护哈希环读写             |
 | `ClientPicker`             | `sync.RWMutex`    | 保护 clients map           |
 | `SingleFlightGroup`        | `sync.Map`        | 无锁 CAS 语义              |
 | `groups` 注册表            | `sync.RWMutex`    | 进程级 Group 注册/销毁     |
 | `Cache.initialized/closed` | `atomic.Int32`    | 无锁状态标记               |
-| `groupStats`               | `atomic.AddInt64` | 无锁计数器                 |
+| `groupStats`               | `atomic.Int64` 字段 | 无锁计数器               |
 
 死锁预防:
 
@@ -470,9 +478,11 @@ var groups = make(map[string]*Group)
 
 Q: Group.Close() 做了什么?
 
-1. `atomic.CompareAndSwapInt32(&g.closed, 0, 1)` 保证幂等
+1. `g.closed.CompareAndSwap(0, 1)` 保证幂等 (closed 是 `atomic.Int32` 字段)
 2. 关闭 `mainCache` (停止 TTL 清理 goroutine)
-3. 关闭 `peers` (关闭所有 gRPC 连接、etcd 连接、取消 Watch)
+3. 从全局注册表 `groups` map 中移除自身
+
+注意: `Group.Close` 不关闭 `peers`。`PeerPicker` 接口虽然定义了 `Close()` (`ClientPicker.Close` 可关闭所有 gRPC 连接与 etcd 客户端)，但目前没有任何调用方，属于当前实现的一个缺口: Group 销毁后，peer 连接与 etcd Watch 仍在运行。
 
 ---
 

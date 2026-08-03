@@ -21,7 +21,6 @@ Swifty 框架前端相关的深度面试题，包括 Agent、Code、Chatbot、Se
 
 - [Swifty 面试题](fe/swifty-qa.md)
 - [Swifty Agent 面试题](fe/swifty-agent-qa.md)
-- [Swifty Code 面试题](fe/swifty-code-qa.md)
 - [Swifty Chatbot 面试题](fe/swifty-chatbot-qa.md)
 - [Swifty Sentry 面试题](fe/swifty-sentry-qa.md)
 
