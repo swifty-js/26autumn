@@ -46,6 +46,7 @@ export default defineConfig({
         text: "后端基础",
         items: [
           { text: "Go 面试题", link: "be/go-qa" },
+          { text: "Go 基础面试题", link: "be/go" },
           { text: "分布式系统与数据结构面试题", link: "be/demo-qa" },
           { text: "MySQL 面试题", link: "be/mysql-qa" },
           { text: "Redis 面试题", link: "be/redis-qa" },

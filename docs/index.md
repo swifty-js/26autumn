@@ -30,6 +30,7 @@ Swifty 框架前端相关的深度面试题，包括 Agent、Code、Chatbot、Se
 Go 语言、分布式系统、数据库及中间件相关面试题。
 
 - [Go 面试题](be/go-qa.md)
+- [Go 基础面试题](be/go.md)
 - [分布式系统与数据结构面试题](be/demo-qa.md)
 - [MySQL 面试题](be/mysql-qa.md)
 - [Redis 面试题](be/redis-qa.md)

@@ -25,8 +25,6 @@ Keywords: 流式传输 JSON、声明式 UI (抽象组件树)、数据绑定
 - [概念](#概念)
 - [消息类型](#消息类型)
 - [完整流程](#完整流程)
-- [Workflow Description](#workflow-description)
-- [UI Description](#ui-description)
 
 ## 概念
 
