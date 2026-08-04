@@ -4,7 +4,6 @@ export default defineConfig({
   docs: "docs",
   baseUrl: "/26autumn/",
   title: "面试 QA 文档",
-  description: "前端、后端及 Swifty 项目的面试 QA 文档",
   nav: [
     { text: "前端基础", link: "fe/react" },
     { text: "Swifty 前端", link: "fe/swifty" },
