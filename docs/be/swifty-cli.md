@@ -550,16 +550,16 @@ A:
 
 各层详解：
 
-| 层  | 机制                                                                                                                    | 示例                                                                                                              |
-| --- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| L0  | Plan 模式下允许写 plan file                                                                                             | `Write(.swiftx/plans/<slug>.md)`                                                                                  |
-| L1  | 64 个安全命令前缀白名单（且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符）                                        | `git status`, `ls`, `cat`, `go version`                                                                           |
-| L2  | 正则黑名单（不可绕过，注释明确"黑名单是硬防线，沙箱开着也要查"）                                                        | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                 |
-| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认（但显式 deny/ask 规则仍生效，复合命令拆分逐段检查）                          | 沙箱限制了实际破坏范围                                                                                            |
-| L3  | 文件操作限制在项目根 + /tmp，且 `.swiftx/config.yaml`、`permissions.local.yaml`、`.swiftx/skills` 是 denyWrite 保护路径，任何权限模式下都拒写 | 拒绝写 `~/.ssh/authorized_keys`，防止 Agent 改写自己的权限配置实现提权                              |
+| 层  | 机制                                                                                                                                                    | 示例                                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| L0  | Plan 模式下允许写 plan file                                                                                                                             | `Write(.swiftx/plans/<slug>.md)`                                                                                  |
+| L1  | 64 个安全命令前缀白名单（且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符）                                                                         | `git status`, `ls`, `cat`, `go version`                                                                           |
+| L2  | 正则黑名单（不可绕过，注释明确"黑名单是硬防线，沙箱开着也要查"）                                                                                        | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                 |
+| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认（但显式 deny/ask 规则仍生效，复合命令拆分逐段检查）                                                          | 沙箱限制了实际破坏范围                                                                                            |
+| L3  | 文件操作限制在项目根 + /tmp，且 `.swiftx/config.yaml`、`permissions.local.yaml`、`.swiftx/skills` 是 denyWrite 保护路径，任何权限模式下都拒写           | 拒绝写 `~/.ssh/authorized_keys`，防止 Agent 改写自己的权限配置实现提权                                            |
 | L4  | user/project/local 三个 YAML 合并为一个规则集求值，匹配规则中取最严效果：deny > ask > allow，单层 allow 无法覆盖另一层的 deny，`ToolName(pattern)` 语法 | 自研 glob 里 `*` 匹配含 `/` 的任意字符（标准 filepath.Match 的 `*` 不跨 `/`，会让带路径的命令 allow-always 失效） |
-| L4b | Permission Mode 矩阵                                                                                                    | default 读放行写/命令询问；acceptEdits 写也放行；bypass 全放行                                                    |
-| L5  | 兜底 Ask → HITL 弹窗                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件，下一轮求值即生效（agent.go:617-630）   |
+| L4b | Permission Mode 矩阵                                                                                                                                    | default 读放行写/命令询问；acceptEdits 写也放行；bypass 全放行                                                    |
+| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件，下一轮求值即生效（agent.go:617-630）    |
 
 防绕过设计：
 
@@ -639,14 +639,14 @@ hooks:
 
 条件表达式语法：
 
-| 运算符 | 含义      | 示例                                         |
-| ------ | --------- | -------------------------------------------- |
-| `==`   | 精确匹配  | `tool == "Bash"`                             |
-| `!=`   | 不等于    | `tool != "ReadFile"`                         |
-| `=~`   | 正则匹配  | `file_path =~ "\\.go$"`                      |
-| `=*`   | Glob 匹配 | `file_path =* "/*.ts"`                       |
-| `&&`   | 逻辑与    | 复合条件（与 `\|\|` 同优先级，从左到右求值） |
-| `\|\|` | 逻辑或    | 复合条件                                     |
+| 运算符 | 含义      | 示例                                                      |
+| ------ | --------- | --------------------------------------------------------- |
+| `==`   | 精确匹配  | `tool == "Bash"`                                          |
+| `!=`   | 不等于    | `tool != "ReadFile"`                                      |
+| `=~`   | 正则匹配  | `file_path =~ "\\.go$"`                                   |
+| `=*`   | Glob 匹配 | `file_path =* "/*.ts"`                                    |
+| `&&`   | 逻辑与    | 复合条件（与 `\|\|` 同优先级，从左到右求值）              |
+| `\|\|` | 逻辑或    | 复合条件                                                  |
 | `!`    | 一元取非  | `!tool == "ReadFile"`（须紧接叶子条件，不能跨运算符拆分） |
 
 可用变量： `tool`, `event`, `file_path`, `message`, `args.*`（工具参数）
@@ -809,19 +809,19 @@ A:
 
 A:
 
-| 优化                             | 位置                        | 效果                                 |
-| -------------------------------- | --------------------------- | ------------------------------------ |
-| Prompt Cache (3 breakpoint)      | llm/anthropic.go            | 减少 90%+ input token 计费           |
-| spill preview 字节稳定           | tool_result/                | preview 一次生成不再改写，保证 cache 命中率 |
-| Deferred Tool Loading            | tools/tool_search.go        | 减少初始 prompt 3-15K tokens         |
-| 并发 Read 工具执行               | agent/streaming_executor.go | 多文件读取延迟从串行 O(n) 降为 O(1)  |
-| Usage Anchor 增量估算            | compact/                    | 避免每轮全量 token 计算              |
-| JSONL append-only 写入           | session/                    | O(1) 持久化，无锁竞争                |
-| 流式工具提交                     | agent/streaming_executor.go | LLM 还在输出时就开始执行先完成的工具 |
-| Non-blocking progress emit       | agent/                      | TUI 慢时不阻塞 Agent                 |
-| FileStateCache mtime 检查        | tools/                      | O(1) stat 代替全文 hash              |
-| Glob 跳过 SkipDirs               | tools/glob.go               | 避免遍历 node_modules/.git           |
-| 记忆并行预取                     | agent/agent.go              | MemoryRecallCh 与首次 LLM 调用并行   |
+| 优化                        | 位置                        | 效果                                        |
+| --------------------------- | --------------------------- | ------------------------------------------- |
+| Prompt Cache (3 breakpoint) | llm/anthropic.go            | 减少 90%+ input token 计费                  |
+| spill preview 字节稳定      | tool_result/                | preview 一次生成不再改写，保证 cache 命中率 |
+| Deferred Tool Loading       | tools/tool_search.go        | 减少初始 prompt 3-15K tokens                |
+| 并发 Read 工具执行          | agent/streaming_executor.go | 多文件读取延迟从串行 O(n) 降为 O(1)         |
+| Usage Anchor 增量估算       | compact/                    | 避免每轮全量 token 计算                     |
+| JSONL append-only 写入      | session/                    | O(1) 持久化，无锁竞争                       |
+| 流式工具提交                | agent/streaming_executor.go | LLM 还在输出时就开始执行先完成的工具        |
+| Non-blocking progress emit  | agent/                      | TUI 慢时不阻塞 Agent                        |
+| FileStateCache mtime 检查   | tools/                      | O(1) stat 代替全文 hash                     |
+| Glob 跳过 SkipDirs          | tools/glob.go               | 避免遍历 node_modules/.git                  |
+| 记忆并行预取                | agent/agent.go              | MemoryRecallCh 与首次 LLM 调用并行          |
 
 ---
 
@@ -1056,15 +1056,15 @@ A:
 
 `handleStreamError`（agent.go:500）用 `errors.As` 分类：
 
-| 错误类型              | 恢复策略                                                                                              | 最大重试              |
-| --------------------- | ----------------------------------------------------------------------------------------------------- | --------------------- |
-| `RateLimitError`      | 解析 `Retry-After` header（缺省 5s）→ `select { time.After / ctx.Done }` 等待重试                     | 无限（用户可 ctrl-c） |
-| `ContextTooLongError` | 说明估算低估了真实 token，立即 `ForceCompact` 强制压缩后重试本轮，并通知调用方清除已失效的 usage 锚点 | 压缩失败即报错        |
-| `max_tokens` stop     | 1) 提升 output limit 到 64K; 2) 多轮恢复 "Continue"                                                   | 1 + 3 次              |
-| Stream idle timeout   | 返回 `NetworkError` 上抛为 ErrorEvent（Agent 层不自动重试）                                           | 0（终止本轮）         |
-| Auto-compact 失败     | 熔断器：连续 3 次失败后停止（`MaxConsecutiveAutoCompactFailures = 3`，compact.go:106）                | 3 次                  |
-| 未知工具调用          | 返回错误结果（`Error: unknown tool '%s'`）让模型自我纠正、继续循环（agent.go:577-582，无连续计数硬停止） | 0（不中断循环）         |
-| PTL (summary 超长)    | 逐步丢弃最旧 API-round 组                                                                             | 3 次                  |
+| 错误类型              | 恢复策略                                                                                                 | 最大重试              |
+| --------------------- | -------------------------------------------------------------------------------------------------------- | --------------------- |
+| `RateLimitError`      | 解析 `Retry-After` header（缺省 5s）→ `select { time.After / ctx.Done }` 等待重试                        | 无限（用户可 ctrl-c） |
+| `ContextTooLongError` | 说明估算低估了真实 token，立即 `ForceCompact` 强制压缩后重试本轮，并通知调用方清除已失效的 usage 锚点    | 压缩失败即报错        |
+| `max_tokens` stop     | 1) 提升 output limit 到 64K; 2) 多轮恢复 "Continue"                                                      | 1 + 3 次              |
+| Stream idle timeout   | 返回 `NetworkError` 上抛为 ErrorEvent（Agent 层不自动重试）                                              | 0（终止本轮）         |
+| Auto-compact 失败     | 熔断器：连续 3 次失败后停止（`MaxConsecutiveAutoCompactFailures = 3`，compact.go:106）                   | 3 次                  |
+| 未知工具调用          | 返回错误结果（`Error: unknown tool '%s'`）让模型自我纠正、继续循环（agent.go:577-582，无连续计数硬停止） | 0（不中断循环）       |
+| PTL (summary 超长)    | 逐步丢弃最旧 API-round 组                                                                                | 3 次                  |
 
 max_tokens 多轮恢复（agent.go:337-365）：
 

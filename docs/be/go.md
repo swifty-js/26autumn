@@ -175,13 +175,13 @@ for i, v := range collection {
 
 常见方式: `+`、`fmt.Sprintf`、`strings.Builder`、`bytes.Buffer`、`strings.Join`。
 
-| 方式 | 特点 |
-| ---- | ---- |
-| `+` | 每次拼接分配新内存拷贝两侧内容, 少量拼接时编译器会优化为一次分配 |
-| `fmt.Sprintf` | 反射取参 + 格式化解析, 最慢且引发逃逸 |
-| `strings.Builder` | 内部 `[]byte` 增长, `String()` 通过 unsafe 零拷贝转 string |
-| `bytes.Buffer` | 同为 []byte 缓冲, `String()` 需要拷贝, 略逊 Builder |
-| `strings.Join` | 基于 Builder, 先算总长一次性 `Grow` 预分配, 拼切片首选 |
+| 方式              | 特点                                                             |
+| ----------------- | ---------------------------------------------------------------- |
+| `+`               | 每次拼接分配新内存拷贝两侧内容, 少量拼接时编译器会优化为一次分配 |
+| `fmt.Sprintf`     | 反射取参 + 格式化解析, 最慢且引发逃逸                            |
+| `strings.Builder` | 内部 `[]byte` 增长, `String()` 通过 unsafe 零拷贝转 string       |
+| `bytes.Buffer`    | 同为 []byte 缓冲, `String()` 需要拷贝, 略逊 Builder              |
+| `strings.Join`    | 基于 Builder, 先算总长一次性 `Grow` 预分配, 拼切片首选           |
 
 性能排序: `strings.Join ≈ strings.Builder > bytes.Buffer > "+" > fmt.Sprintf`。循环拼接一律 `strings.Builder` + `Grow(n)` 预分配。
 
@@ -413,13 +413,13 @@ Q: `var s []int` 和 `s := []int{}` 有什么区别?
 
 A:
 
-| 维度                         | nil slice `var s []int` | 空 slice `[]int{}` / `make([]int,0)`               |
-| ---------------------------- | ----------------------- | -------------------------------------------------- |
+| 维度                         | nil slice `var s []int` | 空 slice `[]int{}` / `make([]int,0)`              |
+| ---------------------------- | ----------------------- | ------------------------------------------------- |
 | array 指针                   | nil                     | 指向 `runtime.zerobase` (所有 0 长对象共享的地址) |
-| `len/cap`                    | 0/0                     | 0/0                                                |
-| `s == nil`                   | true                    | false                                              |
-| `json.Marshal`               | `null`                  | `[]`                                               |
-| `append`/`len`/`range`/`for` | 全部安全                | 全部安全                                           |
+| `len/cap`                    | 0/0                     | 0/0                                               |
+| `s == nil`                   | true                    | false                                             |
+| `json.Marshal`               | `null`                  | `[]`                                              |
+| `append`/`len`/`range`/`for` | 全部安全                | 全部安全                                          |
 
 工程结论: 内部逻辑无需区分 (`len(s) == 0` 是唯一正确的判空方式); 但对外 API (JSON 响应) 要注意 `null` 与 `[]` 的语义差异, HTTP 框架返回列表字段时通常约定初始化为空 slice。
 
@@ -706,12 +706,12 @@ A: 成本有三层:
 
 ### 5.4 类型转换与类型断言的区别
 
-| 维度 | 类型转换 `T(value)` | 类型断言 `value.(T)` |
-| ---- | ------------------- | -------------------- |
-| 检查时机 | 编译期 | 运行期 |
-| 适用对象 | 兼容类型之间的转换 (数值、字符串等) | 只能对接口变量操作 |
-| 失败后果 | 编译不过 | 运行时 panic (单返回值形式), 或 ok=false (comma-ok 形式) |
-| 底层实现 | 内存重新解释或格式调整 | 查 itab / _type (runtime 类型系统) |
+| 维度     | 类型转换 `T(value)`                 | 类型断言 `value.(T)`                                     |
+| -------- | ----------------------------------- | -------------------------------------------------------- |
+| 检查时机 | 编译期                              | 运行期                                                   |
+| 适用对象 | 兼容类型之间的转换 (数值、字符串等) | 只能对接口变量操作                                       |
+| 失败后果 | 编译不过                            | 运行时 panic (单返回值形式), 或 ok=false (comma-ok 形式) |
+| 底层实现 | 内存重新解释或格式调整              | 查 itab / _type (runtime 类型系统)                       |
 
 实际开发中一律用安全形式 `v, ok := i.(T)`。
 
@@ -895,10 +895,10 @@ G 的状态机 (`runtime/runtime2.go`):
 
 | 状态          | 含义                                    | 典型转换                                                         |
 | ------------- | --------------------------------------- | ---------------------------------------------------------------- |
-| `_Gidle`      | 刚分配未初始化                          | → `_Gdead` (初始化完成待用)                                     |
+| `_Gidle`      | 刚分配未初始化                          | → `_Gdead` (初始化完成待用)                                      |
 | `_Grunnable`  | 就绪, 在运行队列中等待                  | `go func()` 创建 / 被唤醒后 → 被调度 → `_Grunning`               |
-| `_Grunning`   | 正在 M 上执行 (持有 P)                 | 阻塞 → `_Gwaiting`; syscall → `_Gsyscall`; 被抢占 → `_Grunnable` |
-| `_Gsyscall`   | 陷入系统调用 (M 被占, P 可能被剥离)    | 返回后 → `_Grunning` 或 `_Grunnable`                             |
+| `_Grunning`   | 正在 M 上执行 (持有 P)                  | 阻塞 → `_Gwaiting`; syscall → `_Gsyscall`; 被抢占 → `_Grunnable` |
+| `_Gsyscall`   | 陷入系统调用 (M 被占, P 可能被剥离)     | 返回后 → `_Grunning` 或 `_Grunnable`                             |
 | `_Gwaiting`   | 用户态阻塞: channel/锁/timer/netpoll/GC | `gopark` 进入, `goready` 唤醒 → `_Grunnable`                     |
 | `_Gdead`      | 已退出或未使用, 可被 gFree 池复用       | 函数返回 → goexit → `_Gdead`                                     |
 | `_Gcopystack` | 栈正在扩容/收缩拷贝                     | morestack/shrinkstack 期间的临时态                               |
@@ -1429,13 +1429,13 @@ A: Go 使用并发三色标记-清除 (非分代、非压缩、非移动)。常�
 
 流程 (GOGC 触发, pacer 控制):
 
-| 阶段 | 说明 | 赋值器状态 |
-| ---- | ---- | ---------- |
-| SweepTermination | 清扫终止, 为并发标记做准备, 开启写屏障 | STW |
-| Mark | 并发扫描标记 (后台标记 worker 占 25% CPU 配额 + mallocgc 时拉 mutator 辅助标记做反压), 栈扫描逐 G 短暂暂停而非全局 STW | 并发 |
-| MarkTermination | 确认标记完成, 关闭写屏障 | STW |
-| Sweep | 惰性清扫, 分配时顺带进行 | 并发 |
-| Scavenge | 把过多空闲内存渐进归还 OS | 并发 |
+| 阶段             | 说明                                                                                                                   | 赋值器状态 |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| SweepTermination | 清扫终止, 为并发标记做准备, 开启写屏障                                                                                 | STW        |
+| Mark             | 并发扫描标记 (后台标记 worker 占 25% CPU 配额 + mallocgc 时拉 mutator 辅助标记做反压), 栈扫描逐 G 短暂暂停而非全局 STW | 并发       |
+| MarkTermination  | 确认标记完成, 关闭写屏障                                                                                               | STW        |
+| Sweep            | 惰性清扫, 分配时顺带进行                                                                                               | 并发       |
+| Scavenge         | 把过多空闲内存渐进归还 OS                                                                                              | 并发       |
 
 调优三旋钮:
 
@@ -1502,15 +1502,15 @@ scvg: inuse: 3, idle: 60, sys: 63, released: 57, consumed: 7 (MB)
 
 gc 行字段含义:
 
-| 字段 | 含义 |
-| ---- | ---- |
-| gc 2 | 第 2 个 GC 周期 |
-| @0.001s 2% | 程序启动后时刻; 该周期 GC 的 CPU 占比 |
-| 0.018+1.1+0.029 ms clock | 标记开始 STW + 并发标记 + 标记终止 STW 的实际耗时 |
+| 字段                         | 含义                                                     |
+| ---------------------------- | -------------------------------------------------------- |
+| gc 2                         | 第 2 个 GC 周期                                          |
+| @0.001s 2%                   | 程序启动后时刻; 该周期 GC 的 CPU 占比                    |
+| 0.018+1.1+0.029 ms clock     | 标记开始 STW + 并发标记 + 标记终止 STW 的实际耗时        |
 | 0.22+.../.../...+0.34 ms cpu | 各阶段的 CPU 时间 (中间三段为 标记辅助/并发标记/GC 空闲) |
-| 4->7->3 MB | 标记开始堆大小 → 标记结束堆大小 → 存活对象大小 |
-| 5 MB goal | 下次触发 GC 的目标堆大小 |
-| 12 P | P 的数量 |
+| 4->7->3 MB                   | 标记开始堆大小 → 标记结束堆大小 → 存活对象大小           |
+| 5 MB goal                    | 下次触发 GC 的目标堆大小                                 |
+| 12 P                         | P 的数量                                                 |
 
 scvg 行是 scavenger 归还 OS 的统计: inuse (在用)、idle (空闲待归还)、sys (从 OS 取得)、released (已归还)、consumed (净消耗), 单位 MB。
 
@@ -1836,14 +1836,14 @@ Q: go vet 能查出哪些 bug? 它和编译器、race detector 的分工?
 
 A: vet 做编译器不管的语义检查——代码合法但大概率是 bug 的模式。与本文各章直接相关的检查项:
 
-| 检查器                       | 抓什么                                              | 对应章节 |
-| ---------------------------- | --------------------------------------------------- | -------- |
-| `printf`                     | 格式动词与参数类型不匹配                            | -        |
+| 检查器                       | 抓什么                                             | 对应章节 |
+| ---------------------------- | -------------------------------------------------- | -------- |
+| `printf`                     | 格式动词与参数类型不匹配                           | -        |
 | `copylocks`                  | 值拷贝含 `sync.Mutex/WaitGroup` 的结构 (noCopy)    | 10.3     |
-| `lostcancel`                 | `WithCancel/WithTimeout` 返回的 cancel 未调用       | 9.2      |
+| `lostcancel`                 | `WithCancel/WithTimeout` 返回的 cancel 未调用      | 9.2      |
 | `loopclosure`                | 循环变量被闭包捕获 (1.22 后基本退役)               | 18-Q1    |
-| `atomic`                     | `x = atomic.AddInt64(&x, 1)` 这类误用               | 10.5     |
-| `structtag`                  | json/db tag 语法错误                                | -        |
+| `atomic`                     | `x = atomic.AddInt64(&x, 1)` 这类误用              | 10.5     |
+| `structtag`                  | json/db tag 语法错误                               | -        |
 | `unusedresult`               | 忽略了必须使用的返回值 (如 `errors.New`)           | -        |
 | `nilfunc/unreachable/shadow` | nil 函数比较、死代码、变量遮蔽 (shadow 需显式开启) | -        |
 
@@ -2292,7 +2292,7 @@ func main() {
 | slice 扩容       | 期望容量 (<256 翻倍, 否则 ~1.25x 平滑) → roundupsize 对齐 size class → mallocgc + memmove |
 | map 并发写       | hashWriting 标志位检测 → fatal 不可 recover → RWMutex / sync.Map / 分片锁                 |
 | GMP 为什么要 P   | 无锁本地队列 + per-P mcache + 阻塞时 handoff 整体交接                                     |
-| 抢占             | 1.14 前协作式 (函数序言检查), 1.14+ SIGURG 信号异步抢占                                  |
+| 抢占             | 1.14 前协作式 (函数序言检查), 1.14+ SIGURG 信号异步抢占                                   |
 | channel send     | 有等待接收者直传栈 → 缓冲有空写 buf → 挂 sendq gopark                                     |
 | context 取消     | close(done) 广播 + 递归 cancel children, 只向下传播, defer cancel 防泄漏                  |
 | Mutex 饥饿       | 等待超 1ms 转饥饿模式, 锁直接移交队首, 牺牲吞吐换尾延迟公平                               |

@@ -1130,17 +1130,19 @@ static reset(): void {
 
 属性约定：
 
-| 属性                 | 含义        | 示例                              |
-| -------------------- | ----------- | --------------------------------- |
-| `swifty-sentry-ev`   | 事件 ID     | `swifty-sentry-ev="btn_submit"`   |
-| `swifty-sentry-msg`  | 事件描述    | `swifty-sentry-msg="提交订单"`    |
-| `swifty-sentry-el`   | 元素追踪标记 | `swifty-sentry-el="checkout_btn"` |
-| `swifty-sentry-*`    | 自定义参数  | `swifty-sentry-price="99.9"`      |
+| 属性                | 含义         | 示例                              |
+| ------------------- | ------------ | --------------------------------- |
+| `swifty-sentry-ev`  | 事件 ID      | `swifty-sentry-ev="btn_submit"`   |
+| `swifty-sentry-msg` | 事件描述     | `swifty-sentry-msg="提交订单"`    |
+| `swifty-sentry-el`  | 元素追踪标记 | `swifty-sentry-el="checkout_btn"` |
+| `swifty-sentry-*`   | 自定义参数   | `swifty-sentry-price="99.9"`      |
 
 实现逻辑（utils/click-data.ts）：
 
 ```typescript
-export function getDeclarativeClickData(event: MouseEvent): DeclarativeClickData | null {
+export function getDeclarativeClickData(
+  event: MouseEvent,
+): DeclarativeClickData | null {
   // 1. event.composedPath() 穿透 Shadow DOM，过滤出 HTMLElement 路径
   const path = getComposedElementPath(event);
   const fallbackPath = path.length > 0 ? path : getElementPath(event.target);
@@ -1154,7 +1156,8 @@ export function getDeclarativeClickData(event: MouseEvent): DeclarativeClickData
     ev: getEventId(fallbackPath), // 优先级：swifty-sentry-ev > title > swifty-sentry-el > 标签名
     msg: getMessage(trackingTarget), // swifty-sentry-msg > title > textContent > aria-label > 标签名
     triggerPageUrl: location.href,
-    x, y, // 元素绝对坐标（getBoundingClientRect + 滚动偏移）
+    x,
+    y, // 元素绝对坐标（getBoundingClientRect + 滚动偏移）
     params: getParams(fallbackPath), // 收集 swifty-sentry-* 自定义参数（view/msg/ev 保留键除外）
     elementPath: getNodeXPath(trackingTarget).slice(-128), // 自研 XPath，尾部截取 128 字符
     triggerTime: Date.now(),
@@ -1171,7 +1174,11 @@ function pubClick(): Cleanup {
   // 节流作用在 pub 本身（clickThrottleDelay 默认 0）
   const throttledPub = throttle(pub, sentry.options.clickThrottleDelay);
   const listener = function (ctx: MouseEvent) {
-    throttledPub(EventType.Click, { ...getBaseData(), type: EventType.Click, extra: ctx });
+    throttledPub(EventType.Click, {
+      ...getBaseData(),
+      type: EventType.Click,
+      extra: ctx,
+    });
   };
   // 冒泡阶段监听（未传 capture）
   document.addEventListener("click", listener);
@@ -1460,27 +1467,50 @@ export function pubHistory(): Cleanup {
     const to = getCurrentRouteUrl();
     if (from !== to) {
       latestHref = to;
-      pub(EventType.History, { ...getBaseData(), type: EventType.History, from, to });
+      pub(EventType.History, {
+        ...getBaseData(),
+        type: EventType.History,
+        from,
+        to,
+      });
     }
     return oldOnpopstate?.call(this, ev); // 链式调用原有 handler
   };
 
   // 2. 装饰 pushState 和 replaceState，二者共用同一个装饰器
   const historyDecorator = (oldPropsVal: History["pushState"]) => {
-    return function (this: History, data: unknown, unused: string, url?: string | URL | null) {
+    return function (
+      this: History,
+      data: unknown,
+      unused: string,
+      url?: string | URL | null,
+    ) {
       if (url) {
         const from = latestHref;
         const to = normalizeRouteUrl(url);
         if (from !== to) {
           latestHref = to;
-          pub(EventType.History, { ...getBaseData(), type: EventType.History, from, to });
+          pub(EventType.History, {
+            ...getBaseData(),
+            type: EventType.History,
+            from,
+            to,
+          });
         }
       }
       return oldPropsVal.call(this, data, unused, url);
     };
   };
-  const cleanupPushState = decorateProp(globalThis.history, "pushState", historyDecorator);
-  const cleanupReplaceState = decorateProp(globalThis.history, "replaceState", historyDecorator);
+  const cleanupPushState = decorateProp(
+    globalThis.history,
+    "pushState",
+    historyDecorator,
+  );
+  const cleanupReplaceState = decorateProp(
+    globalThis.history,
+    "replaceState",
+    historyDecorator,
+  );
 
   return () => {
     globalThis.onpopstate = oldOnpopstate;
@@ -1548,7 +1578,11 @@ reporter.send(
     name: "PageLoad",
     message: location.href,
     status: Status.OK,
-    extra: { url: location.href, referrer: document.referrer, entryTime: Date.now() },
+    extra: {
+      url: location.href,
+      referrer: document.referrer,
+      entryTime: Date.now(),
+    },
   },
   true,
 );

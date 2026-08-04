@@ -416,17 +416,17 @@ func isPeerRequest(ctx context.Context) bool {
 
 Q: 项目中使用了哪些并发控制手段? 如何避免死锁?
 
-| 组件                       | 锁类型            | 粒度                       |
-| -------------------------- | ----------------- | -------------------------- |
-| `lruStore`                 | `[]sync.Mutex`    | 每桶一把，写入只锁一个桶   |
-| `Cache`                    | `sync.RWMutex`    | 保护 store 指针 (懒初始化) |
-| `Group.peersMu`            | `sync.RWMutex`    | 保护 PeerPicker 引用       |
-| `ConsistentHashMap`        | `sync.RWMutex`    | 保护哈希环读写             |
-| `ClientPicker`             | `sync.RWMutex`    | 保护 clients map           |
-| `SingleFlightGroup`        | `sync.Map`        | 无锁 CAS 语义              |
-| `groups` 注册表            | `sync.RWMutex`    | 进程级 Group 注册/销毁     |
-| `Cache.initialized/closed` | `atomic.Int32`    | 无锁状态标记               |
-| `groupStats`               | `atomic.Int64` 字段 | 无锁计数器               |
+| 组件                       | 锁类型              | 粒度                       |
+| -------------------------- | ------------------- | -------------------------- |
+| `lruStore`                 | `[]sync.Mutex`      | 每桶一把，写入只锁一个桶   |
+| `Cache`                    | `sync.RWMutex`      | 保护 store 指针 (懒初始化) |
+| `Group.peersMu`            | `sync.RWMutex`      | 保护 PeerPicker 引用       |
+| `ConsistentHashMap`        | `sync.RWMutex`      | 保护哈希环读写             |
+| `ClientPicker`             | `sync.RWMutex`      | 保护 clients map           |
+| `SingleFlightGroup`        | `sync.Map`          | 无锁 CAS 语义              |
+| `groups` 注册表            | `sync.RWMutex`      | 进程级 Group 注册/销毁     |
+| `Cache.initialized/closed` | `atomic.Int32`      | 无锁状态标记               |
+| `groupStats`               | `atomic.Int64` 字段 | 无锁计数器                 |
 
 死锁预防:
 
