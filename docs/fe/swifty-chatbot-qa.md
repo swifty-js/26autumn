@@ -739,7 +739,7 @@ factory.registerModel("openai", (config) => new OpenAIModel(config));
 
 - 语言包: `src/i18n/locales/zh.json` 和 `en.json`
 - 语言检测: 通过 `navigator.language` 自动检测浏览器语言
-- 持久化: `SettingsBar` 切换语言时写入 `languageAtom` (`atomWithStorage`, key 为 `language`), 同时调用 `i18n.changeLanguage()` 即时生效。但存在一个源码 bug: `i18n/index.ts` 初始化时读取的是 `localStorage.getItem("lang")`, 全仓库没有任何代码写入 `lang` 这个 key, 因此切换语言虽然会被持久化到 `language` key, 刷新页面后 i18n 仍会因 key 不匹配而回落到浏览器语言检测, 用户的选择不被恢复
+- 持久化: `SettingsBar` 切换语言时写入 `languageAtom` (`atomWithStorage`, key 为 `language`), 同时调用 `i18n.changeLanguage()` 即时生效。刷新页面后 `i18n/index.ts` 的 `getSavedLanguage()` 从 `language` key 读取 (atomWithStorage 写入的是 JSON 编码字符串, 读取端用 `JSON.parse` 解析并校验 zh/en), 命中则恢复用户选择, 否则回落 `navigator.language` 浏览器语言检测
 - 使用方式: 组件中 `const { t } = useTranslation()`, 模板中 `t("chat.empty_title")`
 - 切换组件: `SettingsBar` 提供语言下拉选择器, 切换后全局即时生效, 无需刷新
 
