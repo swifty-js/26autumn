@@ -82,5 +82,5 @@ export default defineConfig({
       "python",
     ],
   },
-  search: { provider: "local" },
+  search: true,
 });
