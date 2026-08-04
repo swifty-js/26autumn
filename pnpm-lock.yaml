@@ -15,11 +15,11 @@ importers:
         specifier: ^2.10.6
         version: 2.10.6(@babel/core@7.29.7)(preact@10.29.7)(rollup@4.62.2)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
       '@swifty.js/docs':
-        specifier: file:../swifty.js/packages/swifty-docs
-        version: file:../swifty.js/packages/swifty-docs(@babel/core@7.29.7)(preact@10.29.7)(rollup@4.62.2)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
+        specifier: ^0.0.8
+        version: 0.0.8(@babel/core@7.29.7)(preact@10.29.7)(rollup@4.62.2)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
       '@swifty.js/sentry':
-        specifier: ^0.0.2
-        version: 0.0.2(preact@10.29.7)(react@19.2.8)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
+        specifier: ^0.0.3
+        version: 0.0.3(preact@10.29.7)(react@19.2.8)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
@@ -154,12 +154,6 @@ packages:
 
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
-
-  '@docsearch/css@4.6.3':
-    resolution: {integrity: sha512-nlOwcXcsNAptQl4vlL4MA78qNJKO0Qlds5GuBjCoePgkebTXLSf8Qt1oyZ3YBshYupKXG9VRGEsk1zr23d+bzQ==}
-
-  '@docsearch/js@4.6.3':
-    resolution: {integrity: sha512-qUIX2b4Apew3tv4F0qhmgShsl/Lfw4m6mqv/5/5dWNxwTcDdLMp2s3YwZ+NMGh3IKCg0pBaXm7Q5VdyU5Rj+cQ==}
 
   '@esbuild/aix-ppc64@0.28.1':
     resolution: {integrity: sha512-Svl7tq8k/08+p6CXPpRjQ1fKX+1odH/BQbb48fV6fj3CWHhsoIOoY87w1oHXm0qEpkIK3ZfVgp0hed3XBXzXMQ==}
@@ -742,15 +736,15 @@ packages:
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
-  '@swifty.js/docs@file:../swifty.js/packages/swifty-docs':
-    resolution: {directory: ../swifty.js/packages/swifty-docs, type: directory}
-    engines: {node: '>=20.19.0'}
+  '@swifty.js/docs@0.0.8':
+    resolution: {integrity: sha512-VzAAQJ/5gyz8k/hIZWOMXoRRZ2O4vcIkExvKT75hBjBeGJK+k6FsEEgwninAvz8vVwMAc/xYanzHHr3GUdlRZw==}
+    engines: {node: '>=20'}
     peerDependencies:
       preact: ^10.20.0
       tailwindcss: ^4.0.0
 
-  '@swifty.js/sentry@0.0.2':
-    resolution: {integrity: sha512-r01ADlPrsWnvM1sp+kJ7HWNnIYRJrMMO0jZgU33G0n68t5plbg85Qbt2tdopIkZwiELwGkkKHEcGWX4C6sdX8w==}
+  '@swifty.js/sentry@0.0.3':
+    resolution: {integrity: sha512-vfoehxliaFN3dzybEixAIo1Lr+dbJmQjckn6qm2OfBFFk1catGKcrXNEyDVCYrRXYx3RW919ytesm07Y15Zspw==}
     peerDependencies:
       preact: ^10.0.0
       react: ^19.0.0
@@ -1900,6 +1894,10 @@ packages:
     resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
     engines: {node: '>= 12'}
 
+  source-map@0.8.0:
+    resolution: {integrity: sha512-d8EqvL+k/SOXCreS/SUzg2ciyHqBBLcN/yuRjFsbvVhHTE2pgei7oAhmPM7kWFbkX6OSMQfUq4KbkF3au9lhYQ==}
+    engines: {node: '>= 12'}
+
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
 
@@ -2244,10 +2242,6 @@ snapshots:
   '@braintree/sanitize-url@7.1.2': {}
 
   '@chevrotain/types@11.1.2': {}
-
-  '@docsearch/css@4.6.3': {}
-
-  '@docsearch/js@4.6.3': {}
 
   '@esbuild/aix-ppc64@0.28.1':
     optional: true
@@ -2718,10 +2712,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@swifty.js/docs@file:../swifty.js/packages/swifty-docs(@babel/core@7.29.7)(preact@10.29.7)(rollup@4.62.2)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))':
+  '@swifty.js/docs@0.0.8(@babel/core@7.29.7)(preact@10.29.7)(rollup@4.62.2)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))':
     dependencies:
-      '@docsearch/css': 4.6.3
-      '@docsearch/js': 4.6.3
       '@preact/preset-vite': 2.10.6(@babel/core@7.29.7)(preact@10.29.7)(rollup@4.62.2)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
       '@tailwindcss/typography': 0.5.20(tailwindcss@4.3.3)
       class-variance-authority: 0.7.1
@@ -2731,6 +2723,7 @@ snapshots:
       lucide-preact: 1.26.0(preact@10.29.7)
       markdown-it: 14.3.0
       markdown-it-container: 4.0.0
+      mermaid: 11.16.0
       minisearch: 7.2.0
       preact: 10.29.7(preact-render-to-string@6.7.0)
       preact-iso: 2.12.1(preact-render-to-string@6.7.0)(preact@10.29.7)
@@ -2745,11 +2738,12 @@ snapshots:
       - supports-color
       - vite
 
-  '@swifty.js/sentry@0.0.2(preact@10.29.7)(react@19.2.8)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))':
+  '@swifty.js/sentry@0.0.3(preact@10.29.7)(react@19.2.8)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))':
     dependencies:
       '@fingerprintjs/fingerprintjs': 5.2.0
       '@rrweb/record': 2.1.0
       pako: 2.2.0
+      source-map: 0.8.0
       ua-parser-js: 2.0.10
       web-vitals: 5.3.0
       zod: 4.4.3
@@ -3873,6 +3867,8 @@ snapshots:
   source-map-js@1.2.1: {}
 
   source-map@0.7.6: {}
+
+  source-map@0.8.0: {}
 
   space-separated-tokens@2.0.2: {}
 
