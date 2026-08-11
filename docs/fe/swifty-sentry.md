@@ -20,7 +20,7 @@ protected: true
 - [Q12: 面包屑( Breadcrumb) 为什么使用最小堆? 相比数组有什么优势? ](#q12-面包屑-breadcrumb-为什么使用最小堆-相比数组有什么优势)
 - [Q13: 屏幕录制插件的滚动窗口机制是如何实现的? ](#q13-屏幕录制插件的滚动窗口机制是如何实现的)
 - [Q14: 插件体系是如何设计的? 如何做到可插拔? ](#q14-插件体系是如何设计的-如何做到可插拔)
-- [Q15: 框架集成( React/Vue/Preact) 是如何实现的? ](#q15-框架集成-react-vue-preact-是如何实现的)
+- [Q15: 框架集成( React/Vue) 是如何实现的? ](#q15-框架集成-react-vue-是如何实现的)
 - [Q16: 采样率和数据过滤机制是如何工作的? ](#q16-采样率和数据过滤机制是如何工作的)
 - [Q17: Reporter 单例为什么使用 Proxy 实现懒加载? ](#q17-reporter-单例为什么使用-proxy-实现懒加载)
 - [Q18: 声明式点击埋点的实现原理是什么? ](#q18-声明式点击埋点的实现原理是什么)
@@ -55,7 +55,7 @@ protected: true
 │  PerformancePlugin / ScreenRecordPlugin / Exposure  │
 ├─────────────────────────────────────────────────────┤
 │                  Framework Layer                    │
-│  react.ts / vue.ts / preact.ts / vite.ts / webpack  │
+│  react.ts / vue.ts / vite.ts / webpack              │
 ├─────────────────────────────────────────────────────┤
 │                  Utils Layer                        │
 │  data-structures / session / base64 / throttle      │
@@ -262,7 +262,6 @@ const cleanup = decorateProp(globalThis, "fetch", (oldFetch) => {
 | console.error      | 开发者主动输出           | 装饰 `console.error` 提取 Error 对象 |
 | React 组件错误     | ErrorBoundary            | `componentDidCatch` 生命周期         |
 | Vue 组件错误       | errorHandler             | `app.config.errorHandler`            |
-| Preact 组件错误    | ErrorBoundary            | 同 React 模式                        |
 
 去重机制( BoundedSet + base64v2 哈希) :
 
@@ -923,7 +922,7 @@ enablePlugin(new ScreenRecordPlugin());
 
 ---
 
-## Q15: 框架集成( React/Vue/Preact) 是如何实现的?
+## Q15: 框架集成( React/Vue) 是如何实现的?
 
 答:
 
@@ -968,24 +967,6 @@ export const vuePlugin: Plugin = (app, options: InitOptions) => {
 
 // 使用: app.use(vuePlugin, { dsn: "..." })
 ```
-
-Preact 集成( preact.ts) :
-
-与 React 类似的 ErrorBoundary 模式, 使用 Preact 的 Component 基类.
-
-Vite/Webpack 开发服务器插件( vite.ts / webpack.ts) :
-
-- 在开发环境提供 mock 的 DSN 接收端点
-- 避免开发时上报请求 404 报错
-- Vite 版本提供 `sentryPlugin()`( 基于当前 vite, peerDependencies 为 `"^7.0.0 || ^8.0.0"`) 和 `sentryPlugin7()`( 基于别名依赖 vite7 即 vite@7.3.3, 用于旧版 vite 环境)
-- Webpack 版本提供 devServer middleware
-
-设计原则:
-
-1. peerDependencies: react/vue/preact 声明为可选 peer dep, 不安装则不报错
-2. 独立 chunk: 构建时每个框架入口独立输出, 不相互依赖
-3. 共享上报逻辑: `core/framework-error.ts` 提供统一的框架错误格式化与上报
-4. 零配置: React 只需包裹 ErrorBoundary, Vue 只需 app.use()
 
 ---
 
@@ -1312,7 +1293,6 @@ package.json exports 多入口:
     ".": { "import": "./dist/index.js", "require": "./dist/index.cjs" },
     "./react": { "import": "./dist/react.js" },
     "./vue": { "import": "./dist/vue.js" },
-    "./preact": { "import": "./dist/preact.js" },
     "./plugins": { "import": "./dist/plugins/index.js" },
     "./vite": { "import": "./dist/vite.js" },
     "./webpack": { "import": "./dist/webpack.js" }
