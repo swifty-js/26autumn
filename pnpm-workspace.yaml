@@ -1,8 +1,8 @@
 packages:
   - "packages/*"
+
 allowBuilds:
   "@vscode/vsce-sign": true
-  docsify: true
   esbuild: true
   keytar: true
   puppeteer: true

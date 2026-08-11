@@ -1,6 +1,6 @@
 # CSS 面试 Q/A
 
-本文档收录 55 道 CSS 高频面试题, 覆盖选择器、布局、工程化、渲染原理、性能优化、响应式、动画、跨端与现代 CSS 新特性等方向, 解答兼顾原理深度与工程实践, 适合中高级前端面试准备。
+本文档收录 55 道 CSS 高频面试题, 覆盖选择器、布局、工程化、渲染原理、性能优化、响应式、动画、跨端与现代 CSS 新特性等方向, 解答兼顾原理深度与工程实践, 适合中高级前端面试准备.
 
 ## 目录
 
@@ -77,7 +77,7 @@
 
 A:
 
-优先级由层叠 (cascade) 规则决定, 核心口诀是: 先比来源与重要性, 再比选择器权重 (specificity), 最后比书写顺序。
+优先级由层叠 (cascade) 规则决定, 核心口诀是: 先比来源与重要性, 再比选择器权重 (specificity), 最后比书写顺序.
 
 来源与重要性层级 (从高到低):
 
@@ -90,7 +90,7 @@ A:
 7. 用户普通声明
 8. 用户代理 (浏览器默认样式表) 普通声明
 
-注意 `!important` 之间反转了来源优先级: 用户代理的 `!important` 高于作者的 `!important`, 这是为了可访问性兜底。
+注意 `!important` 之间反转了来源优先级: 用户代理的 `!important` 高于作者的 `!important`, 这是为了可访问性兜底.
 
 同一来源、同一重要性下, 比较选择器权重, 权重是一个四元组 (a, b, c, d), 按位比较, 不进制:
 
@@ -106,7 +106,7 @@ A:
 - 权重相同则后书写的声明生效 (就近覆盖)
 - 直接设置在元素上的样式永远高于继承而来的样式; 继承的样式可以被任意一条命中该元素的声明覆盖
 
-`@layer` 层叠层是 CSS Cascade 5 引入的机制: 层内样式整体低于未分层样式, 层与层之间按声明顺序, 后声明的层优先级高; 但 `!important` 在层间反转 (先声明的层的 `!important` 更高)。
+`@layer` 层叠层是 CSS Cascade 5 引入的机制: 层内样式整体低于未分层样式, 层与层之间按声明顺序, 后声明的层优先级高; 但 `!important` 在层间反转 (先声明的层的 `!important` 更高).
 
 ```css
 @layer base, components, utilities;
@@ -121,13 +121,13 @@ A:
 } /* 未分层, 即使权重相同也赢 */
 ```
 
-工程建议: 避免使用 `!important` 和行内样式, 通过合理的类名组织 (BEM、CSS Modules) 控制权重冲突; 组件库样式可用 `:where()` 或 `@layer` 降低优先级, 方便业务方覆盖。
+工程建议: 避免使用 `!important` 和行内样式, 通过合理的类名组织 (BEM、CSS Modules) 控制权重冲突; 组件库样式可用 `:where()` 或 `@layer` 降低优先级, 方便业务方覆盖.
 
 ### 2. 伪类和伪元素有什么区别?
 
 A:
 
-伪类 (pseudo-class) 用于选中真实存在的元素在特定状态或特定位置下的情形, 语法是单冒号; 伪元素 (pseudo-element) 用于创建或选中 DOM 树中并不真实存在的"部分", 语法是双冒号。
+伪类 (pseudo-class) 用于选中真实存在的元素在特定状态或特定位置下的情形, 语法是单冒号; 伪元素 (pseudo-element) 用于创建或选中 DOM 树中并不真实存在的"部分", 语法是双冒号.
 
 常用伪类:
 
@@ -151,13 +151,13 @@ A:
 - 伪元素不在 DOM 树中, JS 无法直接获取或绑定事件, 只能通过 `getComputedStyle(el, '::before')` 读取其计算样式
 - 一个选择器只能有一个伪元素, 且必须出现在选择器末尾; 伪类可以叠加多个, 如 `a:hover:focus`
 
-典型应用: 用 `::before`/`::after` 画图标、分隔线、清除浮动、做叠加层, 可以避免额外 DOM 节点, 保持结构语义干净。
+典型应用: 用 `::before`/`::after` 画图标、分隔线、清除浮动、做叠加层, 可以避免额外 DOM 节点, 保持结构语义干净.
 
 ### 3. CSS 属性继承是什么? 哪些属性可以继承?
 
 A:
 
-继承指子元素在未显式声明某属性时, 自动取父元素该属性的计算值。继承只发生在特定属性上, 且继承来的值优先级最低。
+继承指子元素在未显式声明某属性时, 自动取父元素该属性的计算值. 继承只发生在特定属性上, 且继承来的值优先级最低.
 
 可继承的常见属性 (规律: 与文字排版相关的基本都可继承):
 
@@ -165,7 +165,7 @@ A:
 - 文本: `color`、`line-height`、`text-align`、`text-indent`、`text-transform`、`letter-spacing`、`word-spacing`、`white-space`、`direction`
 - 其他: `visibility`、`cursor`、`list-style`、`border-collapse`、`quotes`
 
-不可继承的常见属性: 盒模型相关 (`width`、`height`、`margin`、`padding`、`border`)、定位相关 (`position`、`top` 等、`z-index`)、`background`、`display`、`float`、`overflow`、`transform` 等。
+不可继承的常见属性: 盒模型相关 (`width`、`height`、`margin`、`padding`、`border`)、定位相关 (`position`、`top` 等、`z-index`)、`background`、`display`、`float`、`overflow`、`transform` 等.
 
 每个属性都接受五个全局关键字:
 
@@ -175,13 +175,13 @@ A:
 - `revert`: 回滚到上一层级联来源 (作者样式回滚到用户/浏览器默认样式)
 - `revert-layer`: 回滚到上一个 `@layer` 的值
 
-经典面试追问: 为什么 `a` 标签的 `color` 不继承父元素? 因为浏览器的 UA 默认样式表直接给 `a` 设置了颜色, 直接命中的声明优先级高于继承值; 想继承需显式写 `a { color: inherit; }`。
+经典面试追问: 为什么 `a` 标签的 `color` 不继承父元素? 因为浏览器的 UA 默认样式表直接给 `a` 设置了颜色, 直接命中的声明优先级高于继承值; 想继承需显式写 `a { color: inherit; }`.
 
 ### 42. CSS 中的 :root 和 html 选择器有什么区别?
 
 A:
 
-`:root` 和 `html` 在大多数情况下指向同一个元素, 但在语义、特异性和使用场景上有区别。
+`:root` 和 `html` 在大多数情况下指向同一个元素, 但在语义、特异性和使用场景上有区别.
 
 特异性差异:
 
@@ -229,13 +229,13 @@ html {
 }
 ```
 
-在独立 SVG 文档 (.svg 文件) 中的区别: 文档根元素是 `<svg>`, 因此 `:root` 能匹配到根 `<svg>` 元素, 而 `html` 选择器匹配不到任何元素 — 这是两者在非 HTML 文档中语义分野的典型例子。
+在独立 SVG 文档 (.svg 文件) 中的区别: 文档根元素是 `<svg>`, 因此 `:root` 能匹配到根 `<svg>` 元素, 而 `html` 选择器匹配不到任何元素 — 这是两者在非 HTML 文档中语义分野的典型例子.
 
 ### 43. CSS 中的 :is() 和 :where() 伪类有什么区别?
 
 A:
 
-`:is()` 和 `:where()` 都是 CSS 伪类函数, 用于简化选择器书写, 接受一个选择器列表作为参数。两者的唯一区别在于特异性计算。
+`:is()` 和 `:where()` 都是 CSS 伪类函数, 用于简化选择器书写, 接受一个选择器列表作为参数. 两者的唯一区别在于特异性计算.
 
 特异性区别:
 
@@ -353,7 +353,7 @@ A:
 
 A:
 
-两种盒模型的区别在于 `width`/`height` 的计量范围, 由 `box-sizing` 控制。
+两种盒模型的区别在于 `width`/`height` 的计量范围, 由 `box-sizing` 控制.
 
 标准盒模型 (`box-sizing: content-box`, 默认值):
 
@@ -367,7 +367,7 @@ A:
 - 元素实际占据宽度 = `width` (+ margin 外边距始终不计入)
 - padding、border 向内挤压 content, 不会再改变外尺寸
 
-历史背景: 早期 IE 在怪异模式 (quirks mode, 无 DOCTYPE 或 DOCTYPE 错误) 下使用 IE 盒模型, W3C 标准盒模型与之冲突, CSS3 引入 `box-sizing` 让开发者自由选择。
+历史背景: 早期 IE 在怪异模式 (quirks mode, 无 DOCTYPE 或 DOCTYPE 错误) 下使用 IE 盒模型, W3C 标准盒模型与之冲突, CSS3 引入 `box-sizing` 让开发者自由选择.
 
 现代开发共识: 全局重置为 `border-box`, 因为"所见即所得"的尺寸更直觉, 布局计算不容易溢出:
 
@@ -379,13 +379,13 @@ A:
 }
 ```
 
-注意 `box-sizing` 不影响 margin, margin 塌陷、margin 合并规则在两种盒模型下完全一致。
+注意 `box-sizing` 不影响 margin, margin 塌陷、margin 合并规则在两种盒模型下完全一致.
 
 ### 5. 什么是 BFC? 如何触发 BFC? BFC 有什么作用?
 
 A:
 
-BFC (Block Formatting Context, 块级格式化上下文) 是页面中的一块独立渲染区域, 内部元素的布局规则与外界隔离: 内部的变化不会影响外部, 外部也不会影响内部。可以把它理解为一块"自治"的布局沙盒。
+BFC (Block Formatting Context, 块级格式化上下文) 是页面中的一块独立渲染区域, 内部元素的布局规则与外界隔离: 内部的变化不会影响外部, 外部也不会影响内部. 可以把它理解为一块"自治"的布局沙盒.
 
 常见触发方式 (满足其一即可):
 
@@ -428,7 +428,7 @@ BFC 内部布局规则:
 } /* BFC, 自适应剩余宽度 */
 ```
 
-`display: flow-root` 是现代最推荐的触发方式, 它只为创建 BFC 而生, 没有 `overflow: hidden` 裁剪内容、`float` 改变布局等副作用。
+`display: flow-root` 是现代最推荐的触发方式, 它只为创建 BFC 而生, 没有 `overflow: hidden` 裁剪内容、`float` 改变布局等副作用.
 
 ### 6. 如何实现元素的水平垂直居中?
 
@@ -453,13 +453,13 @@ A:
 - 单行文本垂直居中: `line-height` 等于容器高度 + `text-align: center`
 - 表格方案: 父 `display: table-cell; vertical-align: middle; text-align: center;`
 
-选择建议: 现代项目优先 flex/grid, 语义清晰且对子元素数量、尺寸变化健壮; 需要兼容老浏览器或弹窗居中常用 absolute + transform; transform 方案会创建合成层, 对动画友好, 但可能引发模糊 (亚像素渲染), 必要时对尺寸取整。
+选择建议: 现代项目优先 flex/grid, 语义清晰且对子元素数量、尺寸变化健壮; 需要兼容老浏览器或弹窗居中常用 absolute + transform; transform 方案会创建合成层, 对动画友好, 但可能引发模糊 (亚像素渲染), 必要时对尺寸取整.
 
 ### 7. 介绍 flex 布局和 grid 布局
 
 A:
 
-flex 是一维布局模型, 一次只处理一个方向 (主轴) 上的排列; grid 是二维布局模型, 同时控制行和列。两者互补而非替代: flex 适合组件内部的内容分布, grid 适合页面级骨架与严格二维对齐。
+flex 是一维布局模型, 一次只处理一个方向 (主轴) 上的排列; grid 是二维布局模型, 同时控制行和列. 两者互补而非替代: flex 适合组件内部的内容分布, grid 适合页面级骨架与严格二维对齐.
 
 flex 容器属性:
 
@@ -488,7 +488,7 @@ grid 容器核心属性:
 - `justify-content` / `align-content`: 整个网格在容器内的分布
 - `grid-auto-flow`、`grid-auto-rows`: 控制隐式网格 (自动放置产生的轨道)
 
-grid 项目属性: `grid-column` / `grid-row` (如 `grid-column: 1 / 3` 跨两列)、`grid-area`、`justify-self` / `align-self`。
+grid 项目属性: `grid-column` / `grid-row` (如 `grid-column: 1 / 3` 跨两列)、`grid-area`、`justify-self` / `align-self`.
 
 经典对比代码:
 
@@ -511,13 +511,13 @@ grid 项目属性: `grid-column` / `grid-row` (如 `grid-column: 1 / 3` 跨两�
 }
 ```
 
-`auto-fill` 与 `auto-fit` 的区别: 容器有剩余空间时, `auto-fill` 保留空轨道, `auto-fit` 折叠空轨道让现有项目拉伸填满, 均分卡片场景通常用 `auto-fit`。
+`auto-fill` 与 `auto-fit` 的区别: 容器有剩余空间时, `auto-fill` 保留空轨道, `auto-fit` 折叠空轨道让现有项目拉伸填满, 均分卡片场景通常用 `auto-fit`.
 
 ### 8. 如何使用 CSS 实现中间宽度固定、两边宽度自适应的布局?
 
 A:
 
-以"左栏、中间主区固定 300px、右栏, 左右随窗口伸缩"为例, 常见有五种方案。
+以"左栏、中间主区固定 300px、右栏, 左右随窗口伸缩"为例, 常见有五种方案.
 
 方案一: flex (现代首选)
 
@@ -554,7 +554,7 @@ A:
 
 方案三: 浮动 + margin (经典兼容方案)
 
-左右栏分别左右浮动并定宽, 中间栏不浮动、用 margin 避让。注意 DOM 顺序: 浮动元素必须在中间栏之前, 否则中间栏 (块级) 会独占一行把浮动挤下去。
+左右栏分别左右浮动并定宽, 中间栏不浮动、用 margin 避让. 注意 DOM 顺序: 浮动元素必须在中间栏之前, 否则中间栏 (块级) 会独占一行把浮动挤下去.
 
 ```css
 .left {
@@ -593,27 +593,27 @@ A:
 }
 ```
 
-缺点: 绝对定位脱离文档流, 侧栏高度超出时无法撑开容器, 页脚可能盖住侧栏。
+缺点: 绝对定位脱离文档流, 侧栏高度超出时无法撑开容器, 页脚可能盖住侧栏.
 
 方案五: 圣杯布局与双飞翼布局 (中间栏优先渲染的经典考题)
 
-圣杯布局: 三栏全部左浮动, 中间栏 `width: 100%` 并放在 DOM 最前; 左栏 `margin-left: -100%` 拉到行首, 右栏 `margin-left: -右栏宽度`; 父容器用 `padding: 0 200px` 腾出两侧空间, 左右栏再相对定位归位。
+圣杯布局: 三栏全部左浮动, 中间栏 `width: 100%` 并放在 DOM 最前; 左栏 `margin-left: -100%` 拉到行首, 右栏 `margin-left: -右栏宽度`; 父容器用 `padding: 0 200px` 腾出两侧空间, 左右栏再相对定位归位.
 
-双飞翼布局: 同样三栏左浮动、中间栏 `width: 100%`, 但中间栏内部再套一层 div 用 `margin: 0 200px` 避让, 不需要父 padding 和相对定位, 结构多一层但定位更简单。
+双飞翼布局: 同样三栏左浮动、中间栏 `width: 100%`, 但中间栏内部再套一层 div 用 `margin: 0 200px` 避让, 不需要父 padding 和相对定位, 结构多一层但定位更简单.
 
-对比总结: 现代项目直接用 flex/grid; 浮动与绝对定位方案主要考察对文档流、浮动负 margin 的理解; 圣杯/双飞翼考察中间栏优先加载 (SEO 时代诉求) 与负 margin 机制。
+对比总结: 现代项目直接用 flex/grid; 浮动与绝对定位方案主要考察对文档流、浮动负 margin 的理解; 圣杯/双飞翼考察中间栏优先加载 (SEO 时代诉求) 与负 margin 机制.
 
 ### 9. 什么是 margin 塌陷与 margin 合并? 如何解决?
 
 A:
 
-margin 合并 (collapsing margins) 指垂直方向上两个 margin 相遇时, 不叠加而是合并为其中较大者。只发生在块级盒子的垂直方向, 水平方向永不合并。三种典型场景:
+margin 合并 (collapsing margins) 指垂直方向上两个 margin 相遇时, 不叠加而是合并为其中较大者. 只发生在块级盒子的垂直方向, 水平方向永不合并. 三种典型场景:
 
 1. 相邻兄弟元素: 上面的 `margin-bottom: 20px` 与下面的 `margin-top: 30px`, 实际间距 30px
 2. 父子元素 (margin 穿透/塌陷): 父元素没有 border、padding、行内内容、清除浮动或 BFC 隔离时, 子元素的 `margin-top` 会"穿透"父元素, 表现为父元素整体向下移动, 而不是子元素在父元素内部下移
 3. 空块元素自身的上下 margin 也会合并
 
-不会合并的情形: 浮动元素、绝对定位元素、行内块、BFC 内部与外部之间、`display: flex`/`grid` 容器的子项之间。
+不会合并的情形: 浮动元素、绝对定位元素、行内块、BFC 内部与外部之间、`display: flex`/`grid` 容器的子项之间.
 
 解决方案:
 
@@ -621,7 +621,7 @@ margin 合并 (collapsing margins) 指垂直方向上两个 margin 相遇时, �
 - 兄弟合并: 统一只用一个方向的 margin (如全部用 `margin-bottom`), 或用 flex/grid 容器的 `gap` 属性, gap 不参与合并, 是最现代的做法
 - 用 `::before` 插入 `display: table` 的伪元素也可以隔断合并 (早期 clearfix 的副产物)
 
-理解要点: margin 合并是规范刻意设计的排版行为 (段落间距不至于翻倍), 不是 bug; 工程上的最佳实践是用 `gap` 与单向 margin 约定规避它。
+理解要点: margin 合并是规范刻意设计的排版行为 (段落间距不至于翻倍), 不是 bug; 工程上的最佳实践是用 `gap` 与单向 margin 约定规避它.
 
 ### 10. position 有哪些取值? sticky 是如何工作的?
 
@@ -635,7 +635,7 @@ A:
 - `fixed`: 脱离文档流, 相对视口定位, 滚动不移动
 - `sticky`: 粘性定位, 是 relative 与 fixed 的混合体
 
-sticky 工作机制: 元素在阈值内表现为 `relative`, 随正常流滚动; 一旦滚动到设定阈值 (如 `top: 0`), 就"粘"住表现为 `fixed`, 直到父容器滚出视口。它始终被限制在其最近的滚动祖先与父容器范围内。
+sticky 工作机制: 元素在阈值内表现为 `relative`, 随正常流滚动; 一旦滚动到设定阈值 (如 `top: 0`), 就"粘"住表现为 `fixed`, 直到父容器滚出视口. 它始终被限制在其最近的滚动祖先与父容器范围内.
 
 sticky 常见失效原因 (高频追问):
 
@@ -644,13 +644,13 @@ sticky 常见失效原因 (高频追问):
 3. 未设置阈值属性 (至少给一个 `top`/`bottom`/`left`/`right`)
 4. 表格相关元素上支持不全 (旧浏览器)
 
-`fixed` 的坑 (高频追问): 当祖先元素存在 `transform`、`filter`、`perspective`、`backdrop-filter`、`will-change: transform` 时, 该祖先会成为 fixed 元素的包含块, fixed 不再相对视口, 弹窗/悬浮按钮"跑飞"多半是这个原因。
+`fixed` 的坑 (高频追问): 当祖先元素存在 `transform`、`filter`、`perspective`、`backdrop-filter`、`will-change: transform` 时, 该祖先会成为 fixed 元素的包含块, fixed 不再相对视口, 弹窗/悬浮按钮"跑飞"多半是这个原因.
 
 ### 11. z-index 为什么会失效? 什么是层叠上下文?
 
 A:
 
-层叠上下文 (stacking context) 是三维概念上的渲染分组: 同一层叠上下文内的元素按规则决定谁盖谁; 不同层叠上下文之间, 只比较两个上下文根元素的层级, 内部元素永远无法"越狱"。
+层叠上下文 (stacking context) 是三维概念上的渲染分组: 同一层叠上下文内的元素按规则决定谁盖谁; 不同层叠上下文之间, 只比较两个上下文根元素的层级, 内部元素永远无法"越狱".
 
 创建层叠上下文的常见条件:
 
@@ -682,13 +682,13 @@ z-index 失效的典型场景:
 - 父元素 (或祖先) 创建了层叠上下文且层级较低, 子元素 `z-index: 9999` 也翻不出父级的"天花板", 被别的父级分支盖住 — 这是"弹窗被遮挡"类 bug 的根源
 - 同级元素都未设 z-index, 按绘制顺序后写的覆盖先写的, 看起来像失效
 
-工程解法: 全局规划层级区间 (如基础 0、吸顶 100、抽屉 500、弹窗 1000、toast 2000), 弹窗类组件用 portal 挂到 `body` 下避开祖先层叠上下文, 或使用原生 `<dialog>` (top layer, 顶层渲染, 天然不被任何 z-index 遮挡)。
+工程解法: 全局规划层级区间 (如基础 0、吸顶 100、抽屉 500、弹窗 1000、toast 2000), 弹窗类组件用 portal 挂到 `body` 下避开祖先层叠上下文, 或使用原生 `<dialog>` (top layer, 顶层渲染, 天然不被任何 z-index 遮挡).
 
 ### 44. CSS 中的浮动有什么特点? 如何清除浮动?
 
 A:
 
-浮动 (float) 最初设计用于实现文字环绕图片的效果, 后来被广泛用于页面布局。理解浮动的特性对掌握 CSS 布局至关重要。
+浮动 (float) 最初设计用于实现文字环绕图片的效果, 后来被广泛用于页面布局. 理解浮动的特性对掌握 CSS 布局至关重要.
 
 浮动的特点:
 
@@ -718,7 +718,7 @@ A:
 </div>
 ```
 
-缺点: 增加无意义的 DOM 节点。
+缺点: 增加无意义的 DOM 节点.
 
 方案二: 父元素触发 BFC:
 
@@ -728,7 +728,7 @@ A:
 }
 ```
 
-原理: BFC 计算高度时会包含浮动子元素。
+原理: BFC 计算高度时会包含浮动子元素.
 
 方案三: ::after 伪元素 (推荐):
 
@@ -769,13 +769,13 @@ clear 属性的值:
 - `right`: 元素右侧不允许有浮动元素
 - `both`: 两侧都不允许有浮动元素
 
-浮动布局的历史地位: 在 Flex 和 Grid 出现之前, 浮动是主要的布局手段。现代开发中, 浮动应仅用于其原始目的 — 文字环绕效果, 布局应使用 Flex 或 Grid。
+浮动布局的历史地位: 在 Flex 和 Grid 出现之前, 浮动是主要的布局手段. 现代开发中, 浮动应仅用于其原始目的 — 文字环绕效果, 布局应使用 Flex 或 Grid.
 
 ### 45. CSS 中的 grid 和 flex 应该如何选择?
 
 A:
 
-Grid 和 Flex 不是竞争关系, 而是互补的布局系统。选择取决于布局维度和设计意图。
+Grid 和 Flex 不是竞争关系, 而是互补的布局系统. 选择取决于布局维度和设计意图.
 
 核心区别:
 
@@ -861,7 +861,7 @@ Grid 和 Flex 不是竞争关系, 而是互补的布局系统。选择取决于�
 
 A:
 
-gap 属性 (及其子属性 row-gap 和 column-gap) 用于设置网格或弹性容器中子元素之间的间距。它在 Grid 和 Flex 中的行为基本一致, 但历史兼容性和使用场景有所不同。
+gap 属性 (及其子属性 row-gap 和 column-gap) 用于设置网格或弹性容器中子元素之间的间距. 它在 Grid 和 Flex 中的行为基本一致, 但历史兼容性和使用场景有所不同.
 
 语法:
 
@@ -932,7 +932,7 @@ A:
 
 方法一: border 法 (最经典)
 
-元素宽高设为 0, 设置较粗的四条边框, 其中三条透明, 一条着色。原理: 相邻边框交界处是 45° 斜切线, 宽高压成 0 后, 每条边框就是一个三角形。
+元素宽高设为 0, 设置较粗的四条边框, 其中三条透明, 一条着色. 原理: 相邻边框交界处是 45° 斜切线, 宽高压成 0 后, 每条边框就是一个三角形.
 
 ```css
 .triangle-up {
@@ -944,7 +944,7 @@ A:
 }
 ```
 
-要直角三角形: 只保留相邻两条边框, 一色一透明。要更扁/更尖的三角形: 调整各边宽度比例。
+要直角三角形: 只保留相邻两条边框, 一色一透明. 要更扁/更尖的三角形: 调整各边宽度比例.
 
 方法二: linear-gradient 渐变法
 
@@ -974,7 +974,7 @@ A:
 }
 ```
 
-优点: 不受 border 模型限制, 可以裁剪出任意多边形; 缺点: 老浏览器需 `-webkit-` 前缀, 裁剪外阴影会被裁掉。
+优点: 不受 border 模型限制, 可以裁剪出任意多边形; 缺点: 老浏览器需 `-webkit-` 前缀, 裁剪外阴影会被裁掉.
 
 方法四: transform 旋转法
 
@@ -991,13 +991,13 @@ A:
 }
 ```
 
-追问"如何画带边框的三角形": border 法做不到, 常用双层叠加 (两个伪元素三角形错位 1px, 底色三角形稍大露边) 或方法四的旋转正方形方案。
+追问"如何画带边框的三角形": border 法做不到, 常用双层叠加 (两个伪元素三角形错位 1px, 底色三角形稍大露边) 或方法四的旋转正方形方案.
 
 ### 13. 移动端 1px 问题是什么? 如何实现 0.5px 边框?
 
 A:
 
-问题本质: 在 DPR (devicePixelRatio) ≥ 2 的屏幕上, 1 个 CSS 像素由 2×2 或 3×3 个物理像素渲染, 导致 CSS 里写的 `1px` 边框在高分辨率屏上显得比设计稿 (设计稿的 1px 通常指 1 物理像素, 即 hairline) 粗。这就是"移动端 1px 问题"。
+问题本质: 在 DPR (devicePixelRatio) ≥ 2 的屏幕上, 1 个 CSS 像素由 2×2 或 3×3 个物理像素渲染, 导致 CSS 里写的 `1px` 边框在高分辨率屏上显得比设计稿 (设计稿的 1px 通常指 1 物理像素, 即 hairline) 粗. 这就是"移动端 1px 问题".
 
 解决方案:
 
@@ -1022,9 +1022,9 @@ A:
 }
 ```
 
-只想要一条下边线就用 `border-bottom` + `transform: scaleY(0.5)`; 圆角同步放大再缩小即可。
+只想要一条下边线就用 `border-bottom` + `transform: scaleY(0.5)`; 圆角同步放大再缩小即可.
 
-2. viewport 整体缩放法 (早期手淘 flexible 方案): 按 DPR 动态设置 `<meta name="viewport" content="initial-scale=0.5">`, 页面所有 1px 自动变 hairline; 缺点是全页面元素都要按放大后的尺寸体系写, 且影响第三方组件, 新项目较少采用。
+2. viewport 整体缩放法 (早期手淘 flexible 方案): 按 DPR 动态设置 `<meta name="viewport" content="initial-scale=0.5">`, 页面所有 1px 自动变 hairline; 缺点是全页面元素都要按放大后的尺寸体系写, 且影响第三方组件, 新项目较少采用.
 
 3. 渐变背景法: 用 `linear-gradient` 让 1px 高度的背景一半是颜色一半透明:
 
@@ -1035,11 +1035,11 @@ A:
 }
 ```
 
-4. `box-shadow` 模拟: `box-shadow: 0 0.5px 0 #ddd;` 利用阴影的亚像素渲染。
+4. `box-shadow` 模拟: `box-shadow: 0 0.5px 0 #ddd;` 利用阴影的亚像素渲染.
 
-5. 直接写 `0.5px`: iOS 8+ 的 Safari 支持小数物理像素边框, Android 大多会四舍五入成 0 或 1, 兼容性差, 只能渐进增强。
+5. 直接写 `0.5px`: iOS 8+ 的 Safari 支持小数物理像素边框, Android 大多会四舍五入成 0 或 1, 兼容性差, 只能渐进增强.
 
-6. SVG 法: 用内联 SVG 画 1 物理像素的线, 配合 viewport 缩放或按 DPR 的 media query 切换。
+6. SVG 法: 用内联 SVG 画 1 物理像素的线, 配合 viewport 缩放或按 DPR 的 media query 切换.
 
 媒体查询按 DPR 区分:
 
@@ -1062,7 +1062,7 @@ A:
 - `z-index: -1` 或背景色遮挡: 不是真正隐藏, 只是盖住
 - `hidden` 属性 / `aria-hidden="true"`: 语义层面隐藏
 
-选择建议: 要过渡动画选 `opacity`/`visibility`; 彻底移除且不需要读屏选 `display: none`; 无障碍隐藏文本 (如图标按钮的文字说明) 用 visually-hidden 方案 (`clip-path` + 1px 尺寸 + 溢出裁剪) 而不是 `display: none`。
+选择建议: 要过渡动画选 `opacity`/`visibility`; 彻底移除且不需要读屏选 `display: none`; 无障碍隐藏文本 (如图标按钮的文字说明) 用 visually-hidden 方案 (`clip-path` + 1px 尺寸 + 溢出裁剪) 而不是 `display: none`.
 
 ### 15. 如何实现单行和多行文本溢出省略号?
 
@@ -1101,7 +1101,7 @@ A:
 - float 伪元素法: 用浮动把"…"挤到右下角
 - JS 方案: 二分查找截断字符数, 或用 canvas measureText 测量, 最精确且有交互 (展开/收起) 时必选
 
-flex/grid 容器中文本省略失效是高频 bug: flex 子项默认 `min-width: auto` 不会收缩到内容以下, 需要给 flex 子项加 `min-width: 0` (grid 子项同理可能需要 `minmax(0, 1fr)`), 内部 `text-overflow` 才生效。
+flex/grid 容器中文本省略失效是高频 bug: flex 子项默认 `min-width: auto` 不会收缩到内容以下, 需要给 flex 子项加 `min-width: 0` (grid 子项同理可能需要 `minmax(0, 1fr)`), 内部 `text-overflow` 才生效.
 
 ### 16. px、em、rem、vw、vh 有什么区别? 如何选择?
 
@@ -1113,7 +1113,7 @@ A:
 
 相对单位:
 
-- `em`: 相对当前元素自身的 `font-size`; 但用在 `font-size` 属性本身上时, 相对父元素的 `font-size`。嵌套使用会逐层累积放大/缩小, 难维护, 这是它最大的坑
+- `em`: 相对当前元素自身的 `font-size`; 但用在 `font-size` 属性本身上时, 相对父元素的 `font-size`. 嵌套使用会逐层累积放大/缩小, 难维护, 这是它最大的坑
 - `rem`: 永远相对根元素 (`<html>`) 的 `font-size`, 无累积问题, 常用于整体可缩放的布局体系
 - `vw` / `vh`: 视口宽/高的 1%; 衍生有 `vmin`、`vmax`, 以及解决移动浏览器地址栏伸缩问题的 `svh` (small)、`lvh` (large)、`dvh` (dynamic)
 - `%`: 相对包含块对应属性 (宽度相对包含块宽度, 高度相对包含块高度 — 高度百分比需要父链有确定高度才生效; `padding`/`margin` 的百分比一律相对包含块宽度, 包括垂直方向, 可利用此特性做固定宽高比容器)
@@ -1131,7 +1131,7 @@ A:
 
 A:
 
-aspect-ratio 是 CSS 中用于设置元素宽高比的属性, 替代了传统的 padding-top 百分比 hack 方案。
+aspect-ratio 是 CSS 中用于设置元素宽高比的属性, 替代了传统的 padding-top 百分比 hack 方案.
 
 语法:
 
@@ -1213,7 +1213,7 @@ aspect-ratio 方案:
 
 A:
 
-三者都是解决"样式组织与作用域"的工程方案, 但实现时机与形态完全不同。
+三者都是解决"样式组织与作用域"的工程方案, 但实现时机与形态完全不同.
 
 CSS 原子化 (Tailwind CSS 核心原理):
 
@@ -1245,7 +1245,7 @@ import styles from "./App.module.css";
 
 CSS 原子化 ≈ CSS Modules > 编译时 css-in-js > 运行时 css-in-js
 
-前两者与编译时 css-in-js 都是构建期产出静态 CSS, 浏览器直接并行下载、解析、缓存, 没有任何 JS 运行时开销; 运行时 css-in-js 则把样式生成搬到了浏览器运行阶段。
+前两者与编译时 css-in-js 都是构建期产出静态 CSS, 浏览器直接并行下载、解析、缓存, 没有任何 JS 运行时开销; 运行时 css-in-js 则把样式生成搬到了浏览器运行阶段.
 
 运行时 css-in-js 性能差的原因 (重点):
 
@@ -1255,13 +1255,13 @@ CSS 原子化 ≈ CSS Modules > 编译时 css-in-js > 运行时 css-in-js
 4. 缓存不友好: 动态生成的类名随内容变化, 浏览器无法像静态文件那样长缓存; 库本身还有额外的 runtime 包体积
 5. React 并发渲染的副作用约束: 渲染期间插入样式是副作用, React 18 为此专门提供了 `useInsertionEffect`, 说明该模式与并发特性存在本质张力, 处理不当会出现样式闪烁 (FOUC)
 
-补充结论: 这不是说 css-in-js 一无是处 — 它的动态样式表达力、与组件共存亡的维护性仍适合强主题化、强动态的场景; 但性能敏感、SSR、大体量项目应优先选静态方案 (Tailwind / CSS Modules / 编译时 css-in-js), 这也是 styled-components 官方也转向推荐静态抽取方案的行业背景。
+补充结论: 这不是说 css-in-js 一无是处 — 它的动态样式表达力、与组件共存亡的维护性仍适合强主题化、强动态的场景; 但性能敏感、SSR、大体量项目应优先选静态方案 (Tailwind / CSS Modules / 编译时 css-in-js), 这也是 styled-components 官方也转向推荐静态抽取方案的行业背景.
 
 ### 18. Web Component 如何实现样式隔离?
 
 A:
 
-Web Component 的样式隔离依赖 Shadow DOM。通过 `el.attachShadow({ mode: 'open' })` 在宿主元素内挂载一棵影子树, 影子树拥有独立的 DOM 作用域和样式作用域:
+Web Component 的样式隔离依赖 Shadow DOM. 通过 `el.attachShadow({ mode: 'open' })` 在宿主元素内挂载一棵影子树, 影子树拥有独立的 DOM 作用域和样式作用域:
 
 - 外部文档的 CSS 选择器无法选中影子树内部节点, 全局样式不会影响内部 (例外: 可继承属性和 CSS 自定义属性仍能穿透)
 - 影子树内部的 `<style>` 样式也不会泄漏到外部文档
@@ -1300,9 +1300,9 @@ customElements.define("my-card", MyCard);
 
 A:
 
-SCSS 是 CSS 预处理器 Sass 的主流语法 (缩进语法叫 Sass, 花括号语法叫 SCSS), 它是 CSS 的超集, 任何合法 CSS 都是合法 SCSS。浏览器不认识 SCSS, 需要编译器 (dart-sass) 编译为纯 CSS 后使用。
+SCSS 是 CSS 预处理器 Sass 的主流语法 (缩进语法叫 Sass, 花括号语法叫 SCSS), 它是 CSS 的超集, 任何合法 CSS 都是合法 SCSS. 浏览器不认识 SCSS, 需要编译器 (dart-sass) 编译为纯 CSS 后使用.
 
-解决的问题: 原生 CSS 缺乏变量 (CSS 变量出现之前)、复用机制、逻辑运算与模块化能力, 大型项目样式难以维护。
+解决的问题: 原生 CSS 缺乏变量 (CSS 变量出现之前)、复用机制、逻辑运算与模块化能力, 大型项目样式难以维护.
 
 常用语法清单:
 
@@ -1352,7 +1352,7 @@ SCSS 是 CSS 预处理器 Sass 的主流语法 (缩进语法叫 Sass, 花括号�
 }
 ```
 
-mixin 与 extend 的核心区别 (高频追问): mixin 是"复制声明"到每个调用处, 支持参数, 产物体积可能膨胀; extend 是"合并选择器"到同一组声明, 产物更精简但不能传参, 且会改变选择器位置, 可能引入意外的层叠顺序。带参复用选 mixin, 纯静态公共样式选占位选择器。
+mixin 与 extend 的核心区别 (高频追问): mixin 是"复制声明"到每个调用处, 支持参数, 产物体积可能膨胀; extend 是"合并选择器"到同一组声明, 产物更精简但不能传参, 且会改变选择器位置, 可能引入意外的层叠顺序. 带参复用选 mixin, 纯静态公共样式选占位选择器.
 
 5. 运算与函数: `+ - * /`(除法推荐 `math.div($a, $b)`)、内置函数 (`lighten()`、`darken()`、`map-get()`、`if()`...)、`@function` 自定义函数 (有返回值, 与 mixin 区分)
 
@@ -1369,15 +1369,15 @@ mixin 与 extend 的核心区别 (高频追问): mixin 是"复制声明"到每�
 }
 ```
 
-现代定位: CSS 原生变量、嵌套 (CSS Nesting) 普及后, SCSS 的变量与嵌套需求在弱化, 但 mixin、循环、函数、构建期逻辑仍是不可替代的生产力工具, 常与 PostCSS 串联使用 (scss → autoprefixer → cssnano)。
+现代定位: CSS 原生变量、嵌套 (CSS Nesting) 普及后, SCSS 的变量与嵌套需求在弱化, 但 mixin、循环、函数、构建期逻辑仍是不可替代的生产力工具, 常与 PostCSS 串联使用 (scss → autoprefixer → cssnano).
 
 ### 20. PostCSS 是什么? 有什么用?
 
 A:
 
-PostCSS 是一个用 JS 插件生态转换 CSS 的工具平台。工作流: 把 CSS 源码解析成 AST (抽象语法树) → 插件遍历修改 AST → 重新序列化为 CSS。它本身不做任何事, 一切能力来自插件。
+PostCSS 是一个用 JS 插件生态转换 CSS 的工具平台. 工作流: 把 CSS 源码解析成 AST (抽象语法树) → 插件遍历修改 AST → 重新序列化为 CSS. 它本身不做任何事, 一切能力来自插件.
 
-与预处理器 (SCSS/Less) 的本质区别 (高频追问): 预处理器是"另一门语言 → CSS"的编译器, 处理的是源码; PostCSS 是"CSS → CSS"的转换器, 处理的是产物。二者在构建链中串联而非互斥: 先 SCSS 编译, 再 PostCSS 转换。
+与预处理器 (SCSS/Less) 的本质区别 (高频追问): 预处理器是"另一门语言 → CSS"的编译器, 处理的是源码; PostCSS 是"CSS → CSS"的转换器, 处理的是产物. 二者在构建链中串联而非互斥: 先 SCSS 编译, 再 PostCSS 转换.
 
 代表插件与用途:
 
@@ -1403,15 +1403,15 @@ const plugin = () => ({
 plugin.postcss = true;
 ```
 
-在 webpack 中的位置: `sass-loader` (编译 scss) → `postcss-loader` (autoprefixer 等) → `css-loader` (处理 import/url 与 modules) → `style-loader` 或 `mini-css-extract-plugin`。
+在 webpack 中的位置: `sass-loader` (编译 scss) → `postcss-loader` (autoprefixer 等) → `css-loader` (处理 import/url 与 modules) → `style-loader` 或 `mini-css-extract-plugin`.
 
-延伸: Lightning CSS (Rust) 与基于 SWC 的方案用原生速度重做了 PostCSS 的多数场景 (前缀、压缩、降级), 是新构建工具链的趋势。
+延伸: Lightning CSS (Rust) 与基于 SWC 的方案用原生速度重做了 PostCSS 的多数场景 (前缀、压缩、降级), 是新构建工具链的趋势.
 
 ### 21. CSS 变量 (自定义属性) 与 SCSS 变量有什么区别?
 
 A:
 
-这是"编译期"与"运行时"的区别, 是理解现代主题方案的关键。
+这是"编译期"与"运行时"的区别, 是理解现代主题方案的关键.
 
 CSS 自定义属性 (运行时):
 
@@ -1458,13 +1458,13 @@ A:
 - 渲染阻塞: 两者都是渲染阻塞资源; 但 `@import` 的串行特性会显著拖慢首次渲染
 - 历史兼容: 极老浏览器 (IE5-) 不支持 `@import`, 当年曾用作 hack, 如今无意义
 
-结论: 生产环境永远用 `<link>` 加载样式表, 避免 `@import`; 需要异步加载非关键 CSS 时用 `media="print" onload` 或 `rel="preload" as="style"` 技巧。
+结论: 生产环境永远用 `<link>` 加载样式表, 避免 `@import`; 需要异步加载非关键 CSS 时用 `media="print" onload` 或 `rel="preload" as="style"` 技巧.
 
 ### 48. 什么是 CSS Modules? 它的原理是什么?
 
 A:
 
-CSS Modules 是一种 CSS 类名局部作用域方案, 通过构建工具在编译时将类名转换为唯一标识符, 避免全局样式冲突。
+CSS Modules 是一种 CSS 类名局部作用域方案, 通过构建工具在编译时将类名转换为唯一标识符, 避免全局样式冲突.
 
 核心原理 — 编译时转换:
 
@@ -1563,7 +1563,7 @@ function Button({ size }) {
 
 A:
 
-CSS 按需加载和懒加载是性能优化的重要手段, 目标是减少首屏加载的 CSS 体积, 只在需要时加载对应样式。
+CSS 按需加载和懒加载是性能优化的重要手段, 目标是减少首屏加载的 CSS 体积, 只在需要时加载对应样式.
 
 代码分割 (Code Splitting):
 
@@ -1604,7 +1604,7 @@ button.addEventListener("click", async () => {
 <link rel="stylesheet" href="mobile.css" media="(max-width: 768px)" />
 ```
 
-注意: media 属性不会阻止 CSS 下载, 浏览器仍会下载所有 CSS, 只是不匹配时不阻塞渲染。真正的按需加载需要 JavaScript 动态插入。
+注意: media 属性不会阻止 CSS 下载, 浏览器仍会下载所有 CSS, 只是不匹配时不阻塞渲染. 真正的按需加载需要 JavaScript 动态插入.
 
 Critical CSS (关键 CSS):
 
@@ -1657,7 +1657,7 @@ module.exports = {
 
 A:
 
-@layer (Cascade Layers) 是 CSS 层叠层规则, 允许开发者显式定义样式的优先级层级, 解决第三方库样式覆盖困难、特异性战争等问题。
+@layer (Cascade Layers) 是 CSS 层叠层规则, 允许开发者显式定义样式的优先级层级, 解决第三方库样式覆盖困难、特异性战争等问题.
 
 问题背景:
 
@@ -1783,15 +1783,15 @@ A:
 
 A:
 
-渲染管线: DOM + CSSOM → Render Tree → Layout (重排) → Paint (重绘) → Composite (合成)。
+渲染管线: DOM + CSSOM → Render Tree → Layout (重排) → Paint (重绘) → Composite (合成).
 
-- 重排 (reflow/layout): 几何信息变化时重新计算元素位置与大小。触发源: 增删可见 DOM、修改宽高/边距/定位/字体、窗口 resize、内容变化 (图片加载完成)、激活伪类改变布局等
+- 重排 (reflow/layout): 几何信息变化时重新计算元素位置与大小. 触发源: 增删可见 DOM、修改宽高/边距/定位/字体、窗口 resize、内容变化 (图片加载完成)、激活伪类改变布局等
 - 重绘 (repaint): 外观变化但几何不变时重新绘制像素, 如 `color`、`background`、`box-shadow`、`visibility`
 - 合成 (composite): `transform`、`opacity` 在合成线程直接变换已有图层, 既不重排也不重绘, 成本最低
 
-关系: 重排必然引发重绘和合成, 重绘必然引发合成; 重排是开销最大的操作, 且会向上向下传染 (父级尺寸变化导致整棵子树重排)。
+关系: 重排必然引发重绘和合成, 重绘必然引发合成; 重排是开销最大的操作, 且会向上向下传染 (父级尺寸变化导致整棵子树重排).
 
-强制同步布局 (layout thrashing, 高频追问): 读取 `offsetWidth`、`offsetTop`、`getBoundingClientRect()`、`scrollTop` 等几何值时, 若队列中有未应用的重排, 浏览器被迫立即同步执行重排以返回正确值; 在循环中"写样式 → 读几何 → 再写样式"会造成每轮都同步重排, 是典型性能杀手。
+强制同步布局 (layout thrashing, 高频追问): 读取 `offsetWidth`、`offsetTop`、`getBoundingClientRect()`、`scrollTop` 等几何值时, 若队列中有未应用的重排, 浏览器被迫立即同步执行重排以返回正确值; 在循环中"写样式 → 读几何 → 再写样式"会造成每轮都同步重排, 是典型性能杀手.
 
 优化手段:
 
@@ -1808,15 +1808,15 @@ A:
 
 两条结论都要答, 且机制不同:
 
-CSS 阻塞渲染 (render-blocking): 是。浏览器必须等 CSSOM 构建完成才能合成渲染树并首绘, 否则会出现无样式闪烁 (FOUC)。所以 CSS 被称为渲染阻塞资源。但它不阻塞 HTML 解析 — 预加载扫描器会在解析 HTML 的同时并行下载 CSS。
+CSS 阻塞渲染 (render-blocking): 是. 浏览器必须等 CSSOM 构建完成才能合成渲染树并首绘, 否则会出现无样式闪烁 (FOUC). 所以 CSS 被称为渲染阻塞资源. 但它不阻塞 HTML 解析 — 预加载扫描器会在解析 HTML 的同时并行下载 CSS.
 
-CSS 阻塞其后 JS 的执行: 是。因为 JS 可能读取样式 (如 `getComputedStyle`), 规范要求脚本执行前, 它前面的所有样式表必须加载并构建完 CSSOM。而脚本执行又会阻塞 HTML 解析 (同步脚本), 于是一条慢 CSS 会间接冻结整个页面解析。经典依赖链:
+CSS 阻塞其后 JS 的执行: 是. 因为 JS 可能读取样式 (如 `getComputedStyle`), 规范要求脚本执行前, 它前面的所有样式表必须加载并构建完 CSSOM. 而脚本执行又会阻塞 HTML 解析 (同步脚本), 于是一条慢 CSS 会间接冻结整个页面解析. 经典依赖链:
 
 ```
 CSSOM 未就绪 → 后面 <script> 无法执行 → HTML 解析暂停 → DOM 就绪延后 → 首屏延后
 ```
 
-media 的例外: `media="print"` 或媒体查询当前不匹配 (如 `media="(max-width: 600px)"` 在桌面) 的样式表不阻塞渲染, 但仍会下载 (低优先级)。
+media 的例外: `media="print"` 或媒体查询当前不匹配 (如 `media="(max-width: 600px)"` 在桌面) 的样式表不阻塞渲染, 但仍会下载 (低优先级).
 
 优化实践:
 
@@ -1829,7 +1829,7 @@ media 的例外: `media="print"` 或媒体查询当前不匹配 (如 `media="(ma
 
 A:
 
-现代浏览器把页面分成若干图层 (layer), 普通图层由主线程绘制后交给合成器; 满足特定条件的元素会被提升为合成层 (compositing layer), 拥有独立的 GPU 纹理, 其 `transform`、`opacity` 变化由合成器线程直接处理, 跳过主线程的 layout 和 paint, 因此动画可以达到 60fps 且不被主线程 JS 阻塞。
+现代浏览器把页面分成若干图层 (layer), 普通图层由主线程绘制后交给合成器; 满足特定条件的元素会被提升为合成层 (compositing layer), 拥有独立的 GPU 纹理, 其 `transform`、`opacity` 变化由合成器线程直接处理, 跳过主线程的 layout 和 paint, 因此动画可以达到 60fps 且不被主线程 JS 阻塞.
 
 常见提升为合成层的条件:
 
@@ -1865,27 +1865,27 @@ A:
 从网络字节到屏幕像素的完整管线:
 
 1. 解析 HTML: 字节 → 字符 → Token → 节点 → DOM 树; 解析中遇到 `<script>` (无 async/defer) 会暂停, 遇到 `<link>` CSS 不暂停但会阻塞渲染与后续脚本
-2. 解析 CSS 构建 CSSOM: 同样经历 字节 → 字符 → Token → 节点 → CSSOM 树。CSSOM 是树结构的原因: 样式要按层叠规则继承与覆盖, 子节点继承父节点可继承属性, 就近/高优先级声明覆盖
+2. 解析 CSS 构建 CSSOM: 同样经历 字节 → 字符 → Token → 节点 → CSSOM 树. CSSOM 是树结构的原因: 样式要按层叠规则继承与覆盖, 子节点继承父节点可继承属性, 就近/高优先级声明覆盖
 3. 合并生成 Render Tree (渲染树): DOM 与 CSSOM 结合, 只包含可见节点 — `display: none`、`head`、`script` 等不进入; 每个节点带计算后的完整样式
 4. Layout (布局/重排): 计算每个节点的几何信息 (x, y, width, height)
 5. Paint (绘制): 分层并把每个图层绘制成绘制指令记录, 再栅格化 (raster) 为位图, 现代浏览器栅格化也在 GPU 进程分块 (tile) 进行
 6. Composite (合成): 合成器线程把各图层位图按 transform/opacity/z-order 合成最终帧, 提交显示
 
-关键渲染路径 (Critical Rendering Path) 优化的所有手段都围绕这条链: 减少关键资源数量与体积 (压缩、拆分、内联关键 CSS)、缩短关键路径长度 (预加载、提前发现)、减少重排重绘 (第 23 题)。
+关键渲染路径 (Critical Rendering Path) 优化的所有手段都围绕这条链: 减少关键资源数量与体积 (压缩、拆分、内联关键 CSS)、缩短关键路径长度 (预加载、提前发现)、减少重排重绘 (第 23 题).
 
-预加载扫描器 (preload scanner): 主解析器被脚本阻塞时, 扫描器向前预读 HTML, 提前发起 CSS/JS/字体/图片请求, 是浏览器的重要优化, 也说明为什么资源要写在 HTML 里而不是 JS 动态插入。
+预加载扫描器 (preload scanner): 主解析器被脚本阻塞时, 扫描器向前预读 HTML, 提前发起 CSS/JS/字体/图片请求, 是浏览器的重要优化, 也说明为什么资源要写在 HTML 里而不是 JS 动态插入.
 
-`async` 与 `defer` 区别 (常一并考察): `async` 下载完立即执行 (执行时阻塞解析, 顺序不保证); `defer` 下载并行、延迟到 DOM 解析完成后按顺序执行; `type="module"` 默认 defer 行为。
+`async` 与 `defer` 区别 (常一并考察): `async` 下载完立即执行 (执行时阻塞解析, 顺序不保证); `defer` 下载并行、延迟到 DOM 解析完成后按顺序执行; `type="module"` 默认 defer 行为.
 
 ### 27. CSS 选择器是从左往右还是从右往左匹配的? 为什么?
 
 A:
 
-从右往左匹配。最右侧的选择器称为关键选择器 (key selector)。
+从右往左匹配. 最右侧的选择器称为关键选择器 (key selector).
 
-原因: 渲染引擎为每个元素找样式时, 先用关键选择器在整棵 DOM 中筛出候选元素集合, 然后沿每个候选元素向祖先方向逐层验证左边的选择器。从右往左让绝大多数规则在第一步就被排除 — 比如 `.nav .list a` 先用 `a` 选中页面所有链接, 再向上检查是否有 `.list`、`.nav` 祖先, 不匹配立即放弃该分支。
+原因: 渲染引擎为每个元素找样式时, 先用关键选择器在整棵 DOM 中筛出候选元素集合, 然后沿每个候选元素向祖先方向逐层验证左边的选择器. 从右往左让绝大多数规则在第一步就被排除 — 比如 `.nav .list a` 先用 `a` 选中页面所有链接, 再向上检查是否有 `.list`、`.nav` 祖先, 不匹配立即放弃该分支.
 
-如果反过来从左往右: 先找 `.nav`, 再在整棵子树里找 `.list`, 再找 `a`, 每次都要遍历整棵子树, 且规则不匹配时已经付出了大量遍历成本, 回溯代价高得多。
+如果反过来从左往右: 先找 `.nav`, 再在整棵子树里找 `.list`, 再找 `a`, 每次都要遍历整棵子树, 且规则不匹配时已经付出了大量遍历成本, 回溯代价高得多.
 
 由此产生的编码推论:
 
@@ -1893,13 +1893,13 @@ A:
 - 嵌套层级不必过深: `.nav a` 通常就够了, `.header .nav .list .item a` 既慢又脆弱
 - ID/类选择器本身有索引加速, 现代浏览器 (Bloom filter、rule hash) 对选择器匹配已高度优化, 真实项目中选择器性能很少成为瓶颈, 优先级远低于重排与 JS 开销
 
-这条规则也解释了为什么"父选择器"长期不存在: 从左的上下文决定右侧元素需要反向查询, 与引擎匹配方向冲突。`:has()` 的出现是引擎专门做了前向检查优化才实现的, 所以规范禁止 `:has()` 内嵌伪元素等可能引发循环/高成本的组合。
+这条规则也解释了为什么"父选择器"长期不存在: 从左的上下文决定右侧元素需要反向查询, 与引擎匹配方向冲突. `:has()` 的出现是引擎专门做了前向检查优化才实现的, 所以规范禁止 `:has()` 内嵌伪元素等可能引发循环/高成本的组合.
 
 ### 28. content-visibility 和 contain 属性有什么用?
 
 A:
 
-二者都属于 CSS Containment (容器包含) 体系, 核心思想: 开发者向浏览器承诺"某子树与外界互不影响", 浏览器据此跳过子树的样式计算、布局与绘制, 换取性能。
+二者都属于 CSS Containment (容器包含) 体系, 核心思想: 开发者向浏览器承诺"某子树与外界互不影响", 浏览器据此跳过子树的样式计算、布局与绘制, 换取性能.
 
 `contain` 属性的取值:
 
@@ -1922,15 +1922,15 @@ A:
 }
 ```
 
-`contain-intrinsic-size` 提供预估尺寸, 避免未渲染内容高度为 0 导致滚动条位置漂移。
+`contain-intrinsic-size` 提供预估尺寸, 避免未渲染内容高度为 0 导致滚动条位置漂移.
 
-适用场景与定位: 超长列表/长页面 (信息流、文档站) 的低成本优化, 实测可显著降低首屏渲染时间; 与虚拟列表互补 — 虚拟列表解决 DOM 节点数, `content-visibility` 解决渲染成本, 简单场景甚至可替代虚拟列表。注意点: `auto` 下浏览器查找 (Ctrl+F) 与锚点跳转对未渲染区域的行为有细节差异; 预估尺寸不准会有轻微滚动抖动。
+适用场景与定位: 超长列表/长页面 (信息流、文档站) 的低成本优化, 实测可显著降低首屏渲染时间; 与虚拟列表互补 — 虚拟列表解决 DOM 节点数, `content-visibility` 解决渲染成本, 简单场景甚至可替代虚拟列表. 注意点: `auto` 下浏览器查找 (Ctrl+F) 与锚点跳转对未渲染区域的行为有细节差异; 预估尺寸不准会有轻微滚动抖动.
 
 ### 51. CSS 中的 will-change 属性有什么作用?
 
 A:
 
-will-change 是 CSS 中用于提前告知浏览器元素将发生何种变化的属性, 让浏览器提前做好优化准备, 如创建合成层、分配 GPU 资源。
+will-change 是 CSS 中用于提前告知浏览器元素将发生何种变化的属性, 让浏览器提前做好优化准备, 如创建合成层、分配 GPU 资源.
 
 语法:
 
@@ -1978,7 +1978,7 @@ element.addEventListener("animationend", () => {
 
 注意事项:
 
-- 不要滥用: 每个 will-change 都会创建合成层, 占用 GPU 内存。页面合成层过多会导致内存暴涨, 反而降低性能
+- 不要滥用: 每个 will-change 都会创建合成层, 占用 GPU 内存. 页面合成层过多会导致内存暴涨, 反而降低性能
 - 不要提前太久: 在动画即将开始时添加, 而非页面加载时就设置
 - 及时清理: 动画结束后移除, 释放资源
 - 不要用于大量元素: 列表中的每个 item 都设置 will-change 是反模式
@@ -1995,7 +1995,7 @@ element.addEventListener("animationend", () => {
 
 A:
 
-transform 和 position 都可以改变元素的视觉位置, 但工作原理、性能影响和使用场景完全不同。
+transform 和 position 都可以改变元素的视觉位置, 但工作原理、性能影响和使用场景完全不同.
 
 核心区别:
 
@@ -2101,7 +2101,7 @@ A:
 @media (scripting: none) { ... }                   /* JS 被禁用 */
 ```
 
-断点策略: 移动优先 (min-width 递增) 是主流, 样式天然渐进增强、代码量小; 桌面优先 (max-width 递减) 适合存量 PC 站改造。
+断点策略: 移动优先 (min-width 递增) 是主流, 样式天然渐进增强、代码量小; 桌面优先 (max-width 递减) 适合存量 PC 站改造.
 
 完整响应式方案矩阵:
 
@@ -2113,13 +2113,13 @@ A:
 6. 容器查询: 组件级响应式 (见第 30 题)
 7. 排版自适应: `clamp(min, preferred, max)` 一行实现流式字号, 如 `font-size: clamp(14px, 1vw + 12px, 20px)`
 
-理念要点: 现代响应式的趋势是"能不用媒体查询就不用", 优先用内在尺寸 (intrinsic sizing)、flex/grid 自适应性、`clamp()`, 把断点留给真正的结构变化。
+理念要点: 现代响应式的趋势是"能不用媒体查询就不用", 优先用内在尺寸 (intrinsic sizing)、flex/grid 自适应性、`clamp()`, 把断点留给真正的结构变化.
 
 ### 30. 什么是容器查询 (container query)? 与媒体查询有什么区别?
 
 A:
 
-媒体查询依据视口尺寸变化样式, 容器查询依据组件自身容器的尺寸变化样式。响应式组件库的核心痛点 — 同一个卡片组件, 放在侧栏和放在主区应有不同布局, 但视口宽度相同, 媒体查询无能为力, 容器查询正是为此而生。
+媒体查询依据视口尺寸变化样式, 容器查询依据组件自身容器的尺寸变化样式. 响应式组件库的核心痛点 — 同一个卡片组件, 放在侧栏和放在主区应有不同布局, 但视口宽度相同, 媒体查询无能为力, 容器查询正是为此而生.
 
 用法两步走:
 
@@ -2145,7 +2145,7 @@ A:
 }
 ```
 
-配套容器查询单位: `cqw` (容器宽 1%)、`cqh`、`cqmin`、`cqmax`, 可让字号、圆角直接随容器缩放: `font-size: 5cqw`。
+配套容器查询单位: `cqw` (容器宽 1%)、`cqh`、`cqmin`、`cqmax`, 可让字号、圆角直接随容器缩放: `font-size: 5cqw`.
 
 与媒体查询对比:
 
@@ -2159,7 +2159,7 @@ A:
 
 A:
 
-`:has()` 是关系型伪类, 俗称"父选择器": 当元素的后代 (或后续兄弟) 满足参数选择器时, 选中该元素本身。它打通了 CSS 长久以来"只能向下、向右选, 不能向上选"的限制。
+`:has()` 是关系型伪类, 俗称"父选择器": 当元素的后代 (或后续兄弟) 满足参数选择器时, 选中该元素本身. 它打通了 CSS 长久以来"只能向下、向右选, 不能向上选"的限制.
 
 ```css
 /* 表单校验: 内含非法输入时整个 form-group 标红 */
@@ -2256,13 +2256,13 @@ if (saved) document.documentElement.dataset.theme = saved;
 // 监听系统变化: matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ...)
 ```
 
-防闪烁: 主题判定脚本要内联在 `<head>` 最前同步执行, 否则暗色用户会看到一帧亮色 (FOUC 主题版)。
+防闪烁: 主题判定脚本要内联在 `<head>` 最前同步执行, 否则暗色用户会看到一帧亮色 (FOUC 主题版).
 
 ### 53. CSS 中的 calc()、min()、max()、clamp() 函数如何使用?
 
 A:
 
-这四个数学函数提供了在 CSS 中进行动态计算的能力, 减少了对 JavaScript 和媒体查询的依赖。
+这四个数学函数提供了在 CSS 中进行动态计算的能力, 减少了对 JavaScript 和媒体查询的依赖.
 
 calc() (计算):
 
@@ -2363,7 +2363,7 @@ font-size: max(16px, min(2.5vw, 24px));
 
 A:
 
-@supports 是 CSS 的特性查询规则, 用于检测浏览器是否支持某个 CSS 属性或值, 根据支持情况应用不同样式。它是渐进增强的核心工具。
+@supports 是 CSS 的特性查询规则, 用于检测浏览器是否支持某个 CSS 属性或值, 根据支持情况应用不同样式. 它是渐进增强的核心工具.
 
 基本语法:
 
@@ -2459,7 +2459,7 @@ if (CSS.supports("(display: grid) and (gap: 10px)")) {
 
 A:
 
-CSS Scroll Snap 是一种控制滚动容器停止位置的机制, 使滚动在释放后自动吸附到预定义的锚点位置。常用于轮播图、全屏滚动、图片画廊等场景。
+CSS Scroll Snap 是一种控制滚动容器停止位置的机制, 使滚动在释放后自动吸附到预定义的锚点位置. 常用于轮播图、全屏滚动、图片画廊等场景.
 
 核心概念:
 
@@ -2598,7 +2598,7 @@ el.animate(
 );
 ```
 
-选择建议: 状态过渡/hover/loading 等用 CSS; 需要交互驱动 (拖拽、滚动进度)、复杂时序编排用 rAF 或 WAAPI; 库层面 GSAP 等底层也是 rAF + WAAPI 思路。
+选择建议: 状态过渡/hover/loading 等用 CSS; 需要交互驱动 (拖拽、滚动进度)、复杂时序编排用 rAF 或 WAAPI; 库层面 GSAP 等底层也是 rAF + WAAPI 思路.
 
 ### 34. transition 和 animation 有什么区别?
 
@@ -2626,14 +2626,14 @@ A:
 
 两个高频"失效"追问:
 
-1. transition 对 `display: none ↔ block` 无效: 因为元素进出渲染树没有可插值的中间状态。现代解法: `transition-behavior: allow-discrete` + `@starting-style` 定义入场前样式, 或改用 opacity/visibility
-2. `height: auto` 无法过渡: auto 不是可插值数值。方案: JS 测 scrollHeight 赋值、grid 的 `grid-template-rows: 0fr → 1fr` 技巧、或新特性 `interpolate-size: allow-keywords` / `calc-size()`
+1. transition 对 `display: none ↔ block` 无效: 因为元素进出渲染树没有可插值的中间状态. 现代解法: `transition-behavior: allow-discrete` + `@starting-style` 定义入场前样式, 或改用 opacity/visibility
+2. `height: auto` 无法过渡: auto 不是可插值数值. 方案: JS 测 scrollHeight 赋值、grid 的 `grid-template-rows: 0fr → 1fr` 技巧、或新特性 `interpolate-size: allow-keywords` / `calc-size()`
 
 ### 35. 为什么 transform 动画比修改 top/left 更流畅?
 
 A:
 
-根本原因在于两者走的渲染管线阶段不同。
+根本原因在于两者走的渲染管线阶段不同.
 
 修改 `top`/`left` (或 `width`/`margin`):
 
@@ -2652,7 +2652,7 @@ top/left 动画: JS → Style → Layout → Paint → Composite   (每帧全套
 transform 动画: JS → Style → Composite                     (每帧合成, 合成线程)
 ```
 
-实践要点: 动画属性白名单就是 `transform` 和 `opacity` (filter 视情况); 用 `will-change: transform` 提前提升合成层; 位移用 `translate`、缩放用 `scale`、旋转用 `rotate` 等效替代布局属性; 同时警惕层爆炸带来的内存问题 (见第 25 题)。这与 FLIP 动画技术 (First Last Invert Play, 用 transform 模拟布局变化) 的思想一致: 把昂贵的 layout 动画换算成便宜的 transform 动画。
+实践要点: 动画属性白名单就是 `transform` 和 `opacity` (filter 视情况); 用 `will-change: transform` 提前提升合成层; 位移用 `translate`、缩放用 `scale`、旋转用 `rotate` 等效替代布局属性; 同时警惕层爆炸带来的内存问题 (见第 25 题). 这与 FLIP 动画技术 (First Last Invert Play, 用 transform 模拟布局变化) 的思想一致: 把昂贵的 layout 动画换算成便宜的 transform 动画.
 
 ---
 
@@ -2662,7 +2662,7 @@ transform 动画: JS → Style → Composite                     (每帧合成, 
 
 A:
 
-React Native 没有浏览器、没有 DOM、没有 CSSOM。所谓"RN 里的 CSS"只是借用了 CSS 属性命名与 Flexbox 语义的 JS 对象, 最终由原生视图渲染。差异清单:
+React Native 没有浏览器、没有 DOM、没有 CSSOM. 所谓"RN 里的 CSS"只是借用了 CSS 属性命名与 Flexbox 语义的 JS 对象, 最终由原生视图渲染. 差异清单:
 
 1. 写法与生效方式: 样式是 JS 对象 (`StyleSheet.create({...})`, 属性驼峰命名如 `backgroundColor`), 通过 props 传递, 没有样式表文件、没有选择器、没有层叠 (cascade)
 2. 继承极弱: Web 中大量属性可继承; RN 中只有 `Text` 组件嵌套 `Text` 时继承部分文字属性, `View` 完全不继承文字样式, 所有文本必须包在 `<Text>` 中
@@ -2680,7 +2680,7 @@ Yoga 引擎:
 - 与 Web 渲染的本质区别: 没有 HTML 解析、没有 CSSOM 层叠、没有 reflow/repaint/合成层的浏览器管线概念; 布局计算是 Yoga 一次性完成并直接落到原生视图, 渲染性能瓶颈更多在 JS↔原生通信与视图层级深度, 而不是浏览器的重排
 - RN 新架构 (Fabric + JSI) 让布局可以同步执行, Yoga 与 C++ 渲染管线结合更紧密, 解决了旧桥接异步导致的测量时序问题
 
-面试话术总结: RN 的 CSS 是"长得像 CSS 的布局 DSL", Web CSS 是"声明式样式表 + 层叠 + 完整排版引擎"; Yoga 是把这套 DSL 翻译成原生视图 frame 的跨端 Flexbox 计算引擎。
+面试话术总结: RN 的 CSS 是"长得像 CSS 的布局 DSL", Web CSS 是"声明式样式表 + 层叠 + 完整排版引擎"; Yoga 是把这套 DSL 翻译成原生视图 frame 的跨端 Flexbox 计算引擎.
 
 ### 37. React/Vue 中有哪些 CSS 方案? 如何选择?
 
@@ -2713,7 +2713,7 @@ Vue 单文件组件 `<style scoped>` 的隔离是编译期转换, 分两步:
 1. 模板编译: 给组件模板内每个元素添加一个唯一的数据属性, 如 `data-v-7ba5bd90` (hash 来自组件文件内容/路径)
 2. 样式编译: 用 PostCSS 重写每条选择器, 在选择器末尾追加属性选择器, 如 `.title { }` → `.title[data-v-7ba5bd90] { }`
 
-于是样式只能命中带该 hash 属性的元素, 实现组件级隔离。
+于是样式只能命中带该 hash 属性的元素, 实现组件级隔离.
 
 关键细节与追问点:
 
@@ -2760,7 +2760,7 @@ CSS 原生嵌套 (CSS Nesting Module) 已在 2023 年被主流浏览器全部支
 - 字符串拼接: SCSS 支持 `&-title` 拼接类名 (BEM 常用), 原生嵌套不支持——`&` 是选择器引用不是字符串, 这是迁移时最大的不兼容点
 - 早期语法要求嵌套规则以符号开头 (`& div`), 现行规范已放开, 可直接写元素选择器嵌套
 
-工程建议: 新项目可用原生嵌套逐步替代 SCSS 的嵌套需求; 涉及 BEM 拼接、循环与 mixin 的场景仍需预处理器或 PostCSS 插件降级 (postcss-nesting)。
+工程建议: 新项目可用原生嵌套逐步替代 SCSS 的嵌套需求; 涉及 BEM 拼接、循环与 mixin 的场景仍需预处理器或 PostCSS 插件降级 (postcss-nesting).
 
 ### 40. @property 是什么? CSS Houdini 了解多少?
 
@@ -2784,7 +2784,7 @@ A:
 }
 ```
 
-解决的核心问题: 未注册的自定义属性对浏览器只是无类型的 token 串, 无法插值, 因此不能参与 transition/animation; 注册类型后浏览器知道"这是一个百分比", 就能对它做平滑过渡。典型应用: 渐变动画 (渐变本身不可过渡, 但驱动渐变的变量可以)、圆环进度条、数字滚动 (配合 counter)。
+解决的核心问题: 未注册的自定义属性对浏览器只是无类型的 token 串, 无法插值, 因此不能参与 transition/animation; 注册类型后浏览器知道"这是一个百分比", 就能对它做平滑过渡. 典型应用: 渐变动画 (渐变本身不可过渡, 但驱动渐变的变量可以)、圆环进度条、数字滚动 (配合 counter).
 
 CSS Houdini 是一组开放浏览器渲染引擎底层能力的 API 集合:
 
@@ -2793,7 +2793,7 @@ CSS Houdini 是一组开放浏览器渲染引擎底层能力的 API 集合:
 - Typed OM: `el.attributeStyleMap.set('width', CSS.px(100))`, 用类型化对象替代字符串读写样式, 减少解析开销
 - Layout API / Animation Worklet: 自定义布局算法与脱离主线程的动画, 仍处于实验阶段
 
-面试口径: Houdini 的价值是"把过去只能靠 JS 模拟或等浏览器实现的能力, 下放为可编程的渲染管线钩子"; 目前生产可用的主要是 @property 与 Typed OM, Paint API 需要按浏览器支持渐进增强。
+面试口径: Houdini 的价值是"把过去只能靠 JS 模拟或等浏览器实现的能力, 下放为可编程的渲染管线钩子"; 目前生产可用的主要是 @property 与 Typed OM, Paint API 需要按浏览器支持渐进增强.
 
 ### 41. View Transitions 与滚动驱动动画是什么?
 
@@ -2801,7 +2801,7 @@ A:
 
 View Transitions API (视图过渡):
 
-- 解决的问题: DOM 状态切换 (列表排序、页面路由跳转) 是瞬间完成的, 过去做"元素从旧位置平滑飞到新位置"需要 FLIP 手法手工测量。View Transitions 让浏览器自动截图旧状态、更新 DOM、再在新旧快照之间做过渡
+- 解决的问题: DOM 状态切换 (列表排序、页面路由跳转) 是瞬间完成的, 过去做"元素从旧位置平滑飞到新位置"需要 FLIP 手法手工测量. View Transitions 让浏览器自动截图旧状态、更新 DOM、再在新旧快照之间做过渡
 - 同文档用法: `document.startViewTransition(() => updateDOM())`; 浏览器生成 `::view-transition-old()` 与 `::view-transition-new()` 伪元素树, 默认做交叉淡入, 可用 CSS 完全自定义
 - 共享元素过渡: 给新旧两个元素设置相同的 `view-transition-name`, 浏览器自动补间其位置与尺寸, 实现"缩略图放大为详情图"的原生转场
 - 跨文档 (MPA) 过渡: CSS 声明 `@view-transition { navigation: auto; }` 即可让传统多页应用获得 SPA 般的转场; SPA 路由框架 (React Router、Vue Router、Next.js) 已内置集成

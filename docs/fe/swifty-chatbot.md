@@ -70,7 +70,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 | 缓存     | Redis (ioredis) + LRU 降级                                |
 | RAG      | LangChain MemoryVectorStore + OllamaEmbeddings            |
 
-项目结构为 monorepo, 包含 `client/` 和 `server/` 两个 package。后端采用 Router -> Controller -> Service -> DAO -> DB 的经典分层架构。AI 能力通过工厂模式封装, 支持普通对话和 RAG 增强两种模型类型。
+项目结构为 monorepo, 包含 `client/` 和 `server/` 两个 package. 后端采用 Router -> Controller -> Service -> DAO -> DB 的经典分层架构. AI 能力通过工厂模式封装, 支持普通对话和 RAG 增强两种模型类型.
 
 ### Q2: 为什么选择 pnpm monorepo 而非独立仓库?
 
@@ -78,20 +78,20 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 选择 pnpm monorepo 的核心原因:
 
-1. 类型同仓: 前后端代码同仓管理。注意项目并没有共享类型 package (`pnpm-workspace.yaml` 只声明了 `client` 和 `server` 两个包), `Message`、`Session`、`ModelType` 等类型由前后端各自复制定义, 靠约定保持一致; monorepo 的价值在于让接口变更可以在同一仓库内原子化完成
+1. 类型同仓: 前后端代码同仓管理. 注意项目并没有共享类型 package (`pnpm-workspace.yaml` 只声明了 `client` 和 `server` 两个包), `Message`、`Session`、`ModelType` 等类型由前后端各自复制定义, 靠约定保持一致; monorepo 的价值在于让接口变更可以在同一仓库内原子化完成
 2. 统一依赖管理: pnpm 的硬链接机制避免重复安装, 磁盘效率高
 3. 原子化变更: 一次 PR 可以同时修改前后端代码, 保证接口变更的原子性
 4. 开发体验: 根目录 `package.json` 通过 `concurrently` 一条命令同时启动前后端开发服务器
 
-`pnpm-workspace.yaml` 声明了 `client` 和 `server` 两个 workspace package, 根目录脚本统一编排开发、构建流程。
+`pnpm-workspace.yaml` 声明了 `client` 和 `server` 两个 workspace package, 根目录脚本统一编排开发、构建流程.
 
 ### Q3: 前后端如何通信? 开发环境和生产环境有何区别?
 
 答:
 
-开发环境: Vite dev server 配置了代理, 将 `/api/*` 请求转发到 `http://localhost:8088/api/v1/*`, 通过 path rewrite 去掉 `/api` 前缀并添加 `/api/v1` 版本前缀。前端代码中统一使用 `/api/` 开头的相对路径。
+开发环境: Vite dev server 配置了代理, 将 `/api/*` 请求转发到 `http://localhost:8088/api/v1/*`, 通过 path rewrite 去掉 `/api` 前缀并添加 `/api/v1` 版本前缀. 前端代码中统一使用 `/api/` 开头的相对路径.
 
-生产环境: 前端构建为静态资源, 由 Nginx 或类似反向代理统一分发: 静态资源直接返回, `/api/` 请求转发到 Koa 服务。
+生产环境: 前端构建为静态资源, 由 Nginx 或类似反向代理统一分发: 静态资源直接返回, `/api/` 请求转发到 Koa 服务.
 
 通信协议:
 
@@ -109,13 +109,13 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 前端采用三层状态管理策略:
 
-1. Jotai atoms (客户端状态): 管理 auth token、主题偏好、语言选择、模型类型等纯客户端状态。其中 token 用普通 `atom` 创建, 初值取 `localStorage.getItem("token")`, 由写入 action atom 手动调用 `localStorage.setItem/removeItem` 持久化 (stores/auth.ts); 主题、语言、模型类型则通过 `atomWithStorage` 持久化到 localStorage (stores/settings.ts), 刷新后自动恢复。
+1. Jotai atoms (客户端状态): 管理 auth token、主题偏好、语言选择、模型类型等纯客户端状态. 其中 token 用普通 `atom` 创建, 初值取 `localStorage.getItem("token")`, 由写入 action atom 手动调用 `localStorage.setItem/removeItem` 持久化 (stores/auth.ts); 主题、语言、模型类型则通过 `atomWithStorage` 持久化到 localStorage (stores/settings.ts), 刷新后自动恢复.
 
-2. TanStack React Query (服务端状态): 管理 sessions 列表、聊天历史等需要与后端同步的数据。利用其缓存失效、后台重新获取、乐观更新等能力。
+2. TanStack React Query (服务端状态): 管理 sessions 列表、聊天历史等需要与后端同步的数据. 利用其缓存失效、后台重新获取、乐观更新等能力.
 
-3. 组件本地 state (高频瞬态状态): 主聊天页面中的 messages 数组、streaming 状态等使用 `useState`, 避免高频更新穿透到全局 store。
+3. 组件本地 state (高频瞬态状态): 主聊天页面中的 messages 数组、streaming 状态等使用 `useState`, 避免高频更新穿透到全局 store.
 
-这种分层设计确保了: 低频全局状态用 atom 共享, 服务端数据用 Query 自动同步, 高频渲染状态局部隔离。
+这种分层设计确保了: 低频全局状态用 atom 共享, 服务端数据用 Query 自动同步, 高频渲染状态局部隔离.
 
 ### Q5: 为什么同时使用 Jotai 和 TanStack React Query?
 
@@ -130,13 +130,13 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 | 持久化   | localStorage                    | 内存缓存 + 后端                |
 | 更新频率 | 低 (用户主动切换)               | 中 (路由切换时获取)            |
 
-如果只用 Jotai, 需要手动实现缓存失效、loading/error 状态管理、请求去重等逻辑。如果只用 React Query, 纯客户端状态 (如主题) 没有合适的缓存键和失效策略。两者互补, 各取所长。
+如果只用 Jotai, 需要手动实现缓存失效、loading/error 状态管理、请求去重等逻辑. 如果只用 React Query, 纯客户端状态 (如主题) 没有合适的缓存键和失效策略. 两者互补, 各取所长.
 
 ### Q6: 路由和权限控制是如何实现的?
 
 答:
 
-使用 react-router-dom v7 的 `createBrowserRouter` + `RouterProvider`, 定义了 5 条路由: `/` (loader 中 `redirect("/login")`)、`/login`、`/register`、`/menu`、`/ai-chat`。页面组件均通过 `lazy` + `withLazy` 懒加载, `/menu` 和 `/ai-chat` 额外包裹 `withAuth`。
+使用 react-router-dom v7 的 `createBrowserRouter` + `RouterProvider`, 定义了 5 条路由: `/` (loader 中 `redirect("/login")`)、`/login`、`/register`、`/menu`、`/ai-chat`. 页面组件均通过 `lazy` + `withLazy` 懒加载, `/menu` 和 `/ai-chat` 额外包裹 `withAuth`.
 
 权限控制通过 `withAuth` HOC 实现:
 
@@ -160,7 +160,7 @@ function withAuth<P extends object>(WrappedComponent: ComponentType<P>) {
 }
 ```
 
-`isAuthenticatedAtom` 是一个派生 atom, 基于 token atom 是否存在来计算。token 用普通 `atom(localStorage.getItem("token"))` 创建, 登录/登出时通过 action atom (`setTokenAtom`) 手动调用 `localStorage.setItem("token", ...)` / `localStorage.removeItem("token")` 持久化, 刷新页面后由 atom 初值恢复登录态。
+`isAuthenticatedAtom` 是一个派生 atom, 基于 token atom 是否存在来计算. token 用普通 `atom(localStorage.getItem("token"))` 创建, 登录/登出时通过 action atom (`setTokenAtom`) 手动调用 `localStorage.setItem("token", ...)` / `localStorage.removeItem("token")` 持久化, 刷新页面后由 atom 初值恢复登录态.
 
 ---
 
@@ -186,7 +186,7 @@ function withAuth<P extends object>(WrappedComponent: ComponentType<P>) {
          -> 收到 data: [DONE] -> onDone 回调 -> 流结束
 ```
 
-关键设计: 服务端每产生一个 token 就立即 `res.write()`, 客户端通过 `ReadableStream` 逐块读取, 解析后写入 ref 而非 state, 由独立的 rAF 循环节流渲染。
+关键设计: 服务端每产生一个 token 就立即 `res.write()`, 客户端通过 `ReadableStream` 逐块读取, 解析后写入 ref 而非 state, 由独立的 rAF 循环节流渲染.
 
 ### Q8: 为什么使用 Fetch API 而非 EventSource 消费 SSE?
 
@@ -194,13 +194,13 @@ function withAuth<P extends object>(WrappedComponent: ComponentType<P>) {
 
 三个核心原因:
 
-1. HTTP 方法限制: `EventSource` 只支持 GET 请求, 而本项目的流式接口需要 POST 发送 `{question, model_type, session_id}` 请求体。
+1. HTTP 方法限制: `EventSource` 只支持 GET 请求, 而本项目的流式接口需要 POST 发送 `{question, model_type, session_id}` 请求体.
 
-2. 自定义 Header: `EventSource` 不支持设置 `Authorization` header。虽然可以通过 query param 传递 token, 但 Fetch API 可以直接在 header 中携带 Bearer Token, 更安全规范。
+2. 自定义 Header: `EventSource` 不支持设置 `Authorization` header. 虽然可以通过 query param 传递 token, 但 Fetch API 可以直接在 header 中携带 Bearer Token, 更安全规范.
 
-3. 错误处理粒度: Fetch API 可以检查 `response.ok`、读取 HTTP 状态码, 而 EventSource 的错误事件不暴露 HTTP 状态码, 难以区分 401 (鉴权失败) 和 500 (服务错误)。
+3. 错误处理粒度: Fetch API 可以检查 `response.ok`、读取 HTTP 状态码, 而 EventSource 的错误事件不暴露 HTTP 状态码, 难以区分 401 (鉴权失败) 和 500 (服务错误).
 
-实现上使用 `body.getReader()` 获取 `ReadableStreamDefaultReader`, 配合 `TextDecoder` 逐块解码, 手动按行分割解析 SSE 协议。
+实现上使用 `body.getReader()` 获取 `ReadableStreamDefaultReader`, 配合 `TextDecoder` 逐块解码, 手动按行分割解析 SSE 协议.
 
 ### Q9: StreamingMarkdown 组件如何实现零渲染热路径?
 
@@ -233,11 +233,11 @@ function StreamingMarkdown({ sourceRef }: Props) {
 
 设计要点:
 
-1. SSE 回调只写 ref: `onChunk` 回调将 fullContent 写入 `sourceRef.current`, 这是一个 mutable ref, 不触发任何 React 重渲染。即使每秒收到数百个 chunk, React 调度器完全无感知。
+1. SSE 回调只写 ref: `onChunk` 回调将 fullContent 写入 `sourceRef.current`, 这是一个 mutable ref, 不触发任何 React 重渲染. 即使每秒收到数百个 chunk, React 调度器完全无感知.
 
-2. rAF 节流拉取: 独立的 `requestAnimationFrame` 循环以最多 60fps 的频率检查 ref 是否有新内容, 有变化才调用 `setText` 触发渲染。将数百次/秒的 chunk 折叠为最多 60 次/秒的渲染。
+2. rAF 节流拉取: 独立的 `requestAnimationFrame` 循环以最多 60fps 的频率检查 ref 是否有新内容, 有变化才调用 `setText` 触发渲染. 将数百次/秒的 chunk 折叠为最多 60 次/秒的渲染.
 
-3. 长度比较去重: 通过 `lastLengthRef` 记录上次渲染的文本长度, 长度未变则跳过 setState, 避免无意义的 reconciliation。
+3. 长度比较去重: 通过 `lastLengthRef` 记录上次渲染的文本长度, 长度未变则跳过 setState, 避免无意义的 reconciliation.
 
 ### Q10: 消息列表的虚拟化和自动滚动是如何实现的?
 
@@ -256,15 +256,15 @@ const virtualizer = useVirtualizer({
 
 自动滚动策略 (尊重用户控制权):
 
-1. 近底检测: 通过 `onScroll` 事件计算 `scrollHeight - scrollTop - clientHeight < 80px`, 记录在 `isNearBottomRef` 中。
+1. 近底检测: 通过 `onScroll` 事件计算 `scrollHeight - scrollTop - clientHeight < 80px`, 记录在 `isNearBottomRef` 中.
 
-2. 新消息滚动: 当 `messages.length` 变化时, 如果是用户自己发的消息 (role === "user") 则强制滚到底部; 如果是 AI 消息, 仅在用户已处于底部附近时才滚动。
+2. 新消息滚动: 当 `messages.length` 变化时, 如果是用户自己发的消息 (role === "user") 则强制滚到底部; 如果是 AI 消息, 仅在用户已处于底部附近时才滚动.
 
-3. 流式增长跟踪: 使用 `ResizeObserver` 监听消息容器高度变化 (流式输出导致气泡增高), 仅在 `isNearBottomRef.current === true` 时执行 `scrollToIndex(last, {align: "end"})`。
+3. 流式增长跟踪: 使用 `ResizeObserver` 监听消息容器高度变化 (流式输出导致气泡增高), 仅在 `isNearBottomRef.current === true` 时执行 `scrollToIndex(last, {align: "end"})`.
 
-4. 用户阅读保护: 如果用户正在翻阅历史消息 (不在底部), 自动滚动完全停止, 不会打断用户。
+4. 用户阅读保护: 如果用户正在翻阅历史消息 (不在底部), 自动滚动完全停止, 不会打断用户.
 
-性能保障: `MessageItem` 使用 `React.memo` 包裹, 流式输出期间只有最后一条消息在渲染, 已定型的消息不会因父组件更新而重渲染。
+性能保障: `MessageItem` 使用 `React.memo` 包裹, 流式输出期间只有最后一条消息在渲染, 已定型的消息不会因父组件更新而重渲染.
 
 ### Q11: Streamdown 的增量 Markdown 解析原理是什么?
 
@@ -272,15 +272,15 @@ const virtualizer = useVirtualizer({
 
 Streamdown (Vercel 出品的流式 Markdown 渲染器) 的核心优化:
 
-1. 块级分割: 将 Markdown 文本按语义块分割 (段落、代码围栏、标题、列表等), 每个块独立解析为 React 元素。
+1. 块级分割: 将 Markdown 文本按语义块分割 (段落、代码围栏、标题、列表等), 每个块独立解析为 React 元素.
 
-2. 已定型块缓存: 一旦某个块被完整接收 (例如代码围栏的 ``` 闭合), 该块的解析结果被 memoize, 后续渲染直接复用, 不再重新解析。
+2. 已定型块缓存: 一旦某个块被完整接收 (例如代码围栏的 ``` 闭合), 该块的解析结果被 memoize, 后续渲染直接复用, 不再重新解析.
 
-3. 仅解析尾部块: 每次文本更新时, 只有最后一个未完成的块需要重新解析。例如一段 2000 字的回复, 当第 1900 字到达时, 前 1800 字对应的块全部命中缓存, 只解析最后 200 字。
+3. 仅解析尾部块: 每次文本更新时, 只有最后一个未完成的块需要重新解析. 例如一段 2000 字的回复, 当第 1900 字到达时, 前 1800 字对应的块全部命中缓存, 只解析最后 200 字.
 
-4. 代码高亮: 通过 `@streamdown/code` 集成 Shiki, 代码块在流式过程中也能实时高亮, 且围栏闭合后高亮结果被缓存。
+4. 代码高亮: 通过 `@streamdown/code` 集成 Shiki, 代码块在流式过程中也能实时高亮, 且围栏闭合后高亮结果被缓存.
 
-这使得渲染成本与消息总长度解耦, 只与当前增量成正比, 长消息的流式渲染不会越来越卡。
+这使得渲染成本与消息总长度解耦, 只与当前增量成正比, 长消息的流式渲染不会越来越卡.
 
 ---
 
@@ -309,7 +309,7 @@ Router (@koa/router)
 | AI         | `src/ai/`         | Agent 系统 (独立于业务分层)              |
 | RAG        | `src/rag/`        | 检索增强生成管线                         |
 
-响应格式统一: 所有接口返回 `{code: number, message: string, ...data}` 结构, 通过 `success()` 和 `codeOf()` 工具函数生成。
+响应格式统一: 所有接口返回 `{code: number, message: string, ...data}` 结构, 通过 `success()` 和 `codeOf()` 工具函数生成.
 
 ### Q13: SSE 流式接口在服务端是如何实现的?
 
@@ -349,19 +349,19 @@ export async function createStreamSessionAndSendMessageStream(ctx: Context) {
 }
 ```
 
-Service 层内部调用 `AiAgent.responseStream()`, 该方法接收一个 `StreamCallback`, 每产生一个 token 就执行 `res.write(`data: ${JSON.stringify(chunk)}\n\n`)`, 即 token 以 JSON 字符串编码写入 (客户端 `JSON.parse` 还原, 避免特殊字符破坏 SSE 帧)。全部完成后发送 `data: [DONE]\n\n` 作为结束哨兵。
+Service 层内部调用 `AiAgent.responseStream()`, 该方法接收一个 `StreamCallback`, 每产生一个 token 就执行 `res.write(`data: ${JSON.stringify(chunk)}\n\n`)`, 即 token 以 JSON 字符串编码写入 (客户端 `JSON.parse` 还原, 避免特殊字符破坏 SSE 帧). 全部完成后发送 `data: [DONE]\n\n` 作为结束哨兵.
 
 ### Q14: 为什么 SSE 要绕过 Koa 的响应处理直接操作 res?
 
 答:
 
-1. Koa 的响应模型是一次性的: Koa 在中间件链执行完毕后, 将 `ctx.body` 一次性序列化发送。SSE 需要在请求生命周期内持续写入数据, 与 Koa 的 "设置 body -> 自动响应" 模型根本冲突。
+1. Koa 的响应模型是一次性的: Koa 在中间件链执行完毕后, 将 `ctx.body` 一次性序列化发送. SSE 需要在请求生命周期内持续写入数据, 与 Koa 的 "设置 body -> 自动响应" 模型根本冲突.
 
-2. 流式写入需求: SSE 要求 `res.write()` 后立即 flush 到客户端, 不能等所有数据就绪。直接操作 `ctx.res` (Node.js 原生 `ServerResponse`) 可以逐块写入。
+2. 流式写入需求: SSE 要求 `res.write()` 后立即 flush 到客户端, 不能等所有数据就绪. 直接操作 `ctx.res` (Node.js 原生 `ServerResponse`) 可以逐块写入.
 
-3. Header 控制: 需要设置 `X-Accel-Buffering: no` 等非标准 header 来禁止反向代理缓冲, 通过 `res.writeHead()` 更直接。
+3. Header 控制: 需要设置 `X-Accel-Buffering: no` 等非标准 header 来禁止反向代理缓冲, 通过 `res.writeHead()` 更直接.
 
-4. 连接生命周期: SSE 连接的关闭时机由业务逻辑决定 (收到 `[DONE]` 或出错), 而非 Koa 中间件链的结束。
+4. 连接生命周期: SSE 连接的关闭时机由业务逻辑决定 (收到 `[DONE]` 或出错), 而非 Koa 中间件链的结束.
 
 ---
 
@@ -390,13 +390,13 @@ AiAgent (单个会话实例)
   |-- addMessage(): 追加消息 + 异步持久化到 MySQL
 ```
 
-设计原则: Factory 负责 "如何创建", Manager 负责 "在哪里、给谁", Agent 负责 "如何对话"。三者职责单一, 通过组合协作。
+设计原则: Factory 负责 "如何创建", Manager 负责 "在哪里、给谁", Agent 负责 "如何对话". 三者职责单一, 通过组合协作.
 
 ### Q16: 对话上下文是如何管理的? 为什么选择内存存储?
 
 答:
 
-每个 `AiAgent` 实例在内存中维护一个 `messages: Message[]` 数组, 记录完整对话历史。每次调用 LLM 时, 通过 `toAiMessages()` 将历史转换为 LangChain 的消息格式传入。
+每个 `AiAgent` 实例在内存中维护一个 `messages: Message[]` 数组, 记录完整对话历史. 每次调用 LLM 时, 通过 `toAiMessages()` 将历史转换为 LangChain 的消息格式传入.
 
 选择内存存储的原因:
 
@@ -404,9 +404,9 @@ AiAgent (单个会话实例)
 2. 简化实现: 无需序列化/反序列化, 无需处理数据库连接池竞争
 3. 写后读一致性: 消息写入内存后立即可用于下一次 LLM 调用, 无需等待 MySQL 写入完成
 
-持久化策略: 采用 write-behind 模式, `addMessage()` 先写入内存, 然后异步 (fire-and-forget) 调用 `saveMessage()` 写入 MySQL, 失败只记日志不阻塞主流程。
+持久化策略: 采用 write-behind 模式, `addMessage()` 先写入内存, 然后异步 (fire-and-forget) 调用 `saveMessage()` 写入 MySQL, 失败只记日志不阻塞主流程.
 
-代价: 服务重启后内存丢失, 需要从 MySQL 重建 (见 Q18)。
+代价: 服务重启后内存丢失, 需要从 MySQL 重建 (见 Q18).
 
 ### Q17: 模型热切换是如何实现的?
 
@@ -432,7 +432,7 @@ if (agent) {
 4. 调用 `agent.setModel()` 替换模型引用
 5. 对话历史 (messages) 保持不变, 新模型继承完整上下文
 
-这实现了无缝切换: 用户切换模型后, 对话不中断, 历史上下文完整保留。
+这实现了无缝切换: 用户切换模型后, 对话不中断, 历史上下文完整保留.
 
 ### Q18: 服务重启后如何恢复对话上下文?
 
@@ -444,7 +444,7 @@ if (agent) {
 2. 逐条消息调用 `AiAgentManager.getOrCreateAiAgent(username, session_id, ...)` 获取或创建对应 session 的 `AiAgent` 实例
 3. 通过 `agent.addMessage(..., false)` 将消息注入 `messages` 数组, 第 4 个参数传 `false` 表示仅恢复内存状态, 不再重复写回数据库
 
-这确保了即使服务崩溃重启, 用户再次进入对话时, AI 仍然 "记得" 之前的对话内容。代价是启动时间随历史消息量线性增长。另外, 恢复时统一使用 `ModelType.OLLAMA_MODEL` 创建 Agent, 若用户上次使用的是 RAG 模型, 需等下一次请求携带新 `model_type` 时通过热切换纠正。
+这确保了即使服务崩溃重启, 用户再次进入对话时, AI 仍然 "记得" 之前的对话内容. 代价是启动时间随历史消息量线性增长. 另外, 恢复时统一使用 `ModelType.OLLAMA_MODEL` 创建 Agent, 若用户上次使用的是 RAG 模型, 需等下一次请求携带新 `model_type` 时通过热切换纠正.
 
 ---
 
@@ -500,7 +500,7 @@ Please provide an accurate and complete answer:
 2. 无法跨请求复用, 文档未变时也会重新向量化
 3. 文档量大时 (数万页) 内存和延迟都不可接受
 
-改进方向: 引入持久化向量库 + 增量索引, 仅在文档变更时重新向量化, 查询时直接检索。
+改进方向: 引入持久化向量库 + 增量索引, 仅在文档变更时重新向量化, 查询时直接检索.
 
 ### Q21: 文档分块策略的参数选择依据是什么?
 
@@ -508,11 +508,11 @@ Please provide an accurate and complete answer:
 
 使用 `RecursiveCharacterTextSplitter`, 参数为 `chunkSize=1000, chunkOverlap=200`:
 
-- chunkSize=1000: 平衡检索精度和上下文完整性。过小 (如 200) 会丢失段落语义; 过大 (如 5000) 会引入噪声, 降低相似度匹配的准确性。1000 字符约覆盖一个完整段落或代码块。
+- chunkSize=1000: 平衡检索精度和上下文完整性. 过小 (如 200) 会丢失段落语义; 过大 (如 5000) 会引入噪声, 降低相似度匹配的准确性. 1000 字符约覆盖一个完整段落或代码块.
 
-- chunkOverlap=200: 20% 的重叠率确保跨块边界的信息不丢失。如果一个关键概念恰好在第 1000 字符处被截断, 重叠部分保证下一个块仍包含完整语境。
+- chunkOverlap=200: 20% 的重叠率确保跨块边界的信息不丢失. 如果一个关键概念恰好在第 1000 字符处被截断, 重叠部分保证下一个块仍包含完整语境.
 
-- Recursive 分割: 按 `\n\n` -> `\n` -> `. ` -> ` ` 的优先级递归分割, 尽量在自然语义边界切分, 而非硬截断。
+- Recursive 分割: 按 `\n\n` -> `\n` -> `. ` -> ` ` 的优先级递归分割, 尽量在自然语义边界切分, 而非硬截断.
 
 ---
 
@@ -542,7 +542,7 @@ if (authHeader?.startsWith("Bearer ")) {
 }
 ```
 
-SSE 使用 Fetch API (非 EventSource), 因此可以直接设置 Authorization header。但中间件同时支持 `?token=` query param 作为后备方案, 兼容 EventSource 等无法自定义 header 的场景。
+SSE 使用 Fetch API (非 EventSource), 因此可以直接设置 Authorization header. 但中间件同时支持 `?token=` query param 作为后备方案, 兼容 EventSource 等无法自定义 header 的场景.
 
 ### Q23: 当前安全方案有哪些已知弱点和改进方向?
 
@@ -598,7 +598,7 @@ messages 表:
 
 答:
 
-`db/cache.ts` 提供统一的缓存抽象层。实现上没有抽象类/接口, 而是导出模块级函数 `cacheGet` / `cacheSet` / `cacheDelete`, 内部通过 `isRedisEnabled()` 布尔分发:
+`db/cache.ts` 提供统一的缓存抽象层. 实现上没有抽象类/接口, 而是导出模块级函数 `cacheGet` / `cacheSet` / `cacheDelete`, 内部通过 `isRedisEnabled()` 布尔分发:
 
 ```
 db/cache.ts
@@ -612,7 +612,7 @@ db/cache.ts
 - 最大内存: 256MB
 - TTL: 10 分钟
 
-设计意义: 开发环境无需安装 Redis 即可运行, 生产环境使用 Redis 实现跨进程/跨实例缓存共享。缓存层对上层 Service 完全透明, 切换无需修改业务代码。
+设计意义: 开发环境无需安装 Redis 即可运行, 生产环境使用 Redis 实现跨进程/跨实例缓存共享. 缓存层对上层 Service 完全透明, 切换无需修改业务代码.
 
 ---
 
@@ -634,7 +634,7 @@ db/cache.ts
 3. external 配置: 所有 node_modules 依赖标记为 external, 不打包进 bundle, 保持运行时 require
 4. TypeScript 编译: 通过插件在构建时完成类型擦除, 产物为纯 JS
 
-开发模式: 使用 `tsx watch` 直接运行 TypeScript, 无需构建步骤, 文件变更自动重启。
+开发模式: 使用 `tsx watch` 直接运行 TypeScript, 无需构建步骤, 文件变更自动重启.
 
 ### Q27: 开发环境是如何组织的?
 
@@ -683,7 +683,7 @@ db/cache.ts
 factory.registerModel("openai", (config) => new OpenAIModel(config));
 ```
 
-无需修改 Agent、Manager、Controller 的任何代码。
+无需修改 Agent、Manager、Controller 的任何代码.
 
 ### Q29: 如果要支持水平扩展, 当前架构需要做哪些改造?
 
@@ -739,8 +739,8 @@ factory.registerModel("openai", (config) => new OpenAIModel(config));
 
 - 语言包: `src/i18n/locales/zh.json` 和 `en.json`
 - 语言检测: 通过 `navigator.language` 自动检测浏览器语言
-- 持久化: `SettingsBar` 切换语言时写入 `languageAtom` (`atomWithStorage`, key 为 `language`), 同时调用 `i18n.changeLanguage()` 即时生效。刷新页面后 `i18n/index.ts` 的 `getSavedLanguage()` 从 `language` key 读取 (atomWithStorage 写入的是 JSON 编码字符串, 读取端用 `JSON.parse` 解析并校验 zh/en), 命中则恢复用户选择, 否则回落 `navigator.language` 浏览器语言检测
+- 持久化: `SettingsBar` 切换语言时写入 `languageAtom` (`atomWithStorage`, key 为 `language`), 同时调用 `i18n.changeLanguage()` 即时生效. 刷新页面后 `i18n/index.ts` 的 `getSavedLanguage()` 从 `language` key 读取 (atomWithStorage 写入的是 JSON 编码字符串, 读取端用 `JSON.parse` 解析并校验 zh/en), 命中则恢复用户选择, 否则回落 `navigator.language` 浏览器语言检测
 - 使用方式: 组件中 `const { t } = useTranslation()`, 模板中 `t("chat.empty_title")`
 - 切换组件: `SettingsBar` 提供语言下拉选择器, 切换后全局即时生效, 无需刷新
 
-支持中文和英文两种语言, 覆盖所有用户可见文本 (按钮、提示、空状态等)。
+支持中文和英文两种语言, 覆盖所有用户可见文本 (按钮、提示、空状态等).

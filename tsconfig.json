@@ -4,7 +4,6 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "jsxImportSource": "preact",
     "types": ["node", "vite/client"],
     "strict": true,
     "skipLibCheck": true,

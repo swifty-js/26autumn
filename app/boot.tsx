@@ -1,6 +1,7 @@
-import { ErrorInfo, render } from "preact";
-import { useState } from "preact/hooks";
-import { LocationProvider, Router, Route } from "preact-iso";
+import { ErrorInfo, useState } from "react";
+
+import { createRoot } from "react-dom/client";
+import { LocationProvider } from "@swifty.js/docs";
 import { DocsProvider, DocsLayout, createContentGuard } from "@swifty.js/docs";
 import {
   docsConfig,
@@ -14,7 +15,7 @@ import {
   PerformancePlugin,
   ExposurePlugin,
 } from "@swifty.js/sentry/plugins";
-import { PreactErrorBoundary } from "@swifty.js/sentry/preact";
+import { ReactErrorBoundary } from "@swifty.js/sentry/react";
 
 init({
   dsn: "/26autumn",
@@ -45,25 +46,25 @@ function ErrorFallback({
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
-    <div class="bg-background text-foreground flex min-h-dvh items-center justify-center p-6 font-mono">
-      <div class="animate-guard-pop w-full max-w-sm text-center">
-        <h1 class="text-lg font-semibold tracking-tight">
+    <div className="bg-background text-foreground flex min-h-dvh items-center justify-center p-6 font-mono">
+      <div className="animate-guard-pop w-full max-w-sm text-center">
+        <h1 className="text-lg font-semibold tracking-tight">
           Something went wrong
         </h1>
-        <p class="text-muted-foreground mt-2 text-sm wrap-break-word">
+        <p className="text-muted-foreground mt-2 text-sm wrap-break-word">
           {error.message || "An unexpected error occurred."}
         </p>
 
         {errorInfo?.componentStack && (
-          <pre class="border-border bg-muted text-muted-foreground mt-5 max-h-28 overflow-auto rounded-md border p-3 text-left text-[0.7rem] leading-relaxed">
+          <pre className="border-border bg-muted text-muted-foreground mt-5 max-h-28 overflow-auto rounded-md border p-3 text-left text-[0.7rem] leading-relaxed">
             {errorInfo.componentStack.trim()}
           </pre>
         )}
 
-        <div class="mt-6 flex items-center justify-center">
+        <div className="mt-6 flex items-center justify-center">
           <button
             onClick={() => setDismissed(true)}
-            class="bg-primary text-primary-foreground cursor-pointer rounded-md px-4 py-2 text-xs font-semibold shadow-(--sakura-shadow-soft) transition-all duration-200 hover:-translate-y-px hover:shadow-(--sakura-shadow-lift) active:translate-y-0"
+            className="bg-primary text-primary-foreground cursor-pointer rounded-md px-4 py-2 text-xs font-semibold shadow-(--sakura-shadow-soft) transition-all duration-200 hover:-translate-y-px hover:shadow-(--sakura-shadow-lift) active:translate-y-0"
           >
             Close
           </button>
@@ -80,22 +81,19 @@ function App() {
   return (
     <>
       <guard.ContentGuard />
-      <PreactErrorBoundary fallback={fallback}>
+      <ReactErrorBoundary fallback={fallback}>
         <DocsProvider
           config={docsConfig}
           loadContent={guard.loadContent}
           getSearchIndex={getSearchIndex}
         >
           <LocationProvider>
-            <Router>
-              <Route path="/" component={DocsLayout} />
-              <Route default component={DocsLayout} />
-            </Router>
+            <DocsLayout />
           </LocationProvider>
         </DocsProvider>
-      </PreactErrorBoundary>
+      </ReactErrorBoundary>
     </>
   );
 }
 
-render(<App />, document.getElementById("app")!);
+createRoot(document.getElementById("app")!).render(<App />);

@@ -109,7 +109,7 @@ Eino 是 CloudWeGo 开源的 Go AI 编排框架, 选择它的核心原因:
 4. 流式原生: `compose.Runnable` 同时暴露 `Invoke` (同步) 和 `Stream` (流式) 两种调用方式, 一套图定义服务两个 endpoint
 5. Go 生态: 相比 LangChain (Python) 或 Vercel AI SDK (TypeScript), Eino 与项目的 Go 技术栈一致, 避免跨语言调用开销
 
-对比原 Next.js 方案: 原先用 Vercel AI SDK 的 `generateText` + `streamText` + 手写 pipeline 串联, 迁移到 Eino 后编排逻辑声明式定义, 可观测性通过 Callback 统一注入。
+对比原 Next.js 方案: 原先用 Vercel AI SDK 的 `generateText` + `streamText` + 手写 pipeline 串联, 迁移到 Eino 后编排逻辑声明式定义, 可观测性通过 Callback 统一注入.
 
 ---
 
@@ -176,14 +176,14 @@ START ──┬──> [InputToRag] ──> [RedisRetriever] ──┐
 
 答:
 
-Eino 的 DAG 图默认使用 `AnyPredecessor` 触发模式——节点在任一前驱完成时即执行。这对 ChatTemplate 节点是错误的, 因为它需要同时接收:
+Eino 的 DAG 图默认使用 `AnyPredecessor` 触发模式——节点在任一前驱完成时即执行. 这对 ChatTemplate 节点是错误的, 因为它需要同时接收:
 
 1. RedisRetriever 输出的 `documents` (RAG 文档)
 2. InputToChat 输出的模板变量 (content, history, date)
 
-如果使用 `AnyPredecessor`, ChatTemplate 可能在 Retriever 还未返回时就执行, 导致 `{documents}` 为空。
+如果使用 `AnyPredecessor`, ChatTemplate 可能在 Retriever 还未返回时就执行, 导致 `{documents}` 为空.
 
-`AllPredecessor` 模式确保节点等待所有入边前驱完成后才触发, 语义上等价于一个 barrier/join。这是 DAG 编排中 fork-join 模式的标准实现。
+`AllPredecessor` 模式确保节点等待所有入边前驱完成后才触发, 语义上等价于一个 barrier/join. 这是 DAG 编排中 fork-join 模式的标准实现.
 
 ---
 
@@ -208,7 +208,7 @@ agentCfg.ToolsConfig.Tools = append(..., timeTool)   // 当前时间
 agentCfg.ToolsConfig.Tools = append(..., docsTool)   // 内部文档 RAG
 ```
 
-最终通过 `compose.AnyLambda(agent.Generate, agent.Stream, nil, nil)` 包装为统一的 Lambda 节点, 同时支持同步和流式调用。
+最终通过 `compose.AnyLambda(agent.Generate, agent.Stream, nil, nil)` 包装为统一的 Lambda 节点, 同时支持同步和流式调用.
 
 ---
 
@@ -231,7 +231,7 @@ agentCfg.ToolsConfig.Tools = append(..., docsTool)   // 内部文档 RAG
 - Chat 用 ReAct: 用户问题不确定, 可能只需 1-2 步工具调用
 - AIOps 用 Plan-Execute-Replan: 告警分析是固定流程 (查告警 -> 查文档 -> 查日志 -> 生成报告), 需要全局视角和进度追踪
 
-`MaxIterations: 20` 限制总循环次数, Executor 内部 `MaxIterations: 10` 限制单步工具调用次数, 双层防护防止失控。
+`MaxIterations: 20` 限制总循环次数, Executor 内部 `MaxIterations: 10` 限制单步工具调用次数, 双层防护防止失控.
 
 ---
 
@@ -324,7 +324,7 @@ LLM 即使被指示 "只输出 JSON", 实际输出可能是:
    - 转义字符 `\"` 不终止字符串 (通过 `escaped` 状态)
 4. 平衡检测: depth 归零时返回完整 JSON 子串; 若遍历完仍未归零, 返回错误和原始内容供调试
 
-这是一个 O(n) 的有限状态机, 不依赖正则表达式, 能正确处理嵌套 JSON 和字符串中的特殊字符。
+这是一个 O(n) 的有限状态机, 不依赖正则表达式, 能正确处理嵌套 JSON 和字符串中的特殊字符.
 
 ---
 
@@ -354,7 +354,7 @@ FT.CREATE idx:biz ON HASH PREFIX 1 biz: SCHEMA
 - COSINE 距离: 对文本 embedding 的归一化特性友好
 - `_source` TAG 字段: 支持按文件来源精确过滤和去重删除
 
-局限: 如果数据量增长到百万级, 需要考虑迁移到 Milvus/Qdrant 等专用向量数据库。
+局限: 如果数据量增长到百万级, 需要考虑迁移到 Milvus/Qdrant 等专用向量数据库.
 
 ---
 
@@ -362,7 +362,7 @@ FT.CREATE idx:biz ON HASH PREFIX 1 biz: SCHEMA
 
 答:
 
-重新索引同一文件时, 需要先删除旧 chunk 再写入新 chunk, 避免重复。实现:
+重新索引同一文件时, 需要先删除旧 chunk 再写入新 chunk, 避免重复. 实现:
 
 ```go
 func deleteBySource(ctx context.Context, client *redis.Client, source string) error {
@@ -399,7 +399,7 @@ func deleteBySource(ctx context.Context, client *redis.Client, source string) er
 
 答:
 
-切换 Embedding Provider (如从 DashScope 2048d 切换到 Ollama 768d) 后, 已有索引的向量维度与新配置不一致, FT.SEARCH 会静默返回空结果。
+切换 Embedding Provider (如从 DashScope 2048d 切换到 Ollama 768d) 后, 已有索引的向量维度与新配置不一致, FT.SEARCH 会静默返回空结果.
 
 处理策略 (`ensureIndex`):
 
@@ -448,7 +448,7 @@ if err != nil {
 
 设计原因:
 
-1. Agent 可推理: 如果返回 Go error, Eino 框架会中断工具调用循环, Agent 无法得知失败原因。返回 JSON 错误让 LLM 看到 "Prometheus 不可达", 可以决定跳过告警查询、告知用户、或尝试替代方案
+1. Agent 可推理: 如果返回 Go error, Eino 框架会中断工具调用循环, Agent 无法得知失败原因. 返回 JSON 错误让 LLM 看到 "Prometheus 不可达", 可以决定跳过告警查询、告知用户、或尝试替代方案
 2. 优雅降级: 运维场景中部分数据源不可用是常态, Agent 应能基于可用信息给出部分结论
 3. 对齐 Next.js 行为: 原 Vercel AI SDK 的 tool 执行器将异常序列化为 tool result 返回给模型
 
@@ -468,7 +468,7 @@ if err != nil {
 }
 ```
 
-Eino 默认的 `sonic.UnmarshalString("")` 会报 "input json is empty" 错误, 中断整个 Agent 循环。
+Eino 默认的 `sonic.UnmarshalString("")` 会报 "input json is empty" 错误, 中断整个 Agent 循环.
 
 解决方案——泛型包装器:
 
@@ -550,7 +550,7 @@ func GetLogMcpTool(ctx context.Context, mcpURL string) ([]tool.BaseTool, error) 
 2. 运维对话是短会话, 丢失历史可接受 (用户重新描述问题即可)
 3. 避免引入额外 Redis 依赖路径 (Redis 已用于向量存储, 职责分离)
 
-LRU 实现: `container/list` 双向链表 + map, O(1) 访问和淘汰。全局 `sync.Mutex` 保护 map 和链表操作, 每个 session 内部有独立 `sync.Mutex` 保护消息切片。
+LRU 实现: `container/list` 双向链表 + map, O(1) 访问和淘汰. 全局 `sync.Mutex` 保护 map 和链表操作, 每个 session 内部有独立 `sync.Mutex` 保护消息切片.
 
 ---
 
@@ -571,12 +571,12 @@ func (m *ConversationMemory) Append(msg *schema.Message) {
 }
 ```
 
-原因: LLM 的多轮对话要求消息序列以 user 消息开始、assistant 消息结束, 且 user/assistant 严格交替。如果淘汰奇数条消息, 可能导致:
+原因: LLM 的多轮对话要求消息序列以 user 消息开始、assistant 消息结束, 且 user/assistant 严格交替. 如果淘汰奇数条消息, 可能导致:
 
 - 序列以 assistant 消息开头 (LLM 困惑: "我在回复谁?")
 - 出现连续的 user 或 assistant 消息 (破坏对话结构)
 
-按对淘汰保证窗口内始终是完整的 user-assistant 对话轮次, 维护消息序列的结构不变量。
+按对淘汰保证窗口内始终是完整的 user-assistant 对话轮次, 维护消息序列的结构不变量.
 
 ---
 
@@ -586,7 +586,7 @@ func (m *ConversationMemory) Append(msg *schema.Message) {
 
 答:
 
-问题: Anthropic 官方 API 在 non-streaming 响应的 thinking content block 中包含 `signature` 字段, 但部分第三方网关/代理 (如 OpenRouter、自建代理) 会省略该字段。Anthropic SDK 校验时发现 `signature` 缺失会拒绝整个响应: "Invalid JSON response"。
+问题: Anthropic 官方 API 在 non-streaming 响应的 thinking content block 中包含 `signature` 字段, 但部分第三方网关/代理 (如 OpenRouter、自建代理) 会省略该字段. Anthropic SDK 校验时发现 `signature` 缺失会拒绝整个响应: "Invalid JSON response".
 
 解决方案——HTTP Transport 中间件:
 
@@ -608,7 +608,7 @@ func (t *signaturePatchingTransport) RoundTrip(req *http.Request) (*http.Respons
 }
 ```
 
-`patchThinkingSignature` 遍历 `content` 数组, 对 `type: "thinking"` 且缺少 `signature` 的 block 补充 `"signature": ""`。
+`patchThinkingSignature` 遍历 `content` 数组, 对 `type: "thinking"` 且缺少 `signature` 的 block 补充 `"signature": ""`.
 
 设计考量:
 
@@ -631,9 +631,9 @@ if mc.Thinking && mc.MaxTokens > 1 {
 }
 ```
 
-Anthropic API 约束: `budget_tokens` 必须严格小于 `max_tokens`。`max_tokens` 是响应总 token 上限 (thinking + output), `budget_tokens` 是 thinking 部分的 token 预算。设为 `MaxTokens - 1` 是在满足约束的前提下最大化思考预算, 留 1 token 给实际输出内容的最低保证。
+Anthropic API 约束: `budget_tokens` 必须严格小于 `max_tokens`. `max_tokens` 是响应总 token 上限 (thinking + output), `budget_tokens` 是 thinking 部分的 token 预算. 设为 `MaxTokens - 1` 是在满足约束的前提下最大化思考预算, 留 1 token 给实际输出内容的最低保证.
 
-这与 Next.js 版本的 `ANTHROPIC_THINKING` 配置对齐, 确保迁移后行为一致。
+这与 Next.js 版本的 `ANTHROPIC_THINKING` 配置对齐, 确保迁移后行为一致.
 
 ---
 
@@ -698,11 +698,11 @@ client := redis.NewClient(&redis.Options{
 })
 ```
 
-原因: RediSearch 的 `FT.SEARCH` 命令在 RESP3 协议下返回的数据格式与 RESP2 不同——RESP3 使用 map 类型, 而 go-redis 的 `Do().Slice()` 期望 RESP2 的扁平数组格式。如果使用 RESP3, `FT.SEARCH` 的结果解析会失败或返回原始未解析数据。
+原因: RediSearch 的 `FT.SEARCH` 命令在 RESP3 协议下返回的数据格式与 RESP2 不同——RESP3 使用 map 类型, 而 go-redis 的 `Do().Slice()` 期望 RESP2 的扁平数组格式. 如果使用 RESP3, `FT.SEARCH` 的结果解析会失败或返回原始未解析数据.
 
-同时设置 `UnstableResp3 = true` 是因为 go-redis 在 Protocol=2 时默认禁用某些 RESP3 特性标记, 而向量搜索的某些内部命令需要该标记。
+同时设置 `UnstableResp3 = true` 是因为 go-redis 在 Protocol=2 时默认禁用某些 RESP3 特性标记, 而向量搜索的某些内部命令需要该标记.
 
-这是 go-redis + RediSearch 组合的已知兼容性约束。
+这是 go-redis + RediSearch 组合的已知兼容性约束.
 
 ---
 

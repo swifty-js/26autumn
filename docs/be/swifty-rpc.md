@@ -100,9 +100,9 @@ ClientConn.Invoke
 
 ### Q2: 为什么所有实现放在 internal/ 下? pkg/rpc 如何暴露能力?
 
-Go 编译器强制 `internal/` 目录下的包只能被同一模块内的代码导入。这确保了:
+Go 编译器强制 `internal/` 目录下的包只能被同一模块内的代码导入. 这确保了:
 
-1. API 稳定性: 外部用户只能依赖 `pkg/rpc` 暴露的类型别名和函数, 内部重构不影响下游。
+1. API 稳定性: 外部用户只能依赖 `pkg/rpc` 暴露的类型别名和函数, 内部重构不影响下游.
 2. 最小暴露面: `pkg/rpc` 通过 type alias 将必要的内部类型导出:
 
 ```go
@@ -115,11 +115,11 @@ type ClientStream = stream.ClientStream
 type Future       = transport.Future
 ```
 
-type alias (`=`) 而非 type definition 意味着 `rpc.Future` 和 `transport.Future` 是同一个类型, 用户可以直接调用 Future 的所有导出方法而无需额外适配。
+type alias (`=`) 而非 type definition 意味着 `rpc.Future` 和 `transport.Future` 是同一个类型, 用户可以直接调用 Future 的所有导出方法而无需额外适配.
 
 ### Q3: internal/stream 包存在的意义是什么?
 
-`internal/server` 需要实现 `ServerStream` 接口 (serverStream 结构体), `internal/transport` 需要实现 `ClientStream` 接口 (ClientStreamConn)。如果接口定义在 server 或 transport 任一方, 另一方就需要导入它, 形成循环依赖:
+`internal/server` 需要实现 `ServerStream` 接口 (serverStream 结构体), `internal/transport` 需要实现 `ClientStream` 接口 (ClientStreamConn). 如果接口定义在 server 或 transport 任一方, 另一方就需要导入它, 形成循环依赖:
 
 ```
 server -> transport (使用 TCPConnection 写帧)
@@ -148,24 +148,24 @@ server   -> transport (使用 TCPConnection)
   固定 10 字节前缀
 ```
 
-- Magic: `0x1234`, 大端序, 用于帧同步和脏数据跳过。
-- HeaderLen/BodyLen: uint32 大端序, 描述后续两段长度。
-- Header: JSON 编码的 `protocol.Header` 结构体, 包含 RequestID、ServiceName、MethodName、Error、CodecType、Compression、StreamFlag。
-- Body: 经 Gzip 压缩后的业务载荷。
+- Magic: `0x1234`, 大端序, 用于帧同步和脏数据跳过.
+- HeaderLen/BodyLen: uint32 大端序, 描述后续两段长度.
+- Header: JSON 编码的 `protocol.Header` 结构体, 包含 RequestID、ServiceName、MethodName、Error、CodecType、Compression、StreamFlag.
+- Body: 经 Gzip 压缩后的业务载荷.
 
-`Decode` 在解析前执行溢出检查: `uint64(10) + uint64(headerLen) + uint64(bodyLen) > math.MaxInt` 时拒绝, 防止 32 位平台整数溢出。
+`Decode` 在解析前执行溢出检查: `uint64(10) + uint64(headerLen) + uint64(bodyLen) > math.MaxInt` 时拒绝, 防止 32 位平台整数溢出.
 
-StreamFlag 使用 `json:",omitempty"`, 值为 0 (StreamNone) 时不出现在序列化结果中, 减少 unary 帧的 header 体积。
+StreamFlag 使用 `json:",omitempty"`, 值为 0 (StreamNone) 时不出现在序列化结果中, 减少 unary 帧的 header 体积.
 
 ### Q5: 为什么 Header 始终使用 JSON 编码而 Body 可以切换 Codec?
 
 设计考量:
 
-1. 协商自举: Header 携带 CodecType 字段告知对端 Body 的编码方式。如果 Header 本身也用 Protobuf, 则双端必须在没有任何协商信息的情况下就 Header 编码达成一致, 增加了复杂度。
-2. 可调试性: JSON Header 可以直接用 tcpdump 抓取后人工阅读, 便于线上排障。
-3. 体积影响小: Header 通常 100-200 字节, JSON 与 Protobuf 的体积差异可忽略; 而 Body 可能是 KB-MB 级, Protobuf 的紧凑编码收益显著。
+1. 协商自举: Header 携带 CodecType 字段告知对端 Body 的编码方式. 如果 Header 本身也用 Protobuf, 则双端必须在没有任何协商信息的情况下就 Header 编码达成一致, 增加了复杂度.
+2. 可调试性: JSON Header 可以直接用 tcpdump 抓取后人工阅读, 便于线上排障.
+3. 体积影响小: Header 通常 100-200 字节, JSON 与 Protobuf 的体积差异可忽略; 而 Body 可能是 KB-MB 级, Protobuf 的紧凑编码收益显著.
 
-代价是每个帧都有一次 JSON Marshal/Unmarshal, 但由于 Header 体积小且使用 `encoding/json` 标准库, 实测开销在微秒级。
+代价是每个帧都有一次 JSON Marshal/Unmarshal, 但由于 Header 体积小且使用 `encoding/json` 标准库, 实测开销在微秒级.
 
 ### Q6: PacketBuffer 如何处理粘包和脏数据?
 
@@ -193,7 +193,7 @@ pb.buf = pb.buf[totalLen:]
 return packet
 ```
 
-TCP 是字节流, 一次 `Read` 可能包含多个完整帧 (粘包) 或半个帧 (拆包)。外层 `TCPConnection.Read()` 循环调用 `PacketBuffer.Read()`, 每次提取一个完整帧; 缓冲区不够时从 `bufio.Reader` (4096 字节) 补充数据。脏数据 (如连接建立前的随机字节) 通过 Magic 跳跃循环自动恢复。
+TCP 是字节流, 一次 `Read` 可能包含多个完整帧 (粘包) 或半个帧 (拆包). 外层 `TCPConnection.Read()` 循环调用 `PacketBuffer.Read()`, 每次提取一个完整帧; 缓冲区不够时从 `bufio.Reader` (4096 字节) 补充数据. 脏数据 (如连接建立前的随机字节) 通过 Magic 跳跃循环自动恢复.
 
 ### Q7: 为什么 Body 强制 Gzip 压缩? 有什么代价?
 
@@ -209,15 +209,15 @@ msg := &protocol.Message{
 }
 ```
 
-设计意图: 简化配置, 确保所有通信都经过压缩, 对大载荷 (如批量查询结果) 有显著带宽节省。
+设计意图: 简化配置, 确保所有通信都经过压缩, 对大载荷 (如批量查询结果) 有显著带宽节省.
 
 代价:
 
-- 小载荷 (几十字节的 Args/Reply) 下, Gzip 头部 (约 20 字节) + 压缩开销可能使帧体积反而增大。
-- 每帧一次 `gzip.Writer` + `gzip.Reader`, CPU 开销在高 QPS 场景下不可忽略。
-- 无法通过配置关闭, 对延迟敏感的小包场景不友好。
+- 小载荷 (几十字节的 Args/Reply) 下, Gzip 头部 (约 20 字节) + 压缩开销可能使帧体积反而增大.
+- 每帧一次 `gzip.Writer` + `gzip.Reader`, CPU 开销在高 QPS 场景下不可忽略.
+- 无法通过配置关闭, 对延迟敏感的小包场景不友好.
 
-改进方向: 增加阈值判断 (如 Body < 256 字节时不压缩) 或暴露 `WithCompression(None)` 选项。
+改进方向: 增加阈值判断 (如 Body < 256 字节时不压缩) 或暴露 `WithCompression(None)` 选项.
 
 ### Q8: Codec 注册机制是怎样的? Protobuf Codec 有什么约束?
 
@@ -236,11 +236,11 @@ func New(t Type) (Codec, error) {
 }
 ```
 
-JSON (Type=1) 和 Protobuf (Type=2) 在各自文件的 `init()` 中注册。
+JSON (Type=1) 和 Protobuf (Type=2) 在各自文件的 `init()` 中注册.
 
-Protobuf 约束: `Marshal`/`Unmarshal` 内部做类型断言 `v.(proto.Message)`, 非 `proto.Message` 的普通 struct 会返回 `"proto codec: not proto.Message"` 错误。这意味着使用 Protobuf Codec 时, 请求和响应类型必须是 `.proto` 文件生成的结构体。
+Protobuf 约束: `Marshal`/`Unmarshal` 内部做类型断言 `v.(proto.Message)`, 非 `proto.Message` 的普通 struct 会返回 `"proto codec: not proto.Message"` 错误. 这意味着使用 Protobuf Codec 时, 请求和响应类型必须是 `.proto` 文件生成的结构体.
 
-压缩器同样有注册表 (`map[CompressionType]compressor`), 默认只注册 Gzip, 可通过 `RegisterCompressor` 扩展。
+压缩器同样有注册表 (`map[CompressionType]compressor`), 默认只注册 Gzip, 可通过 `RegisterCompressor` 扩展.
 
 ---
 
@@ -263,12 +263,12 @@ type TCPClient struct {
 
 多路复用原理:
 
-1. 每次发送分配唯一 RequestID (`nextSeq()` 内部 `c.seq.Add(1)`)。
-2. 将 Future/ClientStreamConn 以 RequestID 为 key 存入对应 Map。
-3. 帧写入共享连接 (writeMu 保证帧完整性)。
-4. 唯一的 `readLoop` goroutine 读取响应帧, 按 RequestID 路由到对应 Future/Stream。
+1. 每次发送分配唯一 RequestID (`nextSeq()` 内部 `c.seq.Add(1)`).
+2. 将 Future/ClientStreamConn 以 RequestID 为 key 存入对应 Map.
+3. 帧写入共享连接 (writeMu 保证帧完整性).
+4. 唯一的 `readLoop` goroutine 读取响应帧, 按 RequestID 路由到对应 Future/Stream.
 
-多个 goroutine 可以并发调用 `SendAsyncWithCodec`, 各自拿到独立的 Future, 互不阻塞。所有响应由一个 readLoop 统一分用, 避免了每请求一个 goroutine 的开销。
+多个 goroutine 可以并发调用 `SendAsyncWithCodec`, 各自拿到独立的 Future, 互不阻塞. 所有响应由一个 readLoop 统一分用, 避免了每请求一个 goroutine 的开销.
 
 ### Q10: readLoop 的分用逻辑是怎样的? 如何区分 unary 和 stream 帧?
 
@@ -309,7 +309,7 @@ func (c *TCPClient) readLoop() {
 }
 ```
 
-区分依据是 `Header.StreamFlag`: 0=unary, 1=流数据, 2=流结束, 3=流错误。unary 响应走 `pending` map, stream 帧走 `streams` map, 两个 map 完全隔离。
+区分依据是 `Header.StreamFlag`: 0=unary, 1=流数据, 2=流结束, 3=流错误. unary 响应走 `pending` map, stream 帧走 `streams` map, 两个 map 完全隔离.
 
 ### Q11: shutdown 机制如何保证所有阻塞调用者被唤醒?
 
@@ -336,12 +336,12 @@ func (c *TCPClient) shutdown(err error) {
 
 保证机制:
 
-1. CAS 单次执行: 无论是读失败 (`fail`) 还是主动 `Close`, 都走 `shutdown`, CAS 保证只执行一次。
-2. 遍历 pending: 每个未完成 Future 被 `Done(nil, err)` 唤醒, 阻塞在 `<-f.done` 的调用者立即返回。
-3. 遍历 streams: 每个活跃流被 `Error(err)` 终结, `termCh` 关闭后阻塞在 `Recv` 的调用者立即返回。
-4. Future.Done 幂等: 即使 readLoop 在 shutdown 之前已经收到部分响应并调用了 Done, shutdown 的再次 Done 是 no-op, 不会 panic。
+1. CAS 单次执行: 无论是读失败 (`fail`) 还是主动 `Close`, 都走 `shutdown`, CAS 保证只执行一次.
+2. 遍历 pending: 每个未完成 Future 被 `Done(nil, err)` 唤醒, 阻塞在 `<-f.done` 的调用者立即返回.
+3. 遍历 streams: 每个活跃流被 `Error(err)` 终结, `termCh` 关闭后阻塞在 `Recv` 的调用者立即返回.
+4. Future.Done 幂等: 即使 readLoop 在 shutdown 之前已经收到部分响应并调用了 Done, shutdown 的再次 Done 是 no-op, 不会 panic.
 
-这确保了连接断开时, 所有阻塞在 `Wait()`、`GetResult()`、`Recv()` 上的 goroutine 都能在有限时间内返回。
+这确保了连接断开时, 所有阻塞在 `Wait()`、`GetResult()`、`Recv()` 上的 goroutine 都能在有限时间内返回.
 
 ### Q12: SendAsyncWithCodec 中 Store 之后的二次 closed 检查解决什么竞态?
 
@@ -365,12 +365,12 @@ func (c *TCPClient) SendAsyncWithCodec(msg, cc) (*Future, error) {
 }
 ```
 
-竞态窗口: 在 `Store` 和实际写帧之间, 另一个 goroutine 可能触发 `shutdown`。shutdown 遍历 `pending` map 并 Done 所有 Future。如果 Store 发生在 shutdown 遍历之后:
+竞态窗口: 在 `Store` 和实际写帧之间, 另一个 goroutine 可能触发 `shutdown`. shutdown 遍历 `pending` map 并 Done 所有 Future. 如果 Store 发生在 shutdown 遍历之后:
 
-- 没有二次检查: Future 被存入 map 但永远不会被 Done (shutdown 已经遍历完了), 调用者永久阻塞。
-- 有二次检查: 发现 closed=1, 主动从 map 删除并返回错误, 避免泄漏。
+- 没有二次检查: Future 被存入 map 但永远不会被 Done (shutdown 已经遍历完了), 调用者永久阻塞.
+- 有二次检查: 发现 closed=1, 主动从 map 删除并返回错误, 避免泄漏.
 
-如果 shutdown 在二次检查之后才发生, 那么 shutdown 的遍历会覆盖到这个 Future 并 Done 它, 同样安全。
+如果 shutdown 在二次检查之后才发生, 那么 shutdown 的遍历会覆盖到这个 Future 并 Done 它, 同样安全.
 
 ### Q13: ConnectionPool 的设计有什么特点? 存在什么瓶颈?
 
@@ -387,15 +387,15 @@ type ConnectionPool struct {
 
 特点:
 
-- `maxActive=1`: 每个地址只维护一个 TCP 连接, 所有请求多路复用。
-- 死连接驱逐: Acquire 时发现 `conn.closed==1`, 从切片中 splice 删除, 然后重新拨号。
-- `maxIdle` 参数被接受但从未使用 (预留接口)。
+- `maxActive=1`: 每个地址只维护一个 TCP 连接, 所有请求多路复用.
+- 死连接驱逐: Acquire 时发现 `conn.closed==1`, 从切片中 splice 删除, 然后重新拨号.
+- `maxIdle` 参数被接受但从未使用 (预留接口).
 
 瓶颈:
 
-1. Acquire 持锁拨号: `mu` 锁跨越 `net.DialTimeout(5s)`, 如果目标不可达, 所有并发 Acquire 串行等待, 最坏情况 N 个调用者等待 N\*5s。
-2. Context 不约束拨号: ctx 只在 Acquire 入口做非阻塞检查, 不传入 DialTimeout, 调用者取消后拨号仍在进行。
-3. 单连接瓶颈: 所有 unary + stream 共享一个 readLoop, 一个慢 stream 填满 64 帧缓冲后会阻塞 readLoop 的 Push, 进而阻塞该连接上所有其他请求的响应分用。
+1. Acquire 持锁拨号: `mu` 锁跨越 `net.DialTimeout(5s)`, 如果目标不可达, 所有并发 Acquire 串行等待, 最坏情况 N 个调用者等待 N\*5s.
+2. Context 不约束拨号: ctx 只在 Acquire 入口做非阻塞检查, 不传入 DialTimeout, 调用者取消后拨号仍在进行.
+3. 单连接瓶颈: 所有 unary + stream 共享一个 readLoop, 一个慢 stream 填满 64 帧缓冲后会阻塞 readLoop 的 Push, 进而阻塞该连接上所有其他请求的响应分用.
 
 ### Q14: TCPConnection.Close 为什么调用 SetLinger(0)?
 
@@ -410,11 +410,11 @@ func (tc *TCPConnection) Close() error {
 
 `SetLinger(0)` 使 `Close()` 发送 TCP RST 而非 FIN:
 
-- 立即释放: 不等待对端 ACK, 不进入 TIME_WAIT, 内核立即回收 socket 资源。
-- 适用场景: 服务端 `Stop()` 强制关闭所有连接时, 不希望等待大量 TIME_WAIT; 连接异常断开时, 快速释放资源。
-- 代价: 对端正在 `Read` 的 goroutine 收到 "connection reset by peer" 而非 EOF, 无法区分"对端正常关闭"和"网络异常"。
+- 立即释放: 不等待对端 ACK, 不进入 TIME_WAIT, 内核立即回收 socket 资源.
+- 适用场景: 服务端 `Stop()` 强制关闭所有连接时, 不希望等待大量 TIME_WAIT; 连接异常断开时, 快速释放资源.
+- 代价: 对端正在 `Read` 的 goroutine 收到 "connection reset by peer" 而非 EOF, 无法区分"对端正常关闭"和"网络异常".
 
-这是一个偏向资源回收速度的设计选择, 牺牲了优雅关闭的语义。`GracefulStop` 通过 `SetReadDeadline` 中断读阻塞, 让连接自然退出, 避免了 RST。
+这是一个偏向资源回收速度的设计选择, 牺牲了优雅关闭的语义. `GracefulStop` 通过 `SetReadDeadline` 中断读阻塞, 让连接自然退出, 避免了 RST.
 
 ---
 
@@ -440,11 +440,11 @@ func (f *Future) Done(res []byte, err error) {
 
 需要幂等的场景:
 
-1. 超时 + 迟到响应: 客户端超时后调用 `future.Done(nil, context.DeadlineExceeded)` 记录失败; 之后服务端响应到达, readLoop 再次调用 `future.Done(body, nil)`。第二次是 no-op, 不会覆盖超时错误。
-2. shutdown + 正常响应: 连接断开触发 shutdown 遍历 Done 所有 Future; 如果 readLoop 在 shutdown 之前已经处理了某个响应, 两次 Done 不冲突。
-3. InvokeAsync 看门狗 + 正常完成: 超时定时器触发 Done; 如果响应恰好在同一时刻到达, 两个 goroutine 竞争 Done, 只有一个生效。
+1. 超时 + 迟到响应: 客户端超时后调用 `future.Done(nil, context.DeadlineExceeded)` 记录失败; 之后服务端响应到达, readLoop 再次调用 `future.Done(body, nil)`. 第二次是 no-op, 不会覆盖超时错误.
+2. shutdown + 正常响应: 连接断开触发 shutdown 遍历 Done 所有 Future; 如果 readLoop 在 shutdown 之前已经处理了某个响应, 两次 Done 不冲突.
+3. InvokeAsync 看门狗 + 正常完成: 超时定时器触发 Done; 如果响应恰好在同一时刻到达, 两个 goroutine 竞争 Done, 只有一个生效.
 
-幂等性由 `mu + complete flag` 保证, 无需 atomic (因为还需要保护 res/err 的写入)。
+幂等性由 `mu + complete flag` 保证, 无需 atomic (因为还需要保护 res/err 的写入).
 
 ### Q16: Future 的 OnComplete 回调与断路器如何协作?
 
@@ -462,10 +462,10 @@ future.OnComplete(func(err error) {
 
 关键设计:
 
-1. 恰好一次: `OnComplete` 存储在 Future 的单一 slot 中, `Done` 幂等保证回调最多触发一次。
-2. 锁外执行: `Done` 在释放 `mu` 之后才调用 `onComplete`, 避免回调内部 (断路器加锁) 与 Future 锁形成死锁。
-3. 即时触发: 如果注册 `OnComplete` 时 Future 已经完成, 回调立即执行, 不会丢失。
-4. 完整覆盖: 发送失败、响应错误、超时 (通过强制 Done) 都会触发回调, 断路器统计不遗漏。
+1. 恰好一次: `OnComplete` 存储在 Future 的单一 slot 中, `Done` 幂等保证回调最多触发一次.
+2. 锁外执行: `Done` 在释放 `mu` 之后才调用 `onComplete`, 避免回调内部 (断路器加锁) 与 Future 锁形成死锁.
+3. 即时触发: 如果注册 `OnComplete` 时 Future 已经完成, 回调立即执行, 不会丢失.
+4. 完整覆盖: 发送失败、响应错误、超时 (通过强制 Done) 都会触发回调, 断路器统计不遗漏.
 
 ### Q17: InvokeAsync 的超时看门狗是如何工作的?
 
@@ -489,10 +489,10 @@ func (c *Client) InvokeAsync(ctx, service, method, args) (*Future, error) {
 
 设计要点:
 
-- 看门狗是独立 goroutine, 不阻塞调用者。
-- `timer.Stop()` 在正常完成时避免不必要的 Done 调用 (虽然 Done 幂等, 但减少无意义操作)。
-- 超时后 `Done(nil, context.DeadlineExceeded)` 触发 OnComplete -> 断路器记录失败。
-- 与 `Invoke` (同步) 的区别: Invoke 使用 `context.WithTimeout` + `GetResultWithContext`, 超时后主动 Done; InvokeAsync 使用独立定时器, 调用者可以在任意时刻通过 `future.Wait()` 系列方法获取结果。
+- 看门狗是独立 goroutine, 不阻塞调用者.
+- `timer.Stop()` 在正常完成时避免不必要的 Done 调用 (虽然 Done 幂等, 但减少无意义操作).
+- 超时后 `Done(nil, context.DeadlineExceeded)` 触发 OnComplete -> 断路器记录失败.
+- 与 `Invoke` (同步) 的区别: Invoke 使用 `context.WithTimeout` + `GetResultWithContext`, 超时后主动 Done; InvokeAsync 使用独立定时器, 调用者可以在任意时刻通过 `future.Wait()` 系列方法获取结果.
 
 ---
 
@@ -528,13 +528,13 @@ Method(req *T, stream ServerStream) error
 
 反射调用流程:
 
-1. `reflect.New(methodType.In(1).Elem())` 分配请求对象。
-2. `codec.Unmarshal(body, req.Interface())` 反序列化。
-3. `safeCall(method, args)` 执行 (带 panic 恢复)。
-4. 流式: 启动独立 goroutine, 返回 `(nil, true, nil)` 告知 Process 跳过响应写入。
-5. Unary: 返回结果值, 由 Process 序列化并写回。
+1. `reflect.New(methodType.In(1).Elem())` 分配请求对象.
+2. `codec.Unmarshal(body, req.Interface())` 反序列化.
+3. `safeCall(method, args)` 执行 (带 panic 恢复).
+4. 流式: 启动独立 goroutine, 返回 `(nil, true, nil)` 告知 Process 跳过响应写入.
+5. Unary: 返回结果值, 由 Process 序列化并写回.
 
-注意: 方法签名验证发生在调用时而非注册时。注册一个方法形状不合法的服务不会报错, 直到客户端实际调用才返回 `"unsupported method signature"`。
+注意: 方法签名验证发生在调用时而非注册时. 注册一个方法形状不合法的服务不会报错, 直到客户端实际调用才返回 `"unsupported method signature"`.
 
 ### Q19: safeCall 的 panic 恢复机制是怎样的?
 
@@ -549,14 +549,14 @@ func safeCall(method reflect.Value, args []reflect.Value) (results []reflect.Val
 }
 ```
 
-设计意图: 反射调用 `method.Call` 时, 业务代码的 panic 会沿调用栈传播。如果不 recover, 单个请求的 panic 会杀死整个连接处理 goroutine, 甚至导致进程崩溃。
+设计意图: 反射调用 `method.Call` 时, 业务代码的 panic 会沿调用栈传播. 如果不 recover, 单个请求的 panic 会杀死整个连接处理 goroutine, 甚至导致进程崩溃.
 
 效果:
 
-- panic 被转换为 `"handler panic: <value>"` 错误字符串。
-- 该错误通过 `Header.Error` 写回客户端。
-- 连接处理 goroutine 继续服务后续请求。
-- 流式 handler 的 panic 同样被恢复, 通过 `sendError` 发送 StreamError 帧。
+- panic 被转换为 `"handler panic: <value>"` 错误字符串.
+- 该错误通过 `Header.Error` 写回客户端.
+- 连接处理 goroutine 继续服务后续请求.
+- 流式 handler 的 panic 同样被恢复, 通过 `sendError` 发送 StreamError 帧.
 
 ### Q20: GracefulStop 和 Stop 的区别是什么? 各自如何保证正确性?
 
@@ -578,9 +578,9 @@ beginShutdown() [once: close(closing), close(listener)]
   -> limiter.Stop()
 ```
 
-关键细节: `SetReadDeadline(now)` 使阻塞在 `conn.Read()` 的空闲连接立即收到超时错误退出, 而正在处理请求的连接在 handler 返回后的下一次 Read 才退出。`wg.Wait()` 确保所有 in-flight 请求和流都完成后才返回。
+关键细节: `SetReadDeadline(now)` 使阻塞在 `conn.Read()` 的空闲连接立即收到超时错误退出, 而正在处理请求的连接在 handler 返回后的下一次 Read 才退出. `wg.Wait()` 确保所有 in-flight 请求和流都完成后才返回.
 
-Stop 在 GracefulStop 之后仍有效: 只有 listener 关闭由 `shutdownOnce` 保护, 连接遍历和关闭不受 once 限制。
+Stop 在 GracefulStop 之后仍有效: 只有 listener 关闭由 `shutdownOnce` 保护, 连接遍历和关闭不受 once 限制.
 
 ### Q21: 为什么 unary 请求在单连接上串行处理而 stream 可以并发?
 
@@ -601,7 +601,7 @@ func (s *Server) Handle(conn *transport.TCPConnection) {
 }
 ```
 
-Unary: `Process` 同步调用 handler, 写回响应后才回到 `Read` 循环。下一个请求必须等当前 handler 完成。这是简化设计: 避免并发写同一连接的复杂性 (虽然 writeMu 已经保证了写安全)。
+Unary: `Process` 同步调用 handler, 写回响应后才回到 `Read` 循环. 下一个请求必须等当前 handler 完成. 这是简化设计: 避免并发写同一连接的复杂性 (虽然 writeMu 已经保证了写安全).
 
 Stream: `invoke` 检测到流式签名后, 启动独立 goroutine:
 
@@ -612,9 +612,9 @@ streamWg.Go(func() {
 return (nil, true, nil)  // Process 立即返回, 继续 Read 循环
 ```
 
-流式 handler 在独立 goroutine 中运行, 不阻塞 Read 循环, 后续请求 (unary 或其他 stream) 可以立即被处理。`streamWg.Wait()` 在连接退出前确保所有流完成。
+流式 handler 在独立 goroutine 中运行, 不阻塞 Read 循环, 后续请求 (unary 或其他 stream) 可以立即被处理. `streamWg.Wait()` 在连接退出前确保所有流完成.
 
-影响: 一个耗时 10s 的 unary handler 会阻塞该连接上后续所有 unary 请求 10s。改进方向是为每个 unary 请求也启动 goroutine, 但需要处理并发写和背压。
+影响: 一个耗时 10s 的 unary handler 会阻塞该连接上后续所有 unary 请求 10s. 改进方向是为每个 unary 请求也启动 goroutine, 但需要处理并发写和背压.
 
 ### Q22: 服务端的 Codec 协商是如何工作的?
 
@@ -632,11 +632,11 @@ func (h *Handler) Process(conn, msg, service, streamWg) {
 
 协商规则:
 
-- 客户端每次发送都在 `Header.CodecType` 中携带自己期望的 codec (JSON=1, PROTO=2)。
-- 服务端尊重客户端的选择: 用同一个 codec 解码请求和编码响应。
-- Header 中 CodecType=0 (未设置) 时, 回退到服务端配置的默认 codec。
+- 客户端每次发送都在 `Header.CodecType` 中携带自己期望的 codec (JSON=1, PROTO=2).
+- 服务端尊重客户端的选择: 用同一个 codec 解码请求和编码响应.
+- Header 中 CodecType=0 (未设置) 时, 回退到服务端配置的默认 codec.
 
-这意味着一个 `WithDialCodec(CodecProto)` 的客户端可以透明地与默认 JSON 服务端通信, 只要请求/响应类型实现了 `proto.Message`。
+这意味着一个 `WithDialCodec(CodecProto)` 的客户端可以透明地与默认 JSON 服务端通信, 只要请求/响应类型实现了 `proto.Message`.
 
 ---
 
@@ -646,24 +646,24 @@ func (h *Handler) Process(conn, msg, service, streamWg) {
 
 服务端:
 
-1. 客户端发送一个 unary 请求帧 (携带 ServiceName + MethodName)。
-2. `Handler.invoke` 匹配流式签名, 构造 `serverStream{conn, requestID, codec, ctx}`。
-3. 启动独立 goroutine 执行业务 handler。
+1. 客户端发送一个 unary 请求帧 (携带 ServiceName + MethodName).
+2. `Handler.invoke` 匹配流式签名, 构造 `serverStream{conn, requestID, codec, ctx}`.
+3. 启动独立 goroutine 执行业务 handler.
 4. 业务代码循环调用 `stream.Send(msg)`:
-   - Marshal msg -> 构造 `StreamFlag=StreamData` 帧 -> Write。
-5. Handler 返回 nil -> 框架发送 `StreamFlag=StreamEnd` 帧 (空 body)。
-6. Handler 返回 error -> 框架发送 `StreamFlag=StreamError` 帧 (Header.Error 携带错误)。
+   - Marshal msg -> 构造 `StreamFlag=StreamData` 帧 -> Write.
+5. Handler 返回 nil -> 框架发送 `StreamFlag=StreamEnd` 帧 (空 body).
+6. Handler 返回 error -> 框架发送 `StreamFlag=StreamError` 帧 (Header.Error 携带错误).
 
 客户端:
 
-1. `NewStream` 发送请求, 创建 `ClientStreamConn` 存入 `streams` map。
-2. readLoop 收到 StreamData 帧 -> `Push(body)` 到 64 帧缓冲 channel。
+1. `NewStream` 发送请求, 创建 `ClientStreamConn` 存入 `streams` map.
+2. readLoop 收到 StreamData 帧 -> `Push(body)` 到 64 帧缓冲 channel.
 3. 业务代码循环 `stream.Recv(&msg)`:
-   - 从 channel 取帧 -> Unmarshal -> 返回。
-4. readLoop 收到 StreamEnd -> `End()` -> `terminate(io.EOF)` -> close(termCh)。
-5. `Recv` 排空缓冲后检测到 termCh 关闭 -> 返回 `io.EOF`。
+   - 从 channel 取帧 -> Unmarshal -> 返回.
+4. readLoop 收到 StreamEnd -> `End()` -> `terminate(io.EOF)` -> close(termCh).
+5. `Recv` 排空缓冲后检测到 termCh 关闭 -> 返回 `io.EOF`.
 
-终结保证: 无论 handler 正常返回、panic、还是连接断开, 客户端的 Recv 最终都会返回 (io.EOF 或 error), 不会永久阻塞。
+终结保证: 无论 handler 正常返回、panic、还是连接断开, 客户端的 Recv 最终都会返回 (io.EOF 或 error), 不会永久阻塞.
 
 ### Q24: ClientStreamConn 的 64 帧缓冲和带外终结状态是如何设计的?
 
@@ -681,7 +681,7 @@ type ClientStreamConn struct {
 
 为什么终结状态走 termCh 而非 ch?
 
-如果终结信号也放入 `ch` (作为特殊帧), 当 64 个数据帧填满缓冲后, `End()`/`Error()` 的 Push 会阻塞 readLoop, 导致该连接上所有其他请求/流的帧无法被分用。
+如果终结信号也放入 `ch` (作为特殊帧), 当 64 个数据帧填满缓冲后, `End()`/`Error()` 的 Push 会阻塞 readLoop, 导致该连接上所有其他请求/流的帧无法被分用.
 
 带外设计:
 
@@ -694,7 +694,7 @@ func (s *ClientStreamConn) terminate(err error) {
 }
 ```
 
-`close(termCh)` 是非阻塞操作, 无论 `ch` 是否满, 终结信号都能立即送达。`sync.Once` 保证 End 和 Error 只有一个生效。
+`close(termCh)` 是非阻塞操作, 无论 `ch` 是否满, 终结信号都能立即送达. `sync.Once` 保证 End 和 Error 只有一个生效.
 
 Push 的阻塞问题: 数据帧的 `Push` 仍然可能阻塞 (当 ch 满且未终结/取消时):
 
@@ -739,28 +739,28 @@ func (s *ClientStreamConn) Recv(msg interface{}) error {
 
 为什么需要 drain-before-terminal?
 
-readLoop 处理帧是顺序的: 先 Push 数据帧, 再 End/Error。但由于 `ch` 是 buffered channel, 数据帧可能还在缓冲中未被消费, 而 `termCh` 已经关闭。如果 Recv 看到 termCh 关闭就直接返回 io.EOF, 缓冲中已到达的数据帧就丢失了。
+readLoop 处理帧是顺序的: 先 Push 数据帧, 再 End/Error. 但由于 `ch` 是 buffered channel, 数据帧可能还在缓冲中未被消费, 而 `termCh` 已经关闭. 如果 Recv 看到 termCh 关闭就直接返回 io.EOF, 缓冲中已到达的数据帧就丢失了.
 
-drain 语义保证: 在 StreamEnd 之前发送的所有数据帧, 客户端都能收到, 不会丢失任何一帧。
+drain 语义保证: 在 StreamEnd 之前发送的所有数据帧, 客户端都能收到, 不会丢失任何一帧.
 
 ### Q26: 为什么只支持 Server Streaming 而不支持 Client/Bidirectional Streaming?
 
-协议层面的限制: `StreamFlag` 只有 4 个值 (None/Data/End/Error), 且所有流帧都是服务端 -> 客户端方向。没有定义客户端发送流数据帧的 codepoint。
+协议层面的限制: `StreamFlag` 只有 4 个值 (None/Data/End/Error), 且所有流帧都是服务端 -> 客户端方向. 没有定义客户端发送流数据帧的 codepoint.
 
 Server Streaming 的简化假设:
 
-- 客户端只发一次请求 (unary 帧), 然后只接收。
-- 服务端只接收一次请求, 然后持续发送。
-- 不需要客户端流控 (flow control) 或半关闭语义。
+- 客户端只发一次请求 (unary 帧), 然后只接收.
+- 服务端只接收一次请求, 然后持续发送.
+- 不需要客户端流控 (flow control) 或半关闭语义.
 
 如果要支持 Bidirectional Streaming, 需要:
 
-1. 新增 StreamFlag 值区分客户端发送的流帧。
-2. 服务端需要并发读写同一连接上的同一 RequestID。
-3. 需要流控机制 (如 HTTP/2 的 WINDOW_UPDATE) 防止快发送者压垮慢消费者。
-4. 需要半关闭语义: 一方发完但还在接收。
+1. 新增 StreamFlag 值区分客户端发送的流帧.
+2. 服务端需要并发读写同一连接上的同一 RequestID.
+3. 需要流控机制 (如 HTTP/2 的 WINDOW_UPDATE) 防止快发送者压垮慢消费者.
+4. 需要半关闭语义: 一方发完但还在接收.
 
-当前设计选择了最简的单向流模型, 覆盖了"服务端推送多条消息"的常见场景 (如订阅通知、批量查询结果分页)。
+当前设计选择了最简的单向流模型, 覆盖了"服务端推送多条消息"的常见场景 (如订阅通知、批量查询结果分页).
 
 ---
 
@@ -795,9 +795,9 @@ Server Streaming 的简化假设:
 
 资源生命周期:
 
-- `pools` (sync.Map): 每个 addr 一个 ConnectionPool, 懒创建 (LoadOrStore)。
-- `breaker` (sync.Map): 每个 "service|addr" 一个 CircuitBreaker, 懒创建。
-- `Close()`: 停止 limiter, 遍历关闭所有 pool。
+- `pools` (sync.Map): 每个 addr 一个 ConnectionPool, 懒创建 (LoadOrStore).
+- `breaker` (sync.Map): 每个 "service|addr" 一个 CircuitBreaker, 懒创建.
+- `Close()`: 停止 limiter, 遍历关闭所有 pool.
 
 ### Q28: 静态模式和注册模式的区别是什么?
 
@@ -810,7 +810,7 @@ Server Streaming 的简化假设:
 | 连接管理 | 单 ConnectionPool                      | 每地址一个 Pool (sync.Map)        |
 | 实现路径 | `pkg/rpc/client.go` 直接操作 transport | 委托 `internal/client.Client`     |
 
-静态模式适合开发测试或已知固定地址的场景; 注册模式适合生产环境多实例部署。
+静态模式适合开发测试或已知固定地址的场景; 注册模式适合生产环境多实例部署.
 
 ### Q29: 断路器的三态状态机是如何工作的?
 
@@ -831,23 +831,23 @@ Closed ─────────────────> Open
 
 Closed 状态:
 
-- 每次调用记录 Success/Failure, 累计到窗口。
+- 每次调用记录 Success/Failure, 累计到窗口.
 - 当 `successCount + failureCount >= windowSize` 时:
-  - `failureCount / total >= 0.6` -> 转 Open。
-  - 否则重置窗口 (清零计数), 开始新一轮统计。
+  - `failureCount / total >= 0.6` -> 转 Open.
+  - 否则重置窗口 (清零计数), 开始新一轮统计.
 
 Open 状态:
 
-- `Allow()` 返回 false, 请求被拒绝 ("circuit breaker open")。
-- 当 `time.Since(lastStateChange) > 5s` 时, 下一次 `Allow()` 转 HalfOpen 并放行一个探测请求。
+- `Allow()` 返回 false, 请求被拒绝 ("circuit breaker open").
+- 当 `time.Since(lastStateChange) > 5s` 时, 下一次 `Allow()` 转 HalfOpen 并放行一个探测请求.
 
 HalfOpen 状态:
 
-- `halfOpenProbe` 标志确保只有一个探测请求通过。
-- 探测成功 -> Closed (重置所有计数)。
-- 探测失败 -> Open (重新开始计时)。
+- `halfOpenProbe` 标志确保只有一个探测请求通过.
+- 探测成功 -> Closed (重置所有计数).
+- 探测失败 -> Open (重新开始计时).
 
-同步: 单个 `sync.Mutex` 保护所有状态转换, 无 atomic。
+同步: 单个 `sync.Mutex` 保护所有状态转换, 无 atomic.
 
 ### Q30: 断路器在流式调用中如何记录成功/失败?
 
@@ -875,10 +875,10 @@ func (s *observedStream) Recv(msg interface{}) error {
 
 设计决策:
 
-- `io.EOF` (流正常结束) -> 记录成功。
-- `context.Canceled` (调用者主动取消) -> 忽略, 不算服务失败。
-- 其他错误 (网络断开、服务端错误) -> 记录失败。
-- `sync.Once` 保证每个流最多记录一次, 避免一个流的多次 Recv 错误重复计入。
+- `io.EOF` (流正常结束) -> 记录成功.
+- `context.Canceled` (调用者主动取消) -> 忽略, 不算服务失败.
+- 其他错误 (网络断开、服务端错误) -> 记录失败.
+- `sync.Once` 保证每个流最多记录一次, 避免一个流的多次 Recv 错误重复计入.
 
 ### Q31: 令牌桶限流器的实现有什么特点?
 
@@ -894,15 +894,15 @@ type TokenBucket struct {
 
 实现:
 
-- 初始 tokens = rate (burst 容量等于一秒的速率)。
-- 后台 goroutine 每秒 `time.Ticker` 重置 `tokens = rate` (固定窗口, 非平滑补充)。
-- `Allow()`: 加锁, tokens > 0 则减一返回 true, 否则 false。
-- `Stop()`: `once.Do(close(stop))` 停止补充 goroutine。
-- 负 rate 钳位为 0 (永远拒绝)。
+- 初始 tokens = rate (burst 容量等于一秒的速率).
+- 后台 goroutine 每秒 `time.Ticker` 重置 `tokens = rate` (固定窗口, 非平滑补充).
+- `Allow()`: 加锁, tokens > 0 则减一返回 true, 否则 false.
+- `Stop()`: `once.Do(close(stop))` 停止补充 goroutine.
+- 负 rate 钳位为 0 (永远拒绝).
 
-特点: 这是固定窗口限流器而非经典令牌桶。经典令牌桶按时间平滑补充 (如每 100us 补一个), 而这里每秒一次性补满。效果是窗口边界可能出现 2x burst (上一秒末尾 + 下一秒开头)。
+特点: 这是固定窗口限流器而非经典令牌桶. 经典令牌桶按时间平滑补充 (如每 100us 补一个), 而这里每秒一次性补满. 效果是窗口边界可能出现 2x burst (上一秒末尾 + 下一秒开头).
 
-硬编码: 服务端和注册模式客户端都是 `NewTokenBucket(10000)`, 不暴露配置选项。
+硬编码: 服务端和注册模式客户端都是 `NewTokenBucket(10000)`, 不暴露配置选项.
 
 ---
 
@@ -921,9 +921,9 @@ func (r *RoundRobin) Select(list []Instance) Instance {
 }
 ```
 
-- 无锁 (atomic), 高并发下性能最优。
-- 第一次选择 index=0。
-- 适用: 实例配置均匀, 无需权重。
+- 无锁 (atomic), 高并发下性能最优.
+- 第一次选择 index=0.
+- 适用: 实例配置均匀, 无需权重.
 
 Random (随机):
 
@@ -937,8 +937,8 @@ func (r *Random) Select(list []Instance) Instance {
 }
 ```
 
-- 有锁 (rand.Rand 非并发安全)。
-- 适用: 实例数量大, 统计上均匀即可; 或需要避免同步请求模式。
+- 有锁 (rand.Rand 非并发安全).
+- 适用: 实例数量大, 统计上均匀即可; 或需要避免同步请求模式.
 
 WeightedRR (平滑加权轮询, Nginx 算法):
 
@@ -950,10 +950,10 @@ currentWeight[maxIdx] -= totalWeight
 return list[maxIdx]
 ```
 
-- 有锁 (sync.Mutex)。
-- 负权重钳位为 0。
-- 产出平滑交错分布: weights=[1,2,3] 在 6 次调用中精确产出 1:2:3 比例, 不会连续命中同一实例。
-- 适用: 实例配置不均匀 (如 4C8G 和 8C16G 混部)。
+- 有锁 (sync.Mutex).
+- 负权重钳位为 0.
+- 产出平滑交错分布: weights=[1,2,3] 在 6 次调用中精确产出 1:2:3 比例, 不会连续命中同一实例.
+- 适用: 实例配置不均匀 (如 4C8G 和 8C16G 混部).
 
 ### Q33: WeightedRR 与 etcd Registry 组合使用会有什么问题?
 
@@ -978,9 +978,9 @@ func (r *Registry) copyInstances(service string) []Instance {
 }
 ```
 
-后果: 每次 Discover 返回的实例顺序不同, weights[0] 对应的实例每次都不一样, 流量分配完全错乱。
+后果: 每次 Discover 返回的实例顺序不同, weights[0] 对应的实例每次都不一样, 流量分配完全错乱.
 
-解决方案: WeightedRR 只应与静态有序实例列表配合; 或者在 Registry 层增加按 addr 排序, 保证顺序稳定。
+解决方案: WeightedRR 只应与静态有序实例列表配合; 或者在 Registry 层增加按 addr 排序, 保证顺序稳定.
 
 ---
 
@@ -1038,9 +1038,9 @@ go func() {
 
 隐患:
 
-1. Lease 过期无感知: 如果 etcd 重启或网络分区导致 KeepAlive 失败, channel 关闭, goroutine 退出, 但没有任何重注册逻辑。实例的 key 在 TTL 后自动删除, 服务从发现中消失, 且永远不会恢复。
-2. 无健康检查: 即使服务本身已经不可用 (如 handler 死锁), 只要 etcd 连接正常, 实例仍然注册。
-3. 错误被忽略: `Grant` 和 `KeepAlive` 的错误都没有处理。
+1. Lease 过期无感知: 如果 etcd 重启或网络分区导致 KeepAlive 失败, channel 关闭, goroutine 退出, 但没有任何重注册逻辑. 实例的 key 在 TTL 后自动删除, 服务从发现中消失, 且永远不会恢复.
+2. 无健康检查: 即使服务本身已经不可用 (如 handler 死锁), 只要 etcd 连接正常, 实例仍然注册.
+3. 错误被忽略: `Grant` 和 `KeepAlive` 的错误都没有处理.
 
 改进方向:
 
@@ -1064,26 +1064,26 @@ go func() {
 
 首次 Discover (冷启动):
 
-1. RLock 检查 `services[service]` -> nil。
-2. 升级为 Lock, double-check (防止并发初始化)。
-3. etcd `Get` with prefix: 全量拉取该服务所有实例。
-4. 构建 `map[addr]Instance` 存入缓存。
-5. 启动 `watch(service)` goroutine: 监听该 prefix 的增量事件。
-6. 返回防御性拷贝。
+1. RLock 检查 `services[service]` -> nil.
+2. 升级为 Lock, double-check (防止并发初始化).
+3. etcd `Get` with prefix: 全量拉取该服务所有实例.
+4. 构建 `map[addr]Instance` 存入缓存.
+5. 启动 `watch(service)` goroutine: 监听该 prefix 的增量事件.
+6. 返回防御性拷贝.
 
 后续 Discover (热路径):
 
-1. RLock 读缓存 -> 命中。
-2. 构建新切片拷贝 (防止调用者修改内部状态)。
-3. 返回。
+1. RLock 读缓存 -> 命中.
+2. 构建新切片拷贝 (防止调用者修改内部状态).
+3. 返回.
 
 Watch 持续更新:
 
-- PUT 事件: 新实例上线或 Lease 续约 -> 更新缓存。
-- DELETE 事件: 实例下线或 Lease 过期 -> 删除缓存。
-- Watch 断开: 1s 退避后重建 Watch (期间缓存可能过期)。
+- PUT 事件: 新实例上线或 Lease 续约 -> 更新缓存.
+- DELETE 事件: 实例下线或 Lease 过期 -> 删除缓存.
+- Watch 断开: 1s 退避后重建 Watch (期间缓存可能过期).
 
-一致性保证: 最终一致。Watch 事件有延迟 (通常 <100ms), 新上线的实例不会立即被发现, 下线的实例在事件到达前仍会被路由到。
+一致性保证: 最终一致. Watch 事件有延迟 (通常 <100ms), 新上线的实例不会立即被发现, 下线的实例在事件到达前仍会被路由到.
 
 ---
 
@@ -1126,17 +1126,17 @@ Watch 持续更新:
 
 使用场景:
 
-1. `TCPClient.pending`: RequestID -> Future, 高并发读写 (每次请求 Store+Delete, readLoop 频繁 LoadAndDelete)。
-2. `TCPClient.streams`: RequestID -> ClientStreamConn, 同上。
-3. `Client.pools`: addr -> ConnectionPool, 懒初始化 (LoadOrStore)。
-4. `Client.breaker`: "service|addr" -> CircuitBreaker, 同上。
+1. `TCPClient.pending`: RequestID -> Future, 高并发读写 (每次请求 Store+Delete, readLoop 频繁 LoadAndDelete).
+2. `TCPClient.streams`: RequestID -> ClientStreamConn, 同上.
+3. `Client.pools`: addr -> ConnectionPool, 懒初始化 (LoadOrStore).
+4. `Client.breaker`: "service|addr" -> CircuitBreaker, 同上.
 
 选择理由:
 
-- `pending`/`streams`: 读操作 (readLoop 的 Load/LoadAndDelete) 远多于写操作 (发送时 Store), 且 key 空间不重叠 (每个 RequestID 只被一个 goroutine 写入)。sync.Map 的 read-only 快路径避免了锁竞争。
-- `pools`/`breaker`: 典型的"初始化后只读"模式, LoadOrStore 保证并发安全的懒创建, 之后全是 Load 快路径。
+- `pending`/`streams`: 读操作 (readLoop 的 Load/LoadAndDelete) 远多于写操作 (发送时 Store), 且 key 空间不重叠 (每个 RequestID 只被一个 goroutine 写入). sync.Map 的 read-only 快路径避免了锁竞争.
+- `pools`/`breaker`: 典型的"初始化后只读"模式, LoadOrStore 保证并发安全的懒创建, 之后全是 Load 快路径.
 
-不适用场景: 如果 key 集合频繁变化且读写均匀, 普通 map + RWMutex 可能更优 (sync.Map 的 dirty promotion 有额外开销)。
+不适用场景: 如果 key 集合频繁变化且读写均匀, 普通 map + RWMutex 可能更优 (sync.Map 的 dirty promotion 有额外开销).
 
 ---
 
@@ -1172,14 +1172,14 @@ msg.Header.Error = err.Error()
 err = errors.New(msg.Header.Error)
 ```
 
-原因: 简单直接, 不需要双端共享错误类型定义, 不需要错误码注册表, 任何 error 都能透传。
+原因: 简单直接, 不需要双端共享错误类型定义, 不需要错误码注册表, 任何 error 都能透传.
 
 影响:
 
-1. 无法类型匹配: `errors.Is(err, os.ErrTimeout)` 失败, 因为客户端拿到的是 `errors.New("i/o timeout")` 新值。
-2. 只能字符串匹配: `strings.Contains(err.Error(), "rate limit exceeded")` 是唯一判断方式, 脆弱且不利于国际化。
-3. 无结构化信息: 无法携带错误码、重试建议、详细上下文等元数据。
-4. 版本耦合: 服务端修改错误消息文本会破坏客户端的字符串匹配逻辑。
+1. 无法类型匹配: `errors.Is(err, os.ErrTimeout)` 失败, 因为客户端拿到的是 `errors.New("i/o timeout")` 新值.
+2. 只能字符串匹配: `strings.Contains(err.Error(), "rate limit exceeded")` 是唯一判断方式, 脆弱且不利于国际化.
+3. 无结构化信息: 无法携带错误码、重试建议、详细上下文等元数据.
+4. 版本耦合: 服务端修改错误消息文本会破坏客户端的字符串匹配逻辑.
 
 改进方向: 定义 protobuf 错误结构 (code + message + details), 或至少引入数值错误码:
 
