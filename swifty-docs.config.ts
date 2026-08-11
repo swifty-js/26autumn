@@ -61,6 +61,23 @@ export default defineConfig({
         ],
       },
     ],
+    '/docs/': [
+      {
+        text: "文档",
+        items: [
+          { text: "review", link: "docs/review" },
+          { text: "1.md", link: "docs/1" },
+          { text: "2.md", link: "docs/2" },
+          { text: "3.md", link: "docs/3" },
+          { text: "4.md", link: "docs/4" },
+          { text: "5.md", link: "docs/5" },
+          { text: "6.md", link: "docs/6" },
+          // { text: "7.md", link: "docs/7" },
+          // { text: "8.md", link: "docs/8" },
+          // { text: "9.md", link: "docs/9" },
+        ],
+      }
+    ]
   },
   highlight: {
     theme: "github-dark",
