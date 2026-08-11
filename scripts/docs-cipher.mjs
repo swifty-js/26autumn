@@ -18,7 +18,7 @@
 //     -> base64
 //   decode applies the exact inverse and then checks SHA-256.
 
-import { createHash } from "node:crypto";
+import { createHash, createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,14 @@ const DOCS_DIR = join(ROOT, "docs", "docs");
 const BUNDLE = join(ROOT, "docs", "docs.bundle.zip");
 const SALT = "swifty-docs-cipher-v1::do-not-treat-as-secret";
 const MANIFEST_VERSION = 1;
+
+// Real encryption mode (AES-256-GCM), enabled when DOCS_PASSWORD is set.
+const MODE_OBFUSCATE = "obfuscate-v1";
+const MODE_AES = "aes-256-gcm";
+const AES_SALT_LEN = 16;
+const AES_IV_LEN = 12;
+const AES_TAG_LEN = 16;
+const AES_KEY_LEN = 32;
 
 function sha256(buf) {
   return createHash("sha256").update(buf).digest();
@@ -98,6 +106,37 @@ function decodeBytes(encoded, relPath) {
   return out;
 }
 
+// --- AES-256-GCM (real encryption, keyed by DOCS_PASSWORD) ---
+
+// Derive a 32-byte key from the password + a per-bundle salt via scrypt.
+function deriveKey(password, salt) {
+  return scryptSync(password, salt, AES_KEY_LEN, { N: 16384, r: 8, p: 1 });
+}
+
+// Output layout: salt(16) || iv(12) || tag(16) || ciphertext.
+function aesEncrypt(plain, password) {
+  const salt = randomBytes(AES_SALT_LEN);
+  const iv = randomBytes(AES_IV_LEN);
+  const key = deriveKey(password, salt);
+  const cipher = createCipheriv("aes-256-gcm", key, iv, { authTagLength: AES_TAG_LEN });
+  const ct = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([salt, iv, cipher.getAuthTag(), ct]);
+}
+
+function aesDecrypt(blob, password) {
+  if (blob.length < AES_SALT_LEN + AES_IV_LEN + AES_TAG_LEN) {
+    throw new Error("ciphertext too short");
+  }
+  const salt = blob.subarray(0, AES_SALT_LEN);
+  const iv = blob.subarray(AES_SALT_LEN, AES_SALT_LEN + AES_IV_LEN);
+  const tag = blob.subarray(AES_SALT_LEN + AES_IV_LEN, AES_SALT_LEN + AES_IV_LEN + AES_TAG_LEN);
+  const ct = blob.subarray(AES_SALT_LEN + AES_IV_LEN + AES_TAG_LEN);
+  const key = deriveKey(password, salt);
+  const decipher = createDecipheriv("aes-256-gcm", key, iv, { authTagLength: AES_TAG_LEN });
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ct), decipher.final()]);
+}
+
 function walk(dir, base, acc) {
   for (const name of readdirSync(dir)) {
     if (name === ".DS_Store") continue;
@@ -124,19 +163,22 @@ function pack() {
   }
 
   const zip = new AdmZip();
-  const manifest = { version: MANIFEST_VERSION, files: {} };
+  const password = process.env.DOCS_PASSWORD;
+  const mode = password ? MODE_AES : MODE_OBFUSCATE;
+  const manifest = { version: MANIFEST_VERSION, mode, files: {} };
 
   for (const rel of rels) {
     const plain = readFileSync(join(DOCS_DIR, rel));
     manifest.files[rel] = { sha256: sha256Hex(plain), size: plain.length };
-    zip.addFile(rel + ".enc", encodeBytes(plain, rel));
+    const blob = mode === MODE_AES ? aesEncrypt(plain, password) : encodeBytes(plain, rel);
+    zip.addFile(rel + ".enc", blob);
   }
 
   const manifestJson = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
   zip.addFile("manifest.json", manifestJson);
   zip.writeZip(BUNDLE);
 
-  console.log(`[docs-cipher] packed ${rels.length} file(s) -> ${relative(ROOT, BUNDLE)}`);
+  console.log(`[docs-cipher] packed ${rels.length} file(s) [${mode}] -> ${relative(ROOT, BUNDLE)}`);
 }
 
 function unpack() {
@@ -163,6 +205,12 @@ function unpack() {
     console.error(`[docs-cipher] unsupported manifest version ${manifest.version}; aborting.`);
     process.exit(1);
   }
+  const mode = manifest.mode || MODE_OBFUSCATE;
+  const password = process.env.DOCS_PASSWORD;
+  if (mode === MODE_AES && !password) {
+    console.error("[docs-cipher] bundle is AES-256-GCM encrypted but DOCS_PASSWORD is not set; aborting.");
+    process.exit(1);
+  }
 
   const rels = Object.keys(manifest.files).sort();
   const decoded = [];
@@ -172,7 +220,18 @@ function unpack() {
       console.error(`[docs-cipher] missing encoded entry for ${rel}; aborting.`);
       process.exit(1);
     }
-    const plain = decodeBytes(entry.getData(), rel);
+    let plain;
+    if (mode === MODE_AES) {
+      try {
+        plain = aesDecrypt(entry.getData(), password);
+      } catch {
+        console.error(`[docs-cipher] decryption FAILED for ${rel} (wrong DOCS_PASSWORD or corrupted data).`);
+        console.error("Aborting; no files were written.");
+        process.exit(1);
+      }
+    } else {
+      plain = decodeBytes(entry.getData(), rel);
+    }
     const digest = sha256Hex(plain);
     if (digest !== manifest.files[rel].sha256) {
       console.error(`[docs-cipher] integrity check FAILED for ${rel}`);
