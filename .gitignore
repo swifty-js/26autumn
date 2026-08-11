@@ -205,3 +205,6 @@ tsconfig.tsbuildinfo
 .qoder
 **/.qoder
 fork
+
+# 受保护的文档源文件：仅以混淆 zip (docs/docs.bundle.zip) 形式入库
+docs/docs/

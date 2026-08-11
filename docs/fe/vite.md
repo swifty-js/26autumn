@@ -1,27 +1,5 @@
 # 前端构建工具与工程化面试 QA (Vite + Webpack)
 
-## 目录
-
-- [一、构建工具核心原理](#一-构建工具核心原理)
-  - [Q1: Vite 为什么比 Webpack 快? dev 冷启动的本质区别是什么? ](#q1-vite-为什么比-webpack-快-dev-冷启动的本质区别是什么)
-  - [Q2: Webpack 的完整构建流程是怎样的? Loader 和 Plugin 的区别? ](#q2-webpack-的完整构建流程是怎样的-loader-和-plugin-的区别)
-  - [Q3: esbuild 和 Rollup 在 Vite 中各自承担什么角色? 为什么生产构建不直接用 esbuild? ](#q3-esbuild-和-rollup-在-vite-中各自承担什么角色-为什么生产构建不直接用-esbuild)
-  - [Q4: Vite 依赖预构建 (optimizeDeps) 的原理是什么? 遇到过哪些坑? ](#q4-vite-依赖预构建-optimizedeps-的原理是什么-遇到过哪些坑)
-  - [Q5: Webpack HMR 和 Vite HMR 的实现原理有何不同? ](#q5-webpack-hmr-和-vite-hmr-的实现原理有何不同)
-  - [Q6: Tree Shaking 的原理是什么? 哪些写法会导致失效? ](#q6-tree-shaking-的原理是什么-哪些写法会导致失效)
-  - [Q7: 代码分割怎么做? splitChunks 和 manualChunks 的策略如何设计? ](#q7-代码分割怎么做-splitchunks-和-manualchunks-的策略如何设计)
-  - [Q8: Source Map 有哪些类型? 生产环境如何选择与管理? ](#q8-source-map-有哪些类型-生产环境如何选择与管理)
-- [二、工程化实践](#二-工程化实践)
-  - [Q9: Webpack 和 Vite 的模块联邦有什么本质差异? 你给 @module-federation/vite 贡献了什么? ](#q9-webpack-和-vite-的模块联邦有什么本质差异-你给-module-federation-vite-贡献了什么)
-  - [Q10: 从 Webpack 迁移到 Vite 的完整过程? 遇到了哪些兼容性问题? ](#q10-从-webpack-迁移到-vite-的完整过程-遇到了哪些兼容性问题)
-  - [Q11: monorepo 的工程化怎么做? 内部包如何构建和消费? ](#q11-monorepo-的工程化怎么做-内部包如何构建和消费)
-  - [Q12: 环境变量与多环境配置在两个工具中如何管理? ](#q12-环境变量与多环境配置在两个工具中如何管理)
-  - [Q13: 构建产物如何做体积优化和浏览器兼容? ](#q13-构建产物如何做体积优化和浏览器兼容)
-  - [Q14: 大型项目的构建性能优化手段有哪些? ](#q14-大型项目的构建性能优化手段有哪些)
-  - [Q15: CI/CD 中如何保障构建产物质量? ](#q15-ci-cd-中如何保障构建产物质量)
-
----
-
 ## 一、构建工具核心原理
 
 ### Q1: Vite 为什么比 Webpack 快? dev 冷启动的本质区别是什么?

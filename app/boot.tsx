@@ -64,7 +64,7 @@ function ErrorFallback({
         <div className="mt-6 flex items-center justify-center">
           <button
             onClick={() => setDismissed(true)}
-            className="bg-primary text-primary-foreground cursor-pointer rounded-md px-4 py-2 text-xs font-semibold shadow-(--sakura-shadow-soft) transition-all duration-200 hover:-translate-y-px hover:shadow-(--sakura-shadow-lift) active:translate-y-0"
+            className="bg-primary text-primary-foreground cursor-pointer rounded-md px-4 py-2 text-xs font-semibold transition-all duration-200 hover:-translate-y-px active:translate-y-0"
           >
             Close
           </button>

@@ -7,62 +7,6 @@ protected: true
 > 模块路径: `github.com/hangtiancheng/swifty.go/swifty_rpc`
 > 公开 API: `pkg/rpc` | 实现细节: `internal/`
 
-## 目录
-
-- [一、整体架构与设计哲学](#一-整体架构与设计哲学)
-  - [Q1: 请介绍 swifty_rpc 的整体架构分层](#q1-请介绍-swifty-rpc-的整体架构分层)
-  - [Q2: 为什么所有实现放在 internal/ 下? pkg/rpc 如何暴露能力?](#q2-为什么所有实现放在-internal-下-pkg-rpc-如何暴露能力)
-  - [Q3: internal/stream 包存在的意义是什么?](#q3-internal-stream-包存在的意义是什么)
-- [二、线协议与编解码](#二-线协议与编解码)
-  - [Q4: 请描述 swifty_rpc 的线协议帧格式](#q4-请描述-swifty-rpc-的线协议帧格式)
-  - [Q5: 为什么 Header 始终使用 JSON 编码而 Body 可以切换 Codec?](#q5-为什么-header-始终使用-json-编码而-body-可以切换-codec)
-  - [Q6: PacketBuffer 如何处理粘包和脏数据?](#q6-packetbuffer-如何处理粘包和脏数据)
-  - [Q7: 为什么 Body 强制 Gzip 压缩? 有什么代价?](#q7-为什么-body-强制-gzip-压缩-有什么代价)
-  - [Q8: Codec 注册机制是怎样的? Protobuf Codec 有什么约束?](#q8-codec-注册机制是怎样的-protobuf-codec-有什么约束)
-- [三、传输层](#三-传输层)
-  - [Q9: TCPClient 如何在单连接上实现请求多路复用?](#q9-tcpclient-如何在单连接上实现请求多路复用)
-  - [Q10: readLoop 的分用逻辑是怎样的? 如何区分 unary 和 stream 帧?](#q10-readloop-的分用逻辑是怎样的-如何区分-unary-和-stream-帧)
-  - [Q11: shutdown 机制如何保证所有阻塞调用者被唤醒?](#q11-shutdown-机制如何保证所有阻塞调用者被唤醒)
-  - [Q12: SendAsyncWithCodec 中 Store 之后的二次 closed 检查解决什么竞态?](#q12-sendasyncwithcodec-中-store-之后的二次-closed-检查解决什么竞态)
-  - [Q13: ConnectionPool 的设计有什么特点? 存在什么瓶颈?](#q13-connectionpool-的设计有什么特点-存在什么瓶颈)
-  - [Q14: TCPConnection.Close 为什么调用 SetLinger(0)?](#q14-tcpconnection-close-为什么调用-setlinger-0)
-- [四、Future 异步调用模型](#四-future-异步调用模型)
-  - [Q15: Future 的 Done 幂等性是如何实现的? 为什么需要幂等?](#q15-future-的-done-幂等性是如何实现的-为什么需要幂等)
-  - [Q16: Future 的 OnComplete 回调与断路器如何协作?](#q16-future-的-oncomplete-回调与断路器如何协作)
-  - [Q17: InvokeAsync 的超时看门狗是如何工作的?](#q17-invokeasync-的超时看门狗是如何工作的)
-- [五、服务端](#五-服务端)
-  - [Q18: 服务端如何通过反射支持三种方法签名?](#q18-服务端如何通过反射支持三种方法签名)
-  - [Q19: safeCall 的 panic 恢复机制是怎样的?](#q19-safecall-的-panic-恢复机制是怎样的)
-  - [Q20: GracefulStop 和 Stop 的区别是什么? 各自如何保证正确性?](#q20-gracefulstop-和-stop-的区别是什么-各自如何保证正确性)
-  - [Q21: 为什么 unary 请求在单连接上串行处理而 stream 可以并发?](#q21-为什么-unary-请求在单连接上串行处理而-stream-可以并发)
-  - [Q22: 服务端的 Codec 协商是如何工作的?](#q22-服务端的-codec-协商是如何工作的)
-- [六、流式 RPC](#六-流式-rpc)
-  - [Q23: 服务端流 (Server Streaming) 的完整生命周期是怎样的?](#q23-服务端流-server-streaming-的完整生命周期是怎样的)
-  - [Q24: ClientStreamConn 的 64 帧缓冲和带外终结状态是如何设计的?](#q24-clientstreamconn-的-64-帧缓冲和带外终结状态是如何设计的)
-  - [Q25: Recv 的 drain-before-terminal 语义是什么? 为什么需要?](#q25-recv-的-drain-before-terminal-语义是什么-为什么需要)
-  - [Q26: 为什么只支持 Server Streaming 而不支持 Client/Bidirectional Streaming?](#q26-为什么只支持-server-streaming-而不支持-client-bidirectional-streaming)
-- [七、客户端治理](#七-客户端治理)
-  - [Q27: 注册模式客户端的调用管线 (pipeline) 是怎样的?](#q27-注册模式客户端的调用管线-pipeline-是怎样的)
-  - [Q28: 静态模式和注册模式的区别是什么?](#q28-静态模式和注册模式的区别是什么)
-  - [Q29: 断路器的三态状态机是如何工作的?](#q29-断路器的三态状态机是如何工作的)
-  - [Q30: 断路器在流式调用中如何记录成功/失败?](#q30-断路器在流式调用中如何记录成功-失败)
-  - [Q31: 令牌桶限流器的实现有什么特点?](#q31-令牌桶限流器的实现有什么特点)
-- [八、负载均衡](#八-负载均衡)
-  - [Q32: 三种负载均衡策略的实现细节和适用场景?](#q32-三种负载均衡策略的实现细节和适用场景)
-  - [Q33: WeightedRR 与 etcd Registry 组合使用会有什么问题?](#q33-weightedrr-与-etcd-registry-组合使用会有什么问题)
-- [九、服务注册与发现](#九-服务注册与发现)
-  - [Q34: etcd 注册发现的完整流程是怎样的?](#q34-etcd-注册发现的完整流程是怎样的)
-  - [Q35: KeepAlive 的设计有什么隐患? 如何改进?](#q35-keepalive-的设计有什么隐患-如何改进)
-  - [Q36: Discover 的缓存与 Watch 机制是如何协作的?](#q36-discover-的缓存与-watch-机制是如何协作的)
-- [十、并发模型与同步原语](#十-并发模型与同步原语)
-  - [Q37: 整个框架使用了哪些同步原语? 各自解决什么问题?](#q37-整个框架使用了哪些同步原语-各自解决什么问题)
-  - [Q38: sync.Map 在框架中的使用场景和选择理由?](#q38-sync-map-在框架中的使用场景和选择理由)
-- [十一、设计权衡与已知局限](#十一-设计权衡与已知局限)
-  - [Q39: 框架有哪些已知的设计局限? 如何改进?](#q39-框架有哪些已知的设计局限-如何改进)
-  - [Q40: 错误为什么以字符串形式跨线传输? 有什么影响?](#q40-错误为什么以字符串形式跨线传输-有什么影响)
-
----
-
 ## 一、整体架构与设计哲学
 
 ### Q1: 请介绍 swifty_rpc 的整体架构分层

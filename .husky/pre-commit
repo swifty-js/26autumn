@@ -1,0 +1,6 @@
+# Re-pack protected docs into the obfuscated bundle before each commit.
+# Only runs when docs/docs actually contains real files (ignores .DS_Store).
+if [ -d docs/docs ] && [ -n "$(find docs/docs -type f ! -name .DS_Store -print -quit 2>/dev/null)" ]; then
+  node scripts/docs-cipher.mjs pack || exit 1
+  git add docs/docs.bundle.zip
+fi

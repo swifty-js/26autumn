@@ -4,28 +4,6 @@ protected: true
 
 # swifty_http 高级后端工程师面试 QA
 
-## 目录
-
-- [Q1: 项目整体架构与设计理念](#q1-项目整体架构与设计理念)
-- [Q2: 洋葱模型中间件机制 (compose)](#q2-洋葱模型中间件机制-compose)
-- [Q3: 延迟响应 (Deferred Response) 机制](#q3-延迟响应-deferred-response-机制)
-- [Q4: Trie 路由树的设计与实现](#q4-trie-路由树的设计与实现)
-- [Q5: 路由注册与匹配的细节问题](#q5-路由注册与匹配的细节问题)
-- [Q6: Router 分组与前缀中间件](#q6-router-分组与前缀中间件)
-- [Q7: Context 设计与 Koa 风格对比](#q7-context-设计与-koa-风格对比)
-- [Q8: Recovery 中间件与 panic 恢复](#q8-recovery-中间件与-panic-恢复)
-- [Q9: 静态文件服务实现](#q9-静态文件服务实现)
-- [Q10: SSE (Server-Sent Events) 实现](#q10-sse-server-sent-events-实现)
-- [Q11: WebSocket 实现 (RFC 6455)](#q11-websocket-实现-rfc-6455)
-- [Q12: WebSocket 帧解析与消息重组](#q12-websocket-帧解析与消息重组)
-- [Q13: 并发安全设计](#q13-并发安全设计)
-- [Q14: 优雅关闭 (Graceful Shutdown)](#q14-优雅关闭-graceful-shutdown)
-- [Q15: 与 Gin/Echo 等框架的对比](#q15-与-gin-echo-等框架的对比)
-- [Q16: 零依赖设计的取舍](#q16-零依赖设计的取舍)
-- [Q17: 潜在改进方向](#q17-潜在改进方向)
-
----
-
 ## Q1: 项目整体架构与设计理念
 
 Q: 请介绍 swifty_http 的整体架构, 它的核心设计理念是什么?

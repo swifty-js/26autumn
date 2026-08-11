@@ -2,23 +2,6 @@
 
 > 本文档面向具备 3 年以上 React 开发经验的高级前端工程师, 涵盖运行时机制、性能优化、Hooks 原理等核心主题. 每道题均附参考答案与深度解析.
 
----
-
-## 目录
-
-1. [闭包陷阱( Stale Closure) ](#_1-闭包陷阱-stale-closure)
-2. [Re-render 陷阱与渲染机制](#_2-re-render-陷阱与渲染机制)
-3. [React Fiber 架构](#_3-react-fiber-架构)
-4. [Virtual DOM 与 Diff 算法](#_4-virtual-dom-与-diff-算法)
-5. [React 性能优化体系](#_5-react-性能优化体系)
-6. [Hooks 为什么只能在组件顶层调用](#_6-hooks-为什么只能在组件顶层调用)
-7. [setState 批量更新机制](#_7-setstate-批量更新机制)
-8. [React 并发模式与调度](#_8-react-并发模式与调度)
-9. [useEffect 与生命周期映射](#_9-useeffect-与生命周期映射)
-10. [React 状态管理设计哲学](#_10-react-状态管理设计哲学)
-
----
-
 ## 1. 闭包陷阱( Stale Closure)
 
 ### 题目

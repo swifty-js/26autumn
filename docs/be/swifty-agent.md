@@ -7,48 +7,6 @@ protected: true
 > 项目路径: `github.com/hangtiancheng/swifty.go/swifty_agent`
 > 定位: 基于 Eino 框架的 AIOps 智能运维助手, 提供 RAG 增强对话、Plan-Execute-Replan 告警分析、知识库索引与检索能力
 
----
-
-## 目录
-
-- [一、项目架构总览](#一-项目架构总览)
-  - [Q1: 请介绍 swifty_agent 的整体架构和核心能力](#q1-请介绍-swifty-agent-的整体架构和核心能力)
-  - [Q2: 为什么选择 Eino 作为 AI 编排框架? 它解决了什么问题?](#q2-为什么选择-eino-作为-ai-编排框架-它解决了什么问题)
-  - [Q3: 项目的双模型架构 (Think/Quick) 是如何设计的?](#q3-项目的双模型架构-think-quick-是如何设计的)
-- [二、Chat Pipeline (RAG + ReAct)](#二-chat-pipeline-rag-react)
-  - [Q4: Chat Pipeline 的 DAG 计算图是如何编排的?](#q4-chat-pipeline-的-dag-计算图是如何编排的)
-  - [Q5: AllPredecessor 触发模式解决了什么问题?](#q5-allpredecessor-触发模式解决了什么问题)
-  - [Q6: ReAct Agent 的工具调用循环是如何工作的?](#q6-react-agent-的工具调用循环是如何工作的)
-- [三、Plan-Execute-Replan 告警分析](#三-plan-execute-replan-告警分析)
-  - [Q7: Plan-Execute-Replan 模式与 ReAct 模式的区别和适用场景?](#q7-plan-execute-replan-模式与-react-模式的区别和适用场景)
-  - [Q8: Planner 如何实现结构化输出? 为什么不用 tool_choice: forced?](#q8-planner-如何实现结构化输出-为什么不用-tool-choice-forced)
-  - [Q9: Replanner 的异步迭代器模式是如何实现的?](#q9-replanner-的异步迭代器模式是如何实现的)
-  - [Q10: extractJSONObject 如何处理 LLM 输出的不确定性?](#q10-extractjsonobject-如何处理-llm-输出的不确定性)
-- [四、RAG 与知识库](#四-rag-与知识库)
-  - [Q11: 向量检索为什么选择 Redis Stack (RediSearch) 而非 Milvus/Pinecone?](#q11-向量检索为什么选择-redis-stack-redisearch-而非-milvus-pinecone)
-  - [Q12: 知识库索引的去重与分布式锁是如何实现的?](#q12-知识库索引的去重与分布式锁是如何实现的)
-  - [Q13: 向量索引维度不匹配时如何处理?](#q13-向量索引维度不匹配时如何处理)
-- [五、工具系统设计](#五-工具系统设计)
-  - [Q14: 工具返回 JSON 错误而非 Go error 的设计考量?](#q14-工具返回-json-错误而非-go-error-的设计考量)
-  - [Q15: TolerateEmptyArguments 泛型解决了什么兼容性问题?](#q15-tolerateemptyarguments-泛型解决了什么兼容性问题)
-  - [Q16: MCP 工具集的优雅降级是如何实现的?](#q16-mcp-工具集的优雅降级是如何实现的)
-- [六、会话记忆管理](#六-会话记忆管理)
-  - [Q17: 内存中的 LRU + 滑动窗口方案相比 Redis 存储记忆有何取舍?](#q17-内存中的-lru-滑动窗口方案相比-redis-存储记忆有何取舍)
-  - [Q18: 滑动窗口为什么按对 (pair) 淘汰消息?](#q18-滑动窗口为什么按对-pair-淘汰消息)
-- [七、LLM Provider 抽象与适配](#七-llm-provider-抽象与适配)
-  - [Q19: signaturePatchingTransport 解决了什么问题?](#q19-signaturepatchingtransport-解决了什么问题)
-  - [Q20: Anthropic Extended Thinking 的 BudgetTokens 为什么是 MaxTokens-1?](#q20-anthropic-extended-thinking-的-budgettokens-为什么是-maxtokens-1)
-- [八、SSE 流式响应](#八-sse-流式响应)
-  - [Q21: SSE 流式聊天的完整生命周期是怎样的?](#q21-sse-流式聊天的完整生命周期是怎样的)
-- [九、生产化设计](#九-生产化设计)
-  - [Q22: 项目中有哪些面向生产环境的防御性设计?](#q22-项目中有哪些面向生产环境的防御性设计)
-  - [Q23: Redis 客户端为什么强制使用 RESP2 协议?](#q23-redis-客户端为什么强制使用-resp2-协议)
-- [十、设计权衡与演进](#十-设计权衡与演进)
-  - [Q24: 从 Next.js 迁移到 Go 的动机和技术收益?](#q24-从-next-js-迁移到-go-的动机和技术收益)
-  - [Q25: 如果让你重新设计, 有哪些改进方向?](#q25-如果让你重新设计-有哪些改进方向)
-
----
-
 ## 一、项目架构总览
 
 ### Q1: 请介绍 swifty_agent 的整体架构和核心能力
