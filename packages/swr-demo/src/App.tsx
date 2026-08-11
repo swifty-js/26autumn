@@ -2,6 +2,13 @@ import { useState, useCallback } from "react";
 import { swrFetch, normalFetch, preload, clearCache } from "./swr";
 import type { FetchResult } from "./swr";
 import type { StaffItem, AlgorithmItem, VectorDBItem } from "./mock-api";
+import {
+  mark,
+  collectAndReport,
+  resetBootMarks,
+  PERF_QUEUE,
+} from "./perf-monitor";
+import type { PerfReport } from "./perf-monitor";
 import "./App.css";
 
 interface TimelineEntry {
@@ -56,6 +63,49 @@ function SelectorCard({
   );
 }
 
+function PerfPanel({ report }: { report: PerfReport }) {
+  const rows: [string, string][] = [
+    ["启动总耗时 (boot-start → boot-end)", `${report.bootTime}ms`],
+    ["DNS 解析", `${Math.round(report.pageLoad.dnsTime)}ms`],
+    [
+      "文档请求等待 (TTFB 排队)",
+      `${Math.round(report.pageLoad.requestWaitTime)}ms`,
+    ],
+    ["文档请求耗时", `${Math.round(report.pageLoad.requestTime)}ms`],
+    ["DOM Interactive", `${Math.round(report.pageLoad.domInteractive)}ms`],
+    [
+      "perf-ping 探测请求",
+      report.pingResource ? `${report.pingResource.duration}ms` : "未采集到",
+    ],
+    [
+      "最慢资源",
+      report.slowestResource
+        ? `${report.slowestResource.duration}ms (${report.slowestResource.name.split("/").pop()})`
+        : "无",
+    ],
+    ["启动期间长任务 (>50ms)", `${report.longTaskCount} 个`],
+    ["累计上报条数", `${PERF_QUEUE.length} 条 (PERF_QUEUE)`],
+  ];
+  return (
+    <div className="perf-panel">
+      <h3>性能监控采集结果（手写，模仿 boot.ts）</h3>
+      <div className="perf-rows">
+        {rows.map(([label, value]) => (
+          <div key={label} className="perf-row">
+            <span className="perf-label">{label}</span>
+            <span className="perf-value">{value}</span>
+          </div>
+        ))}
+      </div>
+      <p className="note">
+        数据来自 performance.mark/measure、Navigation Timing、Resource Timing 与
+        PerformanceObserver(longtask)，经 PERF_QUEUE 队列化上报（demo
+        中打印到控制台）。
+      </p>
+    </div>
+  );
+}
+
 function TimelineChart({ entries }: { entries: TimelineEntry[] }) {
   if (entries.length === 0) return null;
   const maxMs = Math.max(...entries.map((e) => e.waitedMs), 1);
@@ -101,6 +151,7 @@ export default function App() {
   const [normalLoading, setNormalLoading] = useState(true);
 
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [perfReport, setPerfReport] = useState<PerfReport | null>(null);
   const [secondFetchResults, setSecondFetchResults] = useState<
     FetchResult<unknown>[] | null
   >(null);
@@ -111,6 +162,8 @@ export default function App() {
 
   const run = useCallback(async () => {
     clearCache();
+    resetBootMarks();
+    setPerfReport(null);
     setTimeline([]);
     setSecondFetchResults(null);
     setSwrLoading(true);
@@ -124,6 +177,9 @@ export default function App() {
     setPhase("running");
 
     const entries: TimelineEntry[] = [];
+
+    // 性能监控打点：启动起点（对应 boot.ts 的 boot-start）
+    mark("swr-boot-start");
 
     // SWR 组：模拟 <header> 预加载
     preload();
@@ -141,6 +197,10 @@ export default function App() {
     setSwrAlgo(algoR.data);
     setSwrVdb(vdbR.data);
     setSwrLoading(false);
+
+    // 性能监控打点：SWR 数据就绪即视为启动完成，采集并上报
+    mark("swr-boot-end");
+    setPerfReport(collectAndReport());
 
     entries.push(
       { label: "Staff 选择器", mode: "swr", key: "staff", ...staffR },
@@ -369,6 +429,8 @@ export default function App() {
       )}
 
       <TimelineChart entries={timeline} />
+
+      {perfReport && <PerfPanel report={perfReport} />}
     </div>
   );
 }

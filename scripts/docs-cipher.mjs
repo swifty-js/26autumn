@@ -18,8 +18,22 @@
 //     -> base64
 //   decode applies the exact inverse and then checks SHA-256.
 
-import { createHash, createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
+import {
+  createHash,
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+} from "node:crypto";
+import {
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  statSync,
+  rmSync,
+} from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import AdmZip from "adm-zip";
@@ -57,7 +71,9 @@ function keystream(seed, len) {
   let written = 0;
   let counter = 0;
   while (written < len) {
-    const block = sha256(Buffer.concat([seed, Buffer.from("::ks::" + counter)]));
+    const block = sha256(
+      Buffer.concat([seed, Buffer.from("::ks::" + counter)]),
+    );
     const n = Math.min(block.length, len - written);
     block.copy(out, written, 0, n);
     written += n;
@@ -118,7 +134,9 @@ function aesEncrypt(plain, password) {
   const salt = randomBytes(AES_SALT_LEN);
   const iv = randomBytes(AES_IV_LEN);
   const key = deriveKey(password, salt);
-  const cipher = createCipheriv("aes-256-gcm", key, iv, { authTagLength: AES_TAG_LEN });
+  const cipher = createCipheriv("aes-256-gcm", key, iv, {
+    authTagLength: AES_TAG_LEN,
+  });
   const ct = Buffer.concat([cipher.update(plain), cipher.final()]);
   return Buffer.concat([salt, iv, cipher.getAuthTag(), ct]);
 }
@@ -129,10 +147,15 @@ function aesDecrypt(blob, password) {
   }
   const salt = blob.subarray(0, AES_SALT_LEN);
   const iv = blob.subarray(AES_SALT_LEN, AES_SALT_LEN + AES_IV_LEN);
-  const tag = blob.subarray(AES_SALT_LEN + AES_IV_LEN, AES_SALT_LEN + AES_IV_LEN + AES_TAG_LEN);
+  const tag = blob.subarray(
+    AES_SALT_LEN + AES_IV_LEN,
+    AES_SALT_LEN + AES_IV_LEN + AES_TAG_LEN,
+  );
   const ct = blob.subarray(AES_SALT_LEN + AES_IV_LEN + AES_TAG_LEN);
   const key = deriveKey(password, salt);
-  const decipher = createDecipheriv("aes-256-gcm", key, iv, { authTagLength: AES_TAG_LEN });
+  const decipher = createDecipheriv("aes-256-gcm", key, iv, {
+    authTagLength: AES_TAG_LEN,
+  });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]);
 }
@@ -170,15 +193,21 @@ function pack() {
   for (const rel of rels) {
     const plain = readFileSync(join(DOCS_DIR, rel));
     manifest.files[rel] = { sha256: sha256Hex(plain), size: plain.length };
-    const blob = mode === MODE_AES ? aesEncrypt(plain, password) : encodeBytes(plain, rel);
+    const blob =
+      mode === MODE_AES ? aesEncrypt(plain, password) : encodeBytes(plain, rel);
     zip.addFile(rel + ".enc", blob);
   }
 
-  const manifestJson = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  const manifestJson = Buffer.from(
+    JSON.stringify(manifest, null, 2) + "\n",
+    "utf8",
+  );
   zip.addFile("manifest.json", manifestJson);
   zip.writeZip(BUNDLE);
 
-  console.log(`[docs-cipher] packed ${rels.length} file(s) [${mode}] -> ${relative(ROOT, BUNDLE)}`);
+  console.log(
+    `[docs-cipher] packed ${rels.length} file(s) [${mode}] -> ${relative(ROOT, BUNDLE)}`,
+  );
 }
 
 function unpack() {
@@ -190,7 +219,9 @@ function unpack() {
 
   // Guard: never clobber an existing, populated docs/docs (local edits win).
   if (existsSync(DOCS_DIR) && walk(DOCS_DIR, DOCS_DIR, []).length > 0) {
-    console.log("[docs-cipher] docs/docs already populated; skipping unpack to protect local content.");
+    console.log(
+      "[docs-cipher] docs/docs already populated; skipping unpack to protect local content.",
+    );
     return;
   }
 
@@ -202,13 +233,17 @@ function unpack() {
   }
   const manifest = JSON.parse(manifestEntry.getData().toString("utf8"));
   if (manifest.version !== MANIFEST_VERSION) {
-    console.error(`[docs-cipher] unsupported manifest version ${manifest.version}; aborting.`);
+    console.error(
+      `[docs-cipher] unsupported manifest version ${manifest.version}; aborting.`,
+    );
     process.exit(1);
   }
   const mode = manifest.mode || MODE_OBFUSCATE;
   const password = process.env.DOCS_PASSWORD;
   if (mode === MODE_AES && !password) {
-    console.error("[docs-cipher] bundle is AES-256-GCM encrypted but DOCS_PASSWORD is not set; aborting.");
+    console.error(
+      "[docs-cipher] bundle is AES-256-GCM encrypted but DOCS_PASSWORD is not set; aborting.",
+    );
     process.exit(1);
   }
 
@@ -217,7 +252,9 @@ function unpack() {
   for (const rel of rels) {
     const entry = zip.getEntry(rel + ".enc");
     if (!entry) {
-      console.error(`[docs-cipher] missing encoded entry for ${rel}; aborting.`);
+      console.error(
+        `[docs-cipher] missing encoded entry for ${rel}; aborting.`,
+      );
       process.exit(1);
     }
     let plain;
@@ -225,7 +262,9 @@ function unpack() {
       try {
         plain = aesDecrypt(entry.getData(), password);
       } catch {
-        console.error(`[docs-cipher] decryption FAILED for ${rel} (wrong DOCS_PASSWORD or corrupted data).`);
+        console.error(
+          `[docs-cipher] decryption FAILED for ${rel} (wrong DOCS_PASSWORD or corrupted data).`,
+        );
         console.error("Aborting; no files were written.");
         process.exit(1);
       }
@@ -250,7 +289,9 @@ function unpack() {
     writeFileSync(dest, plain);
   }
 
-  console.log(`[docs-cipher] unpacked ${decoded.length} file(s), all SHA-256 verified -> ${relative(ROOT, DOCS_DIR)}`);
+  console.log(
+    `[docs-cipher] unpacked ${decoded.length} file(s), all SHA-256 verified -> ${relative(ROOT, DOCS_DIR)}`,
+  );
 }
 
 const cmd = process.argv[2];

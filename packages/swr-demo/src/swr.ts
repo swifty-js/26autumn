@@ -1,7 +1,12 @@
 // 手写 SWR 核心逻辑
 // 模拟在 index.html <header> 中提前发起请求的场景
 
-import { fetchStaff, fetchAlgorithm, fetchVectorDB } from "./mock-api";
+import {
+  fetchStaff,
+  fetchAlgorithm,
+  fetchVectorDB,
+  fetchPerfPing,
+} from "./mock-api";
 import type { StaffItem, AlgorithmItem, VectorDBItem } from "./mock-api";
 
 // ============ 类型定义 ============
@@ -24,6 +29,9 @@ export function preload() {
   const staffPromise = fetchStaff();
   const algorithmPromise = fetchAlgorithm();
   const vectorDBPromise = fetchVectorDB();
+
+  // 真实网络探测请求，与业务请求并行（供性能监控采集 Resource Timing）
+  fetchPerfPing();
 
   // 挂载 promise
   cache.set("staff", {

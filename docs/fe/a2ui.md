@@ -4,120 +4,428 @@ protected: true
 
 # A2UI
 
-传统方式: 通过 iframe 传输 html/js
+## 背景与动机
 
-缺陷: 重、结构乱、样式乱
+生成式 AI 擅长产出文本和代码, 但 Agent 要向用户呈现富交互界面时很困难, 尤其是远程 Agent、或跨越信任边界的 Agent (例如编排器把任务委托给第三方的订票 Agent, 后者要往主聊天窗口里渲染一块 UI).
 
-- 安全: LLM 输出结构化 JSON 数据, 客户端维护 catalog 组件库, LLM 只请求渲染 catalog 的组件, 降低 UI 注入等安全风险
-- LLM 友好: UI 被抽象为扁平的组件列表 (邻接表), 流式传输 JSON 以实现渐进式渲染
-- 框架无关、可移植: A2UI 将 UI 结构和具体实现方式 (vanilla js/lit/react/mobile...) 分离, agent 发送抽象组件树和数据模型, 客户端使用自身的组件库进行渲染
+传统方式: 通过 iframe 传输 html/js -- Agent 直接生成一段 HTML/CSS/JS, 客户端用 iframe 加载渲染.
 
-优势
+缺陷:
 
-- 安全
-- 没有 iframe, 性能好、样式统一
-- 可移植: 一份结构化 JSON 数据同时适用于 vanilla js/lit/react/mobile...
+- 重: iframe 是独立的浏览上下文, 有独立的 DOM 树、样式表、JS 执行环境, 创建和通信开销大; 对话流里每插入一块 UI 就多一个 iframe, 页面迅速膨胀
+- 结构乱: iframe 内外是两套 DOM, 布局嵌套、滚动联动、高度自适应都要跨框架手工协调
+- 样式乱: iframe 内样式与宿主页面完全隔离, 无法继承宿主的设计系统 (主题、字体、间距), 视觉割裂
+- 不安全: 这是最根本的问题. LLM 生成的 HTML/JS 属于不可信代码, 直接执行意味着 XSS、任意脚本执行等风险; 只能依赖 sandbox 属性做粗粒度隔离, 且隔离策略与业务组件体系脱节
 
-Keywords: 流式传输 JSON、声明式 UI (抽象组件树)、数据绑定
+此外, 直接让 LLM 输出目标框架代码 (如直接生成 React 组件源码) 也不可行: 代码无法在运行时安全执行, 且与客户端技术栈强耦合, 无法跨端复用.
+
+## A2UI 的解法
+
+A2UI (Agent-to-User Interface) 是 Google 开源的开放标准: 让 Agent "说 UI 语言". Agent 不产出代码, 而是产出一段声明式 JSON, 描述 UI 的意图 (组件结构 + 数据模型); 客户端用自身原生的组件库 (React / Lit / Angular / Flutter / SwiftUI) 渲染这段描述. 一句话概括: safe like data, but expressive like code -- 像数据一样安全, 像代码一样有表现力.
+
+三大设计哲学:
+
+- 安全 (Security first): LLM 输出结构化 JSON 数据而非可执行代码. 客户端维护一份 catalog (受信组件目录, 例如 Card / Button / TextField), Agent 只能请求渲染 catalog 内的组件; 组件如何渲染、事件如何执行完全由客户端掌控, 从根上消除 UI 注入风险
+- LLM 友好、可增量更新 (LLM-friendly and incrementally updatable): UI 被抽象为扁平的组件列表 (邻接表, 靠 ID 引用建立父子关系), 而非深层嵌套树. 这种形态对 LLM 生成友好: 可以乱序输出、可以边生成边渲染 (流式 JSON + 渐进渲染, 首屏延迟低); 对话推进时 Agent 只需增量发送变更消息 (更新几个组件或几条数据), 不必重发整棵 UI
+- 框架无关、可移植 (Framework-agnostic and portable): A2UI 将 UI 结构 (抽象组件树 + 数据模型) 和 UI 实现 (具体框架组件) 彻底分离. Agent 发送的 JSON 与框架无关, 同一份 payload 可以被 React、Lit、Angular、Flutter 等不同客户端各自映射到原生组件渲染; 客户端通过开放的注册机制把服务端组件类型映射到自定义实现 (smart wrapper), 甚至可以包装 iframe 等遗留内容, 并把沙箱策略掌握在自己手里
+
+相比 iframe 方案的优势:
+
+- 安全: 数据白名单机制 (catalog) 取代代码执行, 安全边界清晰且可由业务方自主加固
+- 没有 iframe: A2UI 组件直接渲染在宿主组件树中, 无独立浏览上下文的开销, 性能更好; 样式走宿主设计系统, 主题、暗色模式、字体天然统一
+- 可移植: 一份结构化 JSON 同时适用于 vanilla js / lit / react / mobile 等多端渲染器, Agent 侧零改动
+- 可增量: 结构与数据分离, 改数据 (updateDataModel) 不必重发结构 (updateComponents), 传输和解析成本低
+- 可校验: JSON 有完整 schema, 服务端可在下发前校验并让 LLM 自纠, iframe 方案里坏 HTML 只能直接渲染出来
+
+Keywords: 流式传输 JSON、声明式 UI (抽象组件树/邻接表)、数据绑定 (JSON Pointer)、catalog 白名单、传输无关 (A2A / AG-UI / MCP / SSE)
+
+本文以 React 渲染器 (@a2ui/react) + v0.9 协议为主线, 参考实现为 fork/a2ui/samples/client/react/shell (餐厅预订 demo), 并在末尾与 Lit 实现做对比.
 
 ## 概念
 
-- Surface: 页面
-- Component: 组件
-- Data Model: 数据模型
-- Message: JSON 对象
+- Surface: 一块独立的 UI 区域 (页面/卡片), 由 surfaceId 标识, 拥有独立的组件树和数据模型
+- Component: 组件, 扁平列表 + ID 引用 (邻接表), 必须存在 id 为 root 的根组件
+- Data Model: 每个 Surface 一份 JSON 数据模型, 组件通过 JSON Pointer 路径绑定其中的数据
+- Catalog: 客户端可信组件/函数目录, 由 catalogId 标识, Agent 只能使用 Catalog 内的组件
+- Message: 一条 JSON 对象, 恰好包含四种信封键之一
 
-## 消息类型
+## v0.9 消息类型
 
-- createSurface: 创建新的页面 (mount 挂载)
-- updateComponents: 更新页面中的组件
-- updateDataModel: 更新数据模型 (更新 state)
-- deleteSurface: 删除页面 (unmount 卸载)
-- actionResponse: 响应客户端事件 (handleClick)
+服务端 -> 客户端 (server_to_client):
 
-## 完整流程
+- createSurface: 创建 Surface, 绑定 surfaceId + catalogId, 可携带 theme 和 sendDataModel
+- updateComponents: 新增或更新 Surface 内的组件 (扁平列表)
+- updateDataModel: 按 JSON Pointer 路径 upsert 数据模型, 省略 value 表示删除该路径
+- deleteSurface: 删除 Surface 及其全部组件和数据
 
-### Server 启动
+客户端 -> 服务端 (client_to_server):
 
-Server 使用 A2A 协议暴露 HTTP 端点
+- action: 用户交互事件 (点击按钮等), 携带 name / surfaceId / sourceComponentId / timestamp / context
+
+v0.9 消息示例 (注意与 v0.8 的字段差异, 见文末对照表):
+
+```json
+{
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "default",
+    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    "theme": { "primaryColor": "#FF0000", "font": "Roboto" }
+  }
+}
+```
+
+## A2A 协议详解
+
+A2A (Agent2Agent, a2a-protocol.org) 是 Agent 间以及 Agent 与前端应用间标准化通信的开放协议, 提供安全、认证、消息格式和传输的完整绑定. A2UI 本身传输无关, 但 A2A 是其最主流的传输层 (其余可选: AG-UI / MCP / SSE / WebSocket / REST). 在 A2UI 场景中, A2A 承担以下职责.
+
+### AgentCard: 能力发现
+
+每个 A2A Server 在固定路径暴露 AgentCard, 声明自身能力:
+
+- 端点: `GET /.well-known/agent-card.json`
+- 内容: 名称、描述、支持的扩展列表 (capabilities.extensions)、认证要求等
+
+Agent 鼓励在 AgentCard 中声明 A2UI 扩展 (非强制), params 对象对应 server_capabilities.json schema:
+
+```json
+{
+  "name": "Dashboard Agent",
+  "description": "Agent capable of generating dynamic UI dashboards.",
+  "capabilities": {
+    "extensions": [
+      {
+        "uri": "https://a2ui.org/a2a-extension/a2ui/v0.9.1",
+        "description": "Ability to render A2UI v0.9.1",
+        "required": false,
+        "params": {
+          "supportedCatalogIds": [
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v0.9/my_custom_catalog.json"
+          ],
+          "acceptsInlineCatalogs": true
+        }
+      }
+    ]
+  }
+}
+```
+
+- params.supportedCatalogIds: Agent 能生成哪些 catalog 的 UI
+- params.acceptsInlineCatalogs: 是否接受客户端内联 catalog (默认 false)
+
+Client 通过 `A2AClient.fromCardUrl(url)` 读取 AgentCard 完成初始化 (见 react shell 的 middleware 与 lit shell 的 client.ts).
+
+### 消息模型: Message 与 Part
+
+A2A 消息 (Message) 由 role (user/agent) 和 parts 数组组成, Part 有三种 kind:
+
+- TextPart: 纯文本 (用户的自然语言查询、Agent 的对话回复)
+- DataPart: 结构化 JSON 数据, 通过 mimeType 区分用途. A2UI 消息固定使用 `mimeType: "application/a2ui+json"`, data 字段必须是 A2UI 消息数组
+- FilePart: 文件内容
+
+A2UI 消息编码为 DataPart 的示例 (服务端下发):
+
+```json
+{
+  "kind": "data",
+  "data": [
+    { "version": "v0.9", "createSurface": { "surfaceId": "default", "catalogId": "..." } },
+    { "version": "v0.9", "updateComponents": { "surfaceId": "default", "components": [...] } }
+  ],
+  "metadata": { "mimeType": "application/a2ui+json" }
+}
+```
+
+处理规则 (来自 A2A 扩展规范):
+
+- data 中的消息列表不是事务单元, 接收方必须按序逐条处理
+- 单条消息校验/应用失败时, 记录错误并继续处理后续消息, 原子性只在单条消息级别保证
+- 渲染器建议等列表内所有消息处理完再重绘, 避免中间状态闪烁
+
+### JSON-RPC 方法与会话
+
+A2A 基于 JSON-RPC, 核心方法:
+
+- message/send: 同步发送消息, 返回完整 Task/Message 结果 (lit shell 使用)
+- message/stream: 流式发送, 服务端通过 SSE 逐步返回 status-update / message 事件 (react shell 的中间件使用 sendMessageStream)
+
+会话相关概念:
+
+- Task: 一次请求的处理结果对象, 含 state (working / completed 等) 和 status.message.parts
+- contextId: 会话标识, 同一 contextId 下的消息共享对话历史, A2UI 的一组相关 Surface 应共享同一 contextId
+- messageId: 单条消息的唯一标识
+
+status-update 事件的 parts 是累积语义 (每次事件携带截至当前的全部 parts), 这也是 react shell 需要对 createSurface 去重的原因.
+
+### 扩展机制与 A2UI 激活
+
+A2A 支持通过扩展 URI 协商可选能力. A2UI 扩展的 URI 显式编码版本号:
+
+- v0.9: `https://a2ui.org/a2a-extension/a2ui/v0.9`
+- v0.9.1: `https://a2ui.org/a2a-extension/a2ui/v0.9.1`
+
+激活方式按传输层区分:
+
+- JSON-RPC over HTTP: 请求头 `X-A2A-Extensions: <扩展 URI>` (本仓库两个 shell 都采用此方式)
+- gRPC: `sendMessageParams.metadata["X-A2A-Extensions"]`
+
+Server 端解析逻辑见 agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py: 读取客户端请求的版本与自身支持版本取交集, 匹配则激活 A2UI 扩展 (system prompt 注入 A2UI schema), 不匹配则按普通文本对话处理.
+
+补充两个规范细节:
+
+- 显式激活并非必需: 客户端也可以只在每条消息的 metadata 中携带 a2uiClientCapabilities, Agent 据此判断是否下发 UI; Agent 返回的 DataPart 带 application/a2ui+json 时客户端即知是 A2UI 消息
+- 不应使用 `accepted_output_modes: ['a2ui']` 触发 A2UI, 这不是标准做法
+
+### metadata 承载的 A2UI 状态
+
+客户端发给 Agent 的每条 A2A 消息, 可在 message.metadata 中携带两类 A2UI 数据:
+
+(1) a2uiClientCapabilities -- 客户端能力声明 (按版本分组):
+
+```json
+{
+  "metadata": {
+    "a2uiClientCapabilities": {
+      "v0.9.1": {
+        "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"],
+        "inlineCatalogs": [ ... ]
+      }
+    }
+  }
+}
+```
+
+(2) a2uiClientDataModel -- 当 Surface 开启 sendDataModel 时, 客户端在每次触发消息 (action / 用户查询) 时附带该 Surface 的完整数据模型, 让 Agent 拿到 UI 当前状态:
+
+```json
+{
+  "metadata": {
+    "a2uiClientDataModel": {
+      "version": "v0.9.1",
+      "surfaces": {
+        "main_surface_id": { "user_id": "12345", "email": "user@example.com" }
+      }
+    }
+  }
+}
+```
+
+数据模型只发给创建该 Surface 的 Server, 不会泄漏给其他 Agent.
+
+## A2UI 协议详解
+
+A2UI 是 JSON 流式 UI 协议: 服务端 (Agent) 向客户端 (Renderer) 发送 JSON 对象流, 客户端逐条解析并增量构建/更新 UI. 核心设计是 UI 结构 (Components) 与应用数据 (Data Model) 的彻底分离. 以下以 v0.9.1 规范 (specification/v0_9_1/docs/a2ui_protocol.md) 为准.
+
+### 版本家族
+
+- v0.8: 面向支持 structured output 的 LLM, legacy, 新 SDK 不再支持
+- v0.9: prompt-first 协议族首个稳定版, SDK 已实现
+- v0.9.1: 当前生产版本, 与 v0.9 差异极小 (见 evolution_guide), 多语言 SDK/渲染器/示例均以此为准
+- v1.0: 候选规范 (草案期名为 v0.10), 待足够多渲染器移植后转稳定
+
+v0.9 的 prompt-first 取向: schema 直接嵌入 LLM prompt 让其仿写, 不受 structured output 的表达能力限制, catalog 可以更复杂可读; 代价是生成后必须做校验和修复 (validate + retry).
+
+### Schema 组成
+
+v0.9.1 由三类 JSON Schema 构成 (specification/v0_9_1/json/):
+
+- common_types.json: 可复用基础类型
+  - DynamicString / DynamicNumber / DynamicBoolean / DynamicStringList: 数据绑定核心, 接受字面量、`{path}` (JSON Pointer) 或 `{call, args}` (FunctionCall) 三种形态
+  - ComponentId: 组件引用
+  - ChildList: 容器子节点, 数组形态 (静态 ID 列表) 或对象形态 (模板 componentId + 数据 path)
+- server_to_client.json: 服务端消息信封 (顶层入口), 负责消息分发
+- client_to_server.json: 客户端消息 (action / error)
+- 能力与状态: server_capabilities.json / client_capabilities.json / client_data_model.json
+
+信封 schema 是 catalog 无关的: 它通过占位文件名 `$ref: "catalog.json#/$defs/anyComponent"` 引用组件定义. 校验时把 catalog.json 映射到具体 catalog 文件即可:
+
+- 用 basic catalog: 映射到 catalogs/basic/catalog.json
+- 用自定义 catalog: 映射到自己的 catalog 文件
+
+自定义 catalog 的强制规则 (否则校验器无法检查父子引用完整性):
+
+- 单个子组件引用属性必须用 `$ref: common_types.json#/$defs/ComponentId`, 不能用裸 string
+- 子列表/模板属性必须用 `$ref: common_types.json#/$defs/ChildList`
+
+### 传输契约
+
+A2UI 传输无关, 但任何传输层必须满足:
+
+1. 可靠有序投递: A2UI 是有状态更新 (先 createSurface 才能 update), 乱序会破坏 UI 状态
+2. 消息分帧: 清晰分界 (JSONL 换行、WebSocket 帧、SSE 事件)
+3. metadata 支持: 用于携带 a2uiClientDataModel 和能力交换 (AgentCard / 初始化握手)
+4. 双向通道 (可选): 渲染流是单向的, 交互应用需要 action 回程通道
+
+### Surface 生命周期规则
+
+- createSurface 必须先于该 Surface 的任何 updateComponents / updateDataModel
+- surfaceId + catalogId 创建后不可变, 要换配置必须删除重建; 对已存在的 surfaceId 重复 createSurface 是错误
+- 组件列表中必须恰好有一个 id 为 root 的组件作为树根; root 未到达前, 其他组件更新被缓冲, 不产生可见效果
+- deleteSurface 移除 Surface 及其全部组件和数据
+
+### 组件模型: 邻接表
+
+组件是扁平列表, 树结构靠 ID 引用隐式构建:
+
+- 客户端把所有组件存入 Map<ComponentId, Component>, 渲染时重建树
+- 组件可以任意顺序到达, 可以引用尚不存在的子组件或数据路径, 客户端渲染占位并等待补齐 (渐进渲染)
+- root 定义后即可开始渲染, 跳过无效引用
+
+Action 机制: 交互组件 (Button 等) 通过 action 属性声明行为, 二选一:
+
+- `{ event: { name, context } }`: 触发发往服务端的事件, context 中的 Dynamic 值在触发时解析
+- `{ functionCall: { call, args } }`: 执行客户端本地注册函数 (如 openUrl)
+
+### 数据模型: 绑定与作用域
+
+数据绑定基于 JSON Pointer (RFC 6901), 并扩展支持相对路径:
+
+- 绝对路径 (/ 开头): 始终从 DataModel 根解析, 与组件在树中的位置无关
+- 相对路径 (不以 / 开头): 仅在 ChildList 模板创建的子作用域内有效, 解析到当前迭代项 (例如 /users/0/firstName); 数组段使用非数字索引是错误
+- 模板内部可混用绝对路径访问根作用域
+- 渐进渲染期间路径可能解析为 undefined, 渲染器应优雅处理 (空串或 loading)
+
+类型转换规则 (非字符串值插值时): 数字/布尔转标准字符串表示, null/undefined 转空串, 对象/数组转 JSON 字符串.
+
+updateDataModel 的 upsert 语义:
+
+- 路径存在则更新, 不存在则创建
+- 省略 value 则删除该键; 数组场景下对应索引置为 undefined 以保持长度
+- 省略 path (或为 /) 则替换整个数据模型
+
+双向绑定 (TextField / CheckBox / Slider / ChoicePicker / DateTimeInput):
+
+- 输入立即写回本地 DataModel, 绑定同路径的其他组件实时联动
+- 本地 DataModel 是唯一数据源; 键入等被动变化不触发网络请求
+- 状态只在 action 触发时回传: 通过 action.context 引用数据路径, 或开启 sendDataModel 随 metadata 附带完整模型
+
+### 客户端函数与校验
+
+v0.9 把客户端逻辑统一抽象为函数 (Function), 按名字引用, 绝不传输可执行代码:
+
+- 函数与组件一起定义在 catalog 中, 客户端运行时从 catalog 读取执行边界配置
+- checks: 输入组件和 Button 都可声明校验列表, 每项是 FunctionCall + 失败文案; 输入组件展示错误信息, Button 校验失败自动禁用
+- basic catalog 内置 14 个函数: required / regex / length / numeric / email (校验类), formatString / formatNumber / formatCurrency / formatDate / pluralize (格式化类), openUrl (行为类), and / or / not (逻辑类)
+
+formatString 插值语法:
+
+- `${/user/name}` 绝对路径, `${firstName}` 相对路径
+- `${formatDate(value:${/currentDate}, format:'yyyy-MM-dd')}` 函数调用, 参数支持字面量和嵌套表达式
+- `\${` 转义为字面量
+
+### Basic Catalog
+
+basic catalog 提供 18 个组件:
+
+- 展示: Text (支持简单 Markdown) / Image / Icon / Video / AudioPlayer
+- 布局: Row / Column / List / Card / Tabs / Divider / Modal
+- 交互: Button / CheckBox / TextField / DateTimeInput / ChoicePicker / Slider
+
+theme 支持三个属性: primaryColor (主色), iconUrl 和 agentDisplayName (Agent 身份归属). 多 Agent 场景下, 编排者负责设置或覆写这两个身份字段并校验其与真实 Agent 服务一致, 防止恶意 Agent 冒充可信服务.
+
+### prompt-generate-validate 循环
+
+标准使用模式是三步循环:
+
+1. Prompt: 向 LLM 提供期望 UI 的描述 + A2UI JSON Schema (含 catalog) + 合法示例
+2. Generate: LLM 输出 JSON
+3. Validate: 对照 schema 校验; 通过则下发渲染, 失败则把错误回喂 LLM 自纠
+
+校验失败的标准错误格式 (让 LLM 能理解并修复):
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "surfaceId": "user_profile_card",
+    "path": "/components/0/text",
+    "message": "Expected stringOrPath, got integer"
+  }
+}
+```
+
+### 安全模型小结
+
+- 声明式数据格式而非代码: Agent 只能请求渲染 catalog 内组件, 客户端永远不执行 Agent 下发的代码
+- catalog 白名单: 生产应用通常自定义 catalog, 把 Agent 限制在自己的设计系统内
+- sendDataModel 定向投递: UI 状态只回传给创建该 Surface 的 Server
+- 身份归属防伪: 编排者校验/覆写 iconUrl 与 agentDisplayName
+- 自定义组件的 smart wrapper 模式: 接入第三方内容 (如 iframe) 时由组件自身实施沙箱与信任策略
+
+## 完整流程 (React + v0.9)
+
+整体链路:
+
+```
+React Shell (浏览器)
+  -> fetch POST /a2a (纯文本查询 或 action JSON)
+  -> Vite Dev Middleware (协议转换, 注入 X-A2A-Extensions 头)
+  -> A2A Server (AgentCard + JSON-RPC, ADK Agent + LLM)
+  -> LLM 生成 <a2ui-json> -> Server 校验
+  -> SSE (text/event-stream) 流式回传 A2UI 消息
+  -> React Shell 增量解析 -> MessageProcessor -> SurfaceModel -> A2uiSurface 渲染
+```
+
+### 阶段 1: Server 启动
+
+Server 使用 A2A 协议暴露 HTTP 端点 (restaurant_finder 示例, Python ADK):
 
 ```js
-// server.js
+// 伪代码, 对应 samples/agent/adk/restaurant_finder
 const agent = new RestaurantAgent(); // Agent, 包含 systemPromptBuilder + tools
 const executor = new AgentExecutor(agent); // 封装 Agent Loop 的执行器
 const handler = new DefaultRequestHandler(executor); // A2A JSON-RPC 请求处理器
 const app = new A2AHttpApplication(handler); // HTTP 应用
 
-app.use(cors({ origin: "*" })); // 允许跨域
-app.use("/static", express.static("public")); // 静态资源服务
-
-app.listen(8000, "0.0.0.0");
+app.listen(10002, "0.0.0.0");
 ```
 
-Server 启动后, 提供两个端点:
+Server 启动后提供两个端点:
 
-- `GET http://localhost:8000/.well-known/agent-card.json` AgentCard, 声明 Server 能力 (支持的 A2A 扩展、MIME 类型等)
-- `POST http://localhost:8000/a2a` A2A JSON-RPC 端点, 处理 `message/send` 请求
+- `GET http://localhost:10002/.well-known/agent-card.json` AgentCard, 声明 Server 能力 (支持的 A2A 扩展、MIME 类型等)
+- `POST http://localhost:10002/a2a` A2A JSON-RPC 端点, 处理 `message/send` / `message/stream` 请求
 
-AgentCard 中声明支持的 A2UI 版本 (例如 `https://a2ui.org/a2a-extension/a2ui/v0.9`), Client 通过读取 AgentCard 以知道 Server 支持 A2UI.
+AgentCard 中声明支持的 A2UI 扩展 (例如 `https://a2ui.org/a2a-extension/a2ui/v0.9`), Client 通过读取 AgentCard 得知 Server 支持 A2UI.
 
-### Client 启动
+### 阶段 2: React Client 启动
 
-Client 是一个 Lit Web 应用, 启动时做三件事:
+入口是 samples/client/react/shell/src/App.tsx, 启动时做四件事:
 
-(1) 注册 catalog 组件库
+(1) 创建 MessageProcessor (核心处理器), 传入 catalog 和全局 action 处理器:
 
-```ts
-// register-components.ts
-import { componentRegistry } from "@a2ui/lit/ui";
+```tsx
+// App.tsx
+import { A2uiSurface, basicCatalog } from "@a2ui/react/v0_9";
+import { MessageProcessor } from "@a2ui/web_core/v0_9";
 
-// 注册自定义组件, 提供组件的 JSON Schema
-componentRegistry.register(
-  "McpApp", // 组件类型 ID
-  McpApp, // Lit 组件类
-  "a2ui-mcp-apps-component", // 自定义元素 tag name
-  {
-    type: "object",
-    properties: {
-      resourceUri: { type: "string" },
-      htmlContent: { type: "string" },
-      height: { type: "number" },
-      allowedTools: { type: "array", items: { type: "string" } },
-    },
-  },
-);
-
-// 基础组件 (Heading, Text, Button, Card, Column, Image 等 18 个), 由 @a2ui/lit/ui 库内置注册, 无需手动调用
+const processor = useMemo(() => {
+  return new MessageProcessor([basicCatalog], (action) => {
+    // 全局 action 处理器: 所有 Surface 的用户交互都会汇聚到这里
+    sendAndProcessRef.current?.({ version: "v0.9", action });
+  });
+}, []);
 ```
 
-componentRegistry 的作用: 维护组件类型 ID 到 Lit 组件类 + JSON Schema 的映射关系. 后续 MessageProcessor 在渲染时, 根据 A2UI JSON 中的 componentType 查找对应的 Lit 组件类
+MessageProcessor 内部持有:
 
-(2) 创建 MessageProcessor
-
-```ts
-// mcp-app.ts
-const processor = createSignalA2uiMessageProcessor();
-```
-
-MessageProcessor 是 Client 端的核心处理器, 内部持有:
-
-- SurfaceGroupModel: 所有 Surface (页面) 的容器
-- 全局 action 事件订阅器: 统一监听用户交互事件
+- SurfaceGroupModel: 所有 Surface 的容器 (surfacesMap)
+- 全局 action 订阅: `this.model.onAction.subscribe(actionHandler)`
 
 ```ts
-// MessageProcessor 伪代码
-class MessageProcessor {
-  readonly model: SurfaceGroupModel;
+// MessageProcessor 伪代码 (web_core/v0_9/processing/message-processor.ts)
+class MessageProcessor<T extends ComponentApi> {
+  readonly model: SurfaceGroupModel<T>;
 
-  constructor(catalogs, actionHandler) {
-    this.model = new SurfaceGroupModel();
+  constructor(catalogs: Catalog<T>[], actionHandler?: ActionListener) {
+    this.model = new SurfaceGroupModel<T>();
     if (actionHandler) {
       this.model.onAction.subscribe(actionHandler);
     }
   }
 
-  // 生成 Client 能力声明
-  getClientCapabilities(): A2uiClientCapabilities {
+  // 生成 Client 能力声明 (supportedCatalogIds, 可选 inlineCatalogs)
+  getClientCapabilities(options?: CapabilitiesOptions): A2uiClientCapabilities {
     return {
       "v0.9": {
         supportedCatalogIds: this.catalogs.map((c) => c.id),
@@ -138,112 +446,161 @@ class MessageProcessor {
 }
 ```
 
-(3) Lit 根组件挂载
+(2) 订阅 Surface 生命周期, 同步到 React state:
 
-```ts
-// mcp-app.ts -- Lit 根组件
-@customElement("a2ui-mcp-sample")
-export class A2UIMcpSample extends SignalWatcher(LitElement) {
-  @state() #processor = createSignalA2uiMessageProcessor();
-  #a2uiClient = new A2UIClient();
+```tsx
+// App.tsx -- ShellContent
+const [surfaces, setSurfaces] = useState<SurfaceModel[]>(() =>
+  Array.from(processor.model.surfacesMap.values()),
+);
 
-  connectedCallback() {
-    super.connectedCallback();
-    // 页面加载时发送初始请求
-    this.#sendAndProcessMessage({ request: "Load MCP App" });
-  }
+useEffect(() => {
+  const sub1 = processor.onSurfaceCreated((surface) => {
+    setSurfaces((prev) => [...prev, surface]);
+  });
+  const sub2 = processor.onSurfaceDeleted((id) => {
+    setSurfaces((prev) => prev.filter((s) => s.id !== id));
+  });
+  return () => {
+    sub1.unsubscribe();
+    sub2.unsubscribe();
+  };
+}, [processor]);
+```
 
-  render() {
-    const surfaces = Array.from(this.#processor.getSurfaces().values());
-    return html`
-      <div id="surfaces">
-        ${surfaces.map(
-          (surface) => html`
-            <a2ui-surface
-              .surface=${surface}
-              @a2uiaction=${this.#handleAction}
-            />
-          `,
-        )}
-      </div>
-    `;
-  }
+注意分层: Surface 的增删由 React state 驱动 (粗粒度), Surface 内部组件和数据的变化由 web_core 的信号/订阅机制驱动 (细粒度), 不需要手动触发 React 重渲染.
+
+(3) 提供 Markdown 渲染器 (Text 组件支持简单 Markdown):
+
+```tsx
+// App.tsx
+import {MarkdownContext} from "@a2ui/react/v0_9";
+import {renderMarkdown} from "@a2ui/markdown-it";
+
+<MarkdownContext.Provider value={renderMarkdown}>
+  <ShellContent ... />
+</MarkdownContext.Provider>;
+```
+
+(4) 渲染所有 Surface:
+
+```tsx
+// App.tsx
+{
+  surfaces.map((surface) => <A2uiSurface key={surface.id} surface={surface} />);
 }
 ```
 
-SignalWatcher 混入了 Preact Signals 响应式系统, 当 DataModel 中的值变化时, 只有绑定了该值的 Lit 组件会重新渲染 (细粒度更新).
+A2uiSurface 内部从 id 为 root、basePath 为 "/" 的组件开始递归渲染 (见阶段 12).
 
 ### 阶段 3: 用户输入
 
-用户在页面中输入查询内容 (例如 "Top 5 Chinese restaurants in New York"), 点击发送.
+用户在搜索框输入查询 (例如 "Top 5 Chinese restaurants in New York"), 提交表单:
 
-Client 将用户输入封装为 A2UIClientEventMessage:
-
-```ts
-const message = { request: "Top 5 Chinese restaurants in New York" };
+```tsx
+// App.tsx
+const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const body = new FormData(e.currentTarget).get("body") as string;
+  sendAndProcess(body); // 字符串 => 自然语言查询
+};
 ```
 
-### 阶段 4: Client 发送请求 (inlineCatalogs)
+sendAndProcess 在发送前会先清空旧 Surface, 再发起请求:
 
-A2UIClient 在发送请求时, 将本地注册的 catalog 内联到消息的 metadata 中:
+```tsx
+// App.tsx
+const sendAndProcess = async (message: A2uiClientMessage | string) => {
+  // 清空上一轮的 Surface
+  Array.from(processor.model.surfacesMap.keys()).forEach((id) => {
+    processor.model.deleteSurface(id);
+  });
+
+  // 流式发送, 每收到一个 chunk 立即交给 processor 处理 (渐进渲染)
+  const response = await client.send(message, (chunkMessages) => {
+    processor.processMessages(chunkMessages);
+  });
+};
+```
+
+### 阶段 4: Client 发送请求
+
+React shell 的 A2UIClient 非常薄, 只做一件事: 把消息 POST 给同源的 /a2a 端点:
 
 ```ts
-// client.ts
-class A2UIClient {
-  async send(message: A2UIClientEventMessage) {
-    // 从 componentRegistry 导出当前所有已注册组件的 Schema
-    const catalog = componentRegistry.getInlineCatalog();
-    // => 返回完整的 Catalog JSON Schema (包含所有组件类型定义、函数签名、主题定义)
+// src/client.ts
+export class A2UIClient {
+  async send(
+    message: A2uiClientMessage | string,
+    onChunk?: (messages: A2uiMessage[]) => void,
+  ): Promise<A2uiMessage[]> {
+    // 字符串 => 自然语言查询; 对象 => action 等 UI 事件 (JSON.stringify)
+    const body =
+      typeof message === "string" ? message : JSON.stringify(message);
 
-    const finalMessage = {
-      ...message,
-      metadata: {
-        a2uiClientCapabilities: {
-          inlineCatalogs: [catalog], // 将整个 catalog 内联发送
-        },
-      },
-    };
-
-    // 发送简单 HTTP POST 到本地 Vite 中间件代理
-    const response = await fetch("/a2a", {
-      body: JSON.stringify(finalMessage),
-      method: "POST",
-    });
-
-    return await response.json();
+    const response = await fetch("/a2a", { method: "POST", body });
+    // ... SSE 流式解析, 见阶段 9
   }
 }
 ```
 
-inlineCatalogs 的意义: Server 端的 LLM 需要知道 Client 支持哪些组件, 才能生成合法的 A2UI JSON. 通过 inlineCatalogs, Client 在每次请求时把本地组件库的完整 Schema 发送给 Server, Server 将其注入 system prompt 的 "Catalog Schema" 部分.
+action 消息的结构 (v0.9 client_to_server):
 
-另一种模式是 pre-shared catalog: Client 只发送 catalogId (URL), Server 预先已知该 catalog 的内容. Restaurant Finder 官方示例使用此模式.
+```json
+{
+  "version": "v0.9",
+  "action": {
+    "name": "book_restaurant",
+    "surfaceId": "default",
+    "sourceComponentId": "template-book-button",
+    "timestamp": "2026-08-11T08:00:00.000Z",
+    "context": {
+      "restaurantName": "Hwa Yuan Szechuan",
+      "address": "40 E Broadway, New York, NY 10002"
+    }
+  }
+}
+```
 
-### 阶段 5: Vite 中间件代理 (HTTP -> A2A)
+catalog 协商有两种模式:
 
-Client 使用简单的 fetch('/a2a') 发送请求, 但 Server 要求 A2A JSON-RPC 协议. Vite 中间件负责协议转换:
+- pre-shared catalog: Client 只通过 supportedCatalogIds 声明支持哪些 catalog (catalogId 字符串), Server 预先已知其内容. Restaurant Finder 示例使用此模式
+- inlineCatalogs: Client 通过 `processor.getClientCapabilities({ includeInlineCatalogs: true })` 导出本地注册组件的完整 JSON Schema, 放入消息 metadata 的 a2uiClientCapabilities 中发送给 Server, Server 注入 system prompt. 适合自定义组件场景
+
+### 阶段 5: Vite 中间件代理 (HTTP -> A2A, SSE 流式)
+
+浏览器直接 fetch('/a2a'), 但 Agent Server 要求 A2A JSON-RPC 协议. React shell 用 Vite 插件做协议转换 (samples/client/react/shell/middleware/a2a.ts):
 
 ```ts
 // middleware/a2a.ts
+const A2UI_MIME_TYPE = "application/a2ui+json";
+
+// 自定义 fetch: 注入 X-A2A-Extensions 头, 声明 Client 支持的 A2UI 版本
+const fetchWithCustomHeader: typeof fetch = async (url, init) => {
+  const headers = new Headers(init?.headers);
+  headers.set("X-A2A-Extensions", "https://a2ui.org/a2a-extension/a2ui/v0.9");
+  return fetch(url, { ...init, headers });
+};
+
 export const plugin = (): Plugin => ({
   name: "a2a-handler",
   configureServer(server: ViteDevServer) {
     server.middlewares.use("/a2a", async (req, res) => {
-      const body = await readBody(req);
+      const body = await readBody(req); // 带 1MB 上限保护
 
-      // 判断请求类型: JSON (UI 事件) 或 纯文本 (用户查询)
+      // 判断请求类型: JSON 对象 (UI 事件) 或 纯文本 (用户查询)
       let sendParams: MessageSendParams;
       if (isJson(body)) {
-        // JSON 请求: 包装为 A2A DataPart, 携带 mimeType
+        // JSON 请求 (action): 包装为 A2A DataPart, 携带 a2ui MIME 类型
         sendParams = {
           message: {
-            messageId: uuidv4(),
+            messageId: crypto.randomUUID(),
             role: "user",
             parts: [
               {
                 kind: "data",
                 data: JSON.parse(body),
-                metadata: { mimeType: "application/a2ui+json" },
+                mimeType: A2UI_MIME_TYPE,
               },
             ],
             kind: "message",
@@ -253,7 +610,7 @@ export const plugin = (): Plugin => ({
         // 纯文本请求: 包装为 A2A TextPart
         sendParams = {
           message: {
-            messageId: uuidv4(),
+            messageId: crypto.randomUUID(),
             role: "user",
             parts: [{ kind: "text", text: body }],
             kind: "message",
@@ -261,49 +618,47 @@ export const plugin = (): Plugin => ({
         };
       }
 
-      // 创建 A2A Client (懒初始化, 读取 Server 的 AgentCard)
+      // 懒初始化 A2A Client (读取 Server 的 AgentCard)
       const client = await A2AClient.fromCardUrl(
-        "http://localhost:8000/.well-known/agent-card.json",
-        { fetchImpl: fetchWithCustomHeader }, // 自定义 fetch, 注入 A2UI 扩展头
+        "http://localhost:10002/.well-known/agent-card.json",
+        { fetchImpl: fetchWithCustomHeader },
       );
 
-      const response = await client.sendMessage(sendParams);
-      res.end(JSON.stringify(response.result.status.message.parts));
+      // 流式转发: A2A stream -> SSE
+      const stream = await client.sendMessageStream(sendParams);
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      for await (const chunk of stream) {
+        if (res.destroyed) break; // 浏览器断开则停止拉取
+        if (chunk.kind === "status-update" && chunk.status.message?.parts) {
+          res.write(`data: ${JSON.stringify(chunk.status.message.parts)}\n\n`);
+        } else if (chunk.kind === "message" && chunk.parts) {
+          res.write(`data: ${JSON.stringify(chunk.parts)}\n\n`);
+        }
+      }
+      res.end();
     });
   },
 });
 ```
 
-关键的自定义 fetch -- 注入 X-A2A-Extensions 请求头:
-
-```ts
-const fetchWithCustomHeader = async (url, init) => {
-  const headers = new Headers(init?.headers);
-  headers.set(
-    "X-A2A-Extensions",
-    "https://a2ui.org/a2a-extension/a2ui/v0.8", // 声明 Client 支持的 A2UI 版本
-  );
-  return fetch(url, { ...init, headers });
-};
-```
-
-X-A2A-Extensions 的作用: A2A 协议的扩展协商机制. Server 读取此头, 与自身支持的版本取交集, 选择最新的 A2UI 版本激活. 如果 Client 和 Server 版本不匹配, A2UI 功能不会被激活, LLM 不会生成 A2UI JSON.
+X-A2A-Extensions 的作用: A2A 协议的扩展协商机制. Server 读取此头, 与自身支持的版本取交集, 选择匹配的 A2UI 版本激活. 如果版本不匹配, A2UI 功能不会被激活, LLM 不会生成 A2UI JSON.
 
 协议转换总结:
 
-- Client 发送: `POST /a2a` 简单 JSON (用户查询或 UI 事件)
-- 中间件转换为: A2A JSON-RPC `message/send` 请求, 包含 TextPart 或 DataPart
-- 附加: `X-A2A-Extensions` 头声明 A2UI 版本
-- Server 返回: A2A Task 对象, 中间件提取 `task.status.message.parts` 返回给 Client
+- Client 发送: `POST /a2a` 简单 JSON (action) 或纯文本 (查询)
+- 中间件转换为: A2A JSON-RPC `message/stream` 请求, 包含 TextPart 或 DataPart (mimeType: application/a2ui+json)
+- 附加: `X-A2A-Extensions` 头声明 A2UI v0.9
+- Server 流式返回: status-update / message 事件, 中间件逐块转写为 SSE `data:` 帧
 
 ### 阶段 6: Server 接收请求, 组装 Prompt
 
-Server 收到 A2A 请求后, 执行以下步骤:
+Server 收到 A2A 请求后:
 
 (1) A2UI 扩展激活
 
 ```js
-// extension.js (伪代码)
+// 伪代码
 function tryActivateA2uiExtension(clientRequested, serverSupported) {
   // 取交集, 选择最新版本
   const activated = intersect(clientRequested, serverSupported);
@@ -312,19 +667,14 @@ function tryActivateA2uiExtension(clientRequested, serverSupported) {
 }
 ```
 
-Server 从请求头 `X-A2A-Extensions` 中读取 Client 请求的版本, 与自身声明的版本取交集. 如果匹配成功, 激活 A2UI 扩展, 后续 LLM 的 system prompt 中会包含 A2UI 的 Schema 和指令.
-
-(2) 读取 Client 能力 (inlineCatalogs)
+(2) 读取 Client 能力
 
 ```js
-// agentExecutor.js (伪代码)
-const metadata = message.metadata;
-const a2uiCapabilities = metadata.a2uiClientCapabilities ?? {};
-const inlineCatalogs = a2uiCapabilities.inlineCatalogs ?? [];
-// inlineCatalogs 包含 Client 端注册的完整组件 Schema
+// 伪代码
+const a2uiCapabilities = message.metadata?.a2uiClientCapabilities ?? {};
+const inlineCatalogs = a2uiCapabilities["v0.9"]?.inlineCatalogs ?? [];
+// 若有 inlineCatalogs, 解析后注入 system prompt 的 Catalog Schema 部分
 ```
-
-如果 Client 发送了 inlineCatalogs, Server 将其解析并注入到 system prompt 的 Catalog Schema 部分, 替代 Server 内置的 catalog.
 
 (3) 组装 System Prompt
 
@@ -337,15 +687,7 @@ You are a helpful assistant. Your final output MUST be a a2ui UI JSON response.
 
 - The response can contain one or more A2UI JSON blocks.
 - Each A2UI JSON block MUST be wrapped in `<a2ui-json>` and `</a2ui-json>` tags.
-- Between or around these blocks, you can provide conversational text.
 - The JSON MUST validate against the provided A2UI JSON SCHEMA.
-- Top-Down Component Ordering:
-  - The 'root' component MUST be the FIRST element.
-  - Parent components MUST appear before their child components.
-
-## UI Description
-
-(模板选择规则: 列表用 SINGLE_COLUMN_LIST, 表单用 BOOKING_FORM 等)
 
 ---BEGIN A2UI JSON SCHEMA---
 
@@ -355,7 +697,7 @@ You are a helpful assistant. Your final output MUST be a a2ui UI JSON response.
 
 ### Common Types Schema:
 
-(ComponentId, DataBinding, ActionEvent 等公共类型定义)
+(ComponentId, ChildList, DynamicString, ActionEvent 等公共类型定义)
 
 ### Catalog Schema:
 
@@ -367,18 +709,11 @@ You are a helpful assistant. Your final output MUST be a a2ui UI JSON response.
 (完整的 A2UI JSON 示例, 包含数据绑定的用法)
 ```
 
-Prompt 的关键组成部分:
-
-- Role: 指示 LLM 必须输出 A2UI JSON
-- Workflow: 指定 `<a2ui-json>` 标签包裹、组件排序规则
-- UI Description: 模板选择指南 (何时用列表、何时用表单)
-- Schema: 完整的 JSON Schema, 确保 LLM 输出可校验
-- Catalog Schema: Client 支持的组件列表 (来自 inlineCatalogs 或 pre-shared)
-- Examples: 包含数据绑定用法的完整示例
+v0.9 是 prompt-first 设计: schema 直接嵌入 prompt 让 LLM 仿写, 不依赖 structured output, 代价是生成后必须做校验和修复.
 
 ### 阶段 7: LLM ReAct 推理循环
 
-ADK Agent 内部执行 ReAct (Reason + Act) 循环, 整个循环封装在单次 `runner.runAsync()` 调用中:
+ADK Agent 内部执行 ReAct (Reason + Act) 循环:
 
 ```
 LLM 第 1 轮:
@@ -400,9 +735,9 @@ LLM 最终输出的文本示例:
 
 <a2ui-json>
 [
-  { "createSurface": { "surfaceId": "main", "dataModel": {} } },
-  { "updateComponents": { "surfaceId": "main", "components": [...] } },
-  { "updateDataModel": { "surfaceId": "main", "updates": [...] } }
+  { "version": "v0.9", "createSurface": { "surfaceId": "default", "catalogId": "..." } },
+  { "version": "v0.9", "updateComponents": { "surfaceId": "default", "components": [...] } },
+  { "version": "v0.9", "updateDataModel": { "surfaceId": "default", "path": "/", "value": {...} } }
 ]
 </a2ui-json>
 ```
@@ -412,20 +747,20 @@ LLM 最终输出的文本示例:
 Server 从 LLM 输出中提取 `<a2ui-json>` 标签内的 JSON, 进行 Schema 校验:
 
 ```js
-// validator.js (伪代码)
+// 伪代码 (对应 agent_sdks/python 的 parser + schema/validator)
 function extractAndValidate(llmOutput) {
   // 1. 正则提取 <a2ui-json>...</a2ui-json> 内容
-  const match = llmOutput.match(/<a2ui-json>([\s\S]*?)<\/a2ui-json>/);
-  const jsonStr = match[1];
+  const jsonStr = llmOutput.match(/<a2ui-json>([\s\S]*?)<\/a2ui-json>/)[1];
 
-  // 2. 解析 JSON
+  // 2. 解析 JSON (流式场景下有 payload_fixer 自动修复常见 LLM 输出问题)
   const messages = JSON.parse(jsonStr);
 
-  // 3. 对照 A2UI JSON Schema 校验
-  //    检查: 消息类型是否合法、组件类型是否在 catalog 中、数据绑定格式是否正确
+  // 3. 对照 A2UI JSON Schema 校验:
+  //    消息类型是否合法、组件类型是否在 catalog 中、
+  //    ComponentId 引用是否存在、数据绑定格式是否正确
   const result = validate(messages, a2uiSchema);
 
-  // 4. 校验失败时, 最多重试 1 次 (将错误信息反馈给 LLM 重新生成)
+  // 4. 校验失败时, 将 VALIDATION_FAILED 错误回喂 LLM 重试
   if (!result.valid && retryCount < 1) {
     return retryWithErrorFeedback(messages, result.errors);
   }
@@ -433,253 +768,654 @@ function extractAndValidate(llmOutput) {
 }
 ```
 
-校验通过后, Server 将 A2UI 消息列表包装为 A2A Task 响应:
+校验通过后, A2UI 消息列表被包装为 A2A 响应的 parts (kind: data), 通过流式 status-update 事件逐步下发.
 
-```js
-// 包装为 A2A Task 响应
-const task = {
-  status: { state: "completed" },
-  artifacts: [
-    {
-      parts: a2uiMessages.map((msg) => ({ kind: "data", data: msg })),
-    },
-  ],
-};
-```
+### 阶段 9: Client 流式解析 SSE, 增量渲染
 
-### 阶段 9: Client 接收响应, 渲染 UI
-
-中间件将 A2A Task 的 parts 提取后返回给 Client:
+A2UIClient.send 内部按 SSE 帧增量解析, 每个 chunk 立即回调 onChunk:
 
 ```ts
-// 中间件返回
-res.end(JSON.stringify(task.status.message.parts));
-// => [{ kind: 'data', data: { createSurface: {...} } }, { kind: 'data', data: { updateComponents: {...} } }, ...]
+// src/client.ts
+const contentType = response.headers.get("Content-Type");
+if (contentType?.includes("text/event-stream")) {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
 
-// Client 提取 data 类型的 payload
-const messages = response
-  .filter((item) => item.kind === "data")
-  .map((item) => item.data);
+  // A2A status-update 事件携带的是累积 parts, createSurface 会在每个 chunk
+  // 中重复下发. 用 Set 记录已转发的 surfaceId, 避免 processMessages 抛
+  // "Surface already exists"
+  const seenSurfaceIds = new Set<string>();
 
-// 交给 MessageProcessor 处理
-this.#processor.processMessages(messages);
-```
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
 
-MessageProcessor 按顺序处理每条消息:
+    // 按 SSE 空行切帧, 最后一段不完整的留在 buffer
+    const lines = buffer.split(/\r?\n\r?\n/);
+    buffer = lines.pop() || "";
 
-消息 1 -- createSurface (挂载页面):
-
-```json
-{
-  "createSurface": {
-    "surfaceId": "main",
-    "dataModel": {}
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const parts = JSON.parse(line.slice(6)) as Part[];
+      const chunkMessages: A2uiMessage[] = [];
+      for (const part of parts) {
+        if (part.kind === "error") throw new Error(part.text);
+        if (part.kind === "data" && part.data) {
+          const msg = part.data as A2uiMessage;
+          if (msg.createSurface) {
+            if (seenSurfaceIds.has(msg.createSurface.surfaceId)) continue;
+            seenSurfaceIds.add(msg.createSurface.surfaceId);
+          }
+          chunkMessages.push(msg);
+        }
+      }
+      onChunk?.(chunkMessages); // => processor.processMessages(chunkMessages)
+    }
   }
 }
 ```
 
-处理: 创建一个新的 SurfaceModel, 绑定空的 DataModel, 挂载到 DOM 中.
+要点:
 
-消息 2 -- updateComponents (更新组件树):
+- 渐进渲染: chunk 到达即处理, createSurface 先到就先挂载占位, 组件和数据随后补齐
+- 累积 parts 去重: A2A 的 status-update 是累积语义, 客户端必须自行对 createSurface 去重
+- 非流式降级: Content-Type 为 application/json 时, 一次性读取 parts 数组
+
+### 阶段 10: MessageProcessor 处理三类消息
+
+以餐厅列表为例, 一个完整响应包含三条消息.
+
+消息 1 -- createSurface (挂载 Surface):
 
 ```json
 {
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "default",
+    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    "theme": { "primaryColor": "#FF0000", "font": "Roboto" }
+  }
+}
+```
+
+处理: 校验 catalogId 在本地 catalogs 中存在, 创建 SurfaceModel (含空 DataModel 和 ComponentsModel), 触发 onSurfaceCreated, React 侧 setSurfaces 追加, A2uiSurface 挂载.
+
+消息 2 -- updateComponents (扁平组件列表, 邻接表):
+
+```json
+{
+  "version": "v0.9",
   "updateComponents": {
-    "surfaceId": "main",
+    "surfaceId": "default",
     "components": [
-      { "id": "root", "componentType": "Column", "params": { "gap": 16 } },
       {
-        "id": "title",
-        "componentType": "Heading",
-        "params": { "text": { "path": "/title" } }
+        "id": "root",
+        "component": "Column",
+        "children": ["title-heading", "item-list"]
       },
       {
-        "id": "list",
-        "componentType": "Column",
-        "params": {
-          "items": { "componentId": "card_template", "path": "/items" }
-        }
+        "id": "title-heading",
+        "component": "Text",
+        "variant": "h1",
+        "text": { "path": "/title" }
       },
       {
-        "id": "card_template",
-        "componentType": "Card",
-        "params": {
-          "title": { "path": "name" },
-          "subtitle": { "path": "address" }
+        "id": "item-list",
+        "component": "List",
+        "direction": "vertical",
+        "children": { "componentId": "item-card-template", "path": "/items" }
+      },
+      {
+        "id": "item-card-template",
+        "component": "Card",
+        "child": "card-layout"
+      },
+      {
+        "id": "card-layout",
+        "component": "Row",
+        "children": ["template-image", "card-details"]
+      },
+      {
+        "id": "template-image",
+        "component": "Image",
+        "url": { "path": "imageUrl" },
+        "weight": 1
+      },
+      {
+        "id": "template-name",
+        "component": "Text",
+        "variant": "h3",
+        "text": { "path": "name" }
+      },
+      {
+        "id": "template-book-button",
+        "component": "Button",
+        "child": "book-now-text",
+        "variant": "primary",
+        "action": {
+          "event": {
+            "name": "book_restaurant",
+            "context": {
+              "restaurantName": { "path": "name" },
+              "imageUrl": { "path": "imageUrl" },
+              "address": { "path": "address" }
+            }
+          }
         }
-      }
+      },
+      { "id": "book-now-text", "component": "Text", "text": "Book Now" }
     ]
   }
 }
 ```
 
-处理: 按顺序将组件添加到 Surface 的组件树中. 注意组件排序规则 -- 父组件必须在子组件之前, 这使得流式解析可以增量渲染.
+v0.9 组件对象的结构要点:
+
+- id + component 为必填字段, 其余属性 (text / children / action / variant...) 直接平铺在组件对象上, 没有 v0.8 的 params 包裹
+- children 两种形态 (ChildList):
+  - 数组: 静态 ComponentId 引用列表, 如 `["a", "b"]`
+  - 对象: 列表模板 `{ componentId, path }`, 监听 path 指向的数组, 为每个元素实例化模板组件
+- child: 单个 ComponentId 引用 (如 Card 的 child、Button 的 child)
+- 组件可以乱序到达、可以引用尚不存在的子组件或数据路径, 客户端渲染占位 (React 中是 `[Loading {id}...]`), 这就是渐进渲染
 
 消息 3 -- updateDataModel (填充数据):
 
 ```json
 {
+  "version": "v0.9",
   "updateDataModel": {
-    "surfaceId": "main",
-    "updates": [
-      {
-        "op": "add",
-        "path": "/title",
-        "value": "Top 5 Chinese Restaurants in New York"
-      },
-      {
-        "op": "add",
-        "path": "/items",
-        "value": [
-          { "name": "Hwa Yuan", "address": "40 E Broadway, New York" },
-          { "name": "Nom Wah Tea Parlor", "address": "13 Doyers St, New York" }
-        ]
-      }
-    ]
+    "surfaceId": "default",
+    "path": "/",
+    "value": {
+      "title": "Top 5 Chinese Restaurants in New York",
+      "items": [
+        {
+          "name": "Xi'an Famous Foods",
+          "rating": "★★★★☆",
+          "imageUrl": "https://...",
+          "address": "81 St Marks Pl..."
+        },
+        {
+          "name": "Han Dynasty",
+          "rating": "★★★★☆",
+          "imageUrl": "https://...",
+          "address": "90 3rd Ave..."
+        }
+      ]
+    }
   }
 }
 ```
 
-处理: 使用 JSON Pointer (RFC 6901) 路径, 将数据写入 DataModel. DataModel 内部使用 Preact Signals 响应式系统, 数据变化会自动触发绑定了该路径的组件重新渲染.
+处理: 按 JSON Pointer (RFC 6901) 路径做 upsert 写入 DataModel: 路径存在则更新, 不存在则创建, 省略 value 则删除该键. DataModel 变化自动触发绑定了该路径的组件更新.
 
-### 阶段 10: 数据绑定机制
+### 阶段 11: 数据绑定与双向绑定
 
-数据绑定是 A2UI 的核心设计, 它将组件的 params 与 DataModel 中的数据关联起来. 有三种绑定方式:
+数据绑定是 A2UI 的核心设计, 将组件属性与 DataModel 中的数据关联. v0.9 中任何 Dynamic* 属性都接受三种取值: 字面量、`{ path }` 绑定、`{ call, args }` 函数调用.
 
 (1) 绝对路径绑定 -- 以 "/" 开头, 从 DataModel 根节点解析
 
 ```json
-{
-  "id": "title",
-  "componentType": "Heading",
-  "params": { "text": { "path": "/title" } }
-}
+{ "id": "title-heading", "component": "Text", "text": { "path": "/title" } }
 ```
 
-`{ "path": "/title" }` 表示: 从 DataModel 根节点读取 `/title` 路径的值. 当 updateDataModel 写入 `{ "op": "add", "path": "/title", "value": "Top 5..." }` 后, 该 Heading 的 text 属性自动更新为 "Top 5...".
+(2) 相对路径绑定 -- 不以 "/" 开头, 在列表模板作用域内解析
 
-(2) 相对路径绑定 -- 不以 "/" 开头, 从当前 DataContext 路径解析
+```json
+{ "id": "template-name", "component": "Text", "text": { "path": "name" } }
+```
+
+当 template-name 位于 item-list 的模板中时, 每个列表项有独立的作用域 (例如第 0 项的 DataContext.path 是 `/items/0`), 相对路径 `name` 解析为 `/items/0/name`. 模板内部仍可用绝对路径访问根作用域.
+
+(3) 列表模板绑定 -- ChildList 对象形态
 
 ```json
 {
-  "id": "card_template",
-  "componentType": "Card",
-  "params": { "title": { "path": "name" } }
+  "id": "item-list",
+  "component": "List",
+  "children": { "componentId": "item-card-template", "path": "/items" }
 }
 ```
-
-`{ "path": "name" }` 是相对路径. 当 card_template 被用于列表渲染时, DataContext 会指向当前列表项 (例如 `/items/0`), 此时 `"name"` 解析为 `/items/0/name`.
-
-(3) 列表模板绑定 -- 使用 `{ componentId, path }` 结构
-
-```json
-{
-  "id": "list",
-  "componentType": "Column",
-  "params": {
-    "items": { "componentId": "card_template", "path": "/items" }
-  }
-}
-```
-
-含义: 监听 DataModel 中 `/items` 路径的数组, 为数组中每个元素创建一个 card_template 实例. 每个实例的 DataContext 指向对应的数组元素.
 
 内部处理流程:
 
 ```
 DataModel 中 /items = [{ name: "A" }, { name: "B" }]
   => GenericBinder 订阅 /items 路径
-  => 数组变化时, 为每个元素生成 { id: "card_template_0", basePath: "/items/0" }
-  => card_template_0 的 DataContext.path = "/items/0"
-  => card_template_0 中 "name" 相对路径解析为 "/items/0/name"
-  => 渲染 Card, title = "A"
+  => 数组变化时, 为每个元素实例化模板, basePath 分别为 "/items/0"、"/items/1"
+  => 模板内 "name" 相对路径解析为 "/items/0/name"
+  => 渲染 Card, 文本为 "A"
 ```
+
+(4) 双向绑定 -- 输入组件直接写本地 DataModel
+
+预订表单 (booking-form Surface) 中的输入组件:
+
+```json
+{ "id": "party-size-field", "component": "TextField", "label": "Party Size", "value": { "path": "/partySize" }, "variant": "number" },
+{ "id": "datetime-field", "component": "DateTimeInput", "label": "Date & Time", "value": { "path": "/reservationTime" }, "enableDate": true, "enableTime": true },
+{ "id": "dietary-field", "component": "TextField", "label": "Dietary Requirements", "value": { "path": "/dietary" } }
+```
+
+读写契约:
+
+- Read (Model -> View): 渲染时从绑定路径读值; 服务端 updateDataModel 更新后组件自动重渲染
+- Write (View -> Model): 用户输入时立即写回本地 DataModel 对应路径, 不发网络请求
+- 反应式: 本地 DataModel 是唯一数据源, 绑定同一路径的其他组件实时联动
 
 GenericBinder 的 Schema 驱动机制:
 
-GenericBinder 在绑定属性时, 会读取组件注册时提供的 JSON Schema, 通过 Zod 内省将属性分类:
+GenericBinder 绑定属性时读取组件的 Zod schema, 将属性分类处理:
 
-- DYNAMIC: 需要数据绑定的属性 (如 text, title) -> 创建 subscribeDynamicValue 订阅
-- ACTION: 事件处理属性 (如 onClick) -> 创建闭包, 触发时发送 UI 事件
-- STRUCTURAL: 结构属性 (如 items) -> 创建子列表, 订阅数组路径
-- CHECKABLE: 可勾选属性 -> 创建双向绑定 (组件修改 -> 写回 DataModel)
-- STATIC: 静态属性 -> 直接赋值
+- DYNAMIC: 需要数据绑定的属性 (text / url / value) -> 创建订阅, 值变化时更新 snapshot
+- ACTION: 事件属性 (action) -> 创建闭包, 触发时解析 context 中的绑定并派发事件
+- STRUCTURAL: 结构属性 (children / child) -> 构建子组件列表, 订阅数组路径
+- CHECKABLE: 可校验属性 (checks) -> 执行 catalog 注册的校验函数 (required / regex / email...)
+- STATIC: 静态属性 (variant / label) -> 直接赋值
 
-### 阶段 11: 用户交互 (Action 事件)
+### 阶段 12: React 渲染器内部机制
 
-用户点击 "Book" 按钮, 触发以下链路:
+@a2ui/react/v0_9 把 web_core 的模型层桥接到 React, 核心是 A2uiSurface / DeferredChild / ResolvedChild 三层组件 (renderers/react/src/v0_9/A2uiSurface.tsx):
 
-(1) Lit 组件触发 a2ui action 事件
-
-```ts
-// mcp-app.ts
-#handleAction(evt: StateEvent<'a2ui.action'>) {
-  // 从事件中提取 action 信息
-  const context = {};
-  for (const item of evt.detail.action.context) {
-    context[item.key] = item.value.literalString ?? item.value.literalNumber;
-  }
-  // context 示例: { restaurantName: "Hwa Yuan", address: "40 E Broadway" }
-
-  // 封装为 A2UIClientEventMessage
-  const message = {
-    userAction: {
-      surfaceId: evt.detail.sourceComponentId,
-      name: evt.detail.action.name,        // 例如 "bookRestaurant"
-      sourceComponentId: target.id,        // 触发事件的组件 ID
-      timestamp: new Date().toISOString(),
-      context,                              // 事件上下文数据 (从数据绑定中解析)
-    },
-  };
-
-  // 发送给 Server
-  await this.#sendAndProcessMessage(message);
-}
-```
-
-(2) 中间件将 userAction 包装为 A2A DataPart
-
-```ts
-// middleware/a2a.ts
-// 检测到 body 是 JSON, 包装为 DataPart
-sendParams = {
-  message: {
-    parts: [
-      {
-        kind: "data",
-        data: clientEvent, // { userAction: { name: "bookRestaurant", context: {...} } }
-        metadata: { mimeType: "application/a2ui+json" },
-      },
-    ],
-  },
+```tsx
+// A2uiSurface: 入口, 从 root 组件开始渲染
+export const A2uiSurface = ({ surface }) => {
+  return <DeferredChild surface={surface} id="root" basePath="/" />;
 };
 ```
 
-(3) Server 将 UI 事件翻译为自然语言
+(1) DeferredChild -- 订阅单个组件的存在性
 
-Server 收到 userAction 后, 将其翻译为 LLM 可理解的自然语言描述, 注入到下一轮对话中:
+```tsx
+// 每个 DeferredChild 只订阅 "自己这个 id 的组件" 的创建/删除事件
+const store = useMemo(
+  () => ({
+    subscribe: (cb) => {
+      const unsub1 = surface.componentsModel.onCreated.subscribe((comp) => {
+        if (comp.id === id) cb();
+      });
+      const unsub2 = surface.componentsModel.onDeleted.subscribe((delId) => {
+        if (delId === id) cb();
+      });
+      return () => {
+        unsub1.unsubscribe();
+        unsub2.unsubscribe();
+      };
+    },
+    // snapshot = 组件类型 + 版本号, 保证类型替换 (Button -> Text) 也能触发重渲染
+    getSnapshot: () => {
+      const comp = surface.componentsModel.get(id);
+      return comp ? `${comp.type}-${version}` : `missing-${version}`;
+    },
+  }),
+  [surface, id],
+);
+
+useSyncExternalStore(store.subscribe, store.getSnapshot);
+
+const componentModel = surface.componentsModel.get(id);
+if (!componentModel) return <div>[Loading {id}...]</div>; // 渐进渲染占位
+
+// 按组件类型从 catalog 查找 React 实现
+const compImpl = surface.catalog.components.get(componentModel.type);
+if (!compImpl) return <div>Unknown component: {componentModel.type}</div>;
+```
+
+要点: 通过 useSyncExternalStore 把 web_core 的事件系统接入 React 18 的外部存储模型; 每个节点只订阅自己的 id, 更新范围被限制在单个组件粒度, 避免整棵树重渲染.
+
+(2) ResolvedChild -- 创建 ComponentContext 并递归构建子节点
+
+```tsx
+const ResolvedChild = memo(
+  ({ surface, id, basePath, componentModel, compImpl }) => {
+    // ComponentContext = surface + componentId + basePath(数据作用域)
+    const context = useMemo(
+      () => new ComponentContext(surface, id, basePath),
+      [surface, id, basePath, componentModel],
+    );
+
+    // buildChild 供具体组件渲染子节点; 列表模板在这里传入每项的 specificPath
+    const buildChild = useCallback(
+      (childId: string, specificPath?: string) => (
+        <DeferredChild
+          key={`${childId}-${specificPath || context.dataContext.path}`}
+          surface={surface}
+          id={childId}
+          basePath={specificPath || context.dataContext.path}
+        />
+      ),
+      [surface, context.dataContext.path],
+    );
+
+    const ComponentToRender = compImpl.render;
+    return <ComponentToRender context={context} buildChild={buildChild} />;
+  },
+);
+```
+
+(3) createComponentImplementation -- GenericBinder 接入 useSyncExternalStore
+
+basic catalog 中的每个组件 (Text / Button / TextField...) 都通过此工厂包装 (renderers/react/src/v0_9/adapter.tsx):
+
+```tsx
+const ReactWrapper = ({ context, buildChild }) => {
+  const bindingRef = useRef<GenericBinder | null>(null);
+  if (!bindingRef.current) {
+    // 按组件的 Zod schema 创建绑定器
+    bindingRef.current = new GenericBinder(context, api.schema);
+  }
+  const binding = bindingRef.current;
+
+  // binder 内部订阅 DataModel, 任何绑定值变化都会 bump snapshot
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      const sub = binding.subscribe(callback);
+      return () => sub.unsubscribe();
+    },
+    [binding],
+  );
+  const getSnapshot = useCallback(() => binding.snapshot, [binding]);
+  // snapshot 是已解析好的 props: 字面量/绑定值/函数结果/action 闭包
+  const props = useSyncExternalStore(subscribe, getSnapshot);
+
+  useEffect(() => () => binding.dispose(), [binding]); // 卸载时释放 DataModel 订阅
+
+  return (
+    <MemoizedRender props={props} buildChild={buildChild} context={context} />
+  );
+};
+```
+
+整体数据流:
 
 ```
-USER_WANTS_TO_BOOK: The user clicked "Book" on restaurant "Hwa Yuan"
-at address "40 E Broadway, New York". They want to make a reservation.
+A2UI 消息流
+  -> MessageProcessor.processMessages
+  -> SurfaceModel (DataModel + ComponentsModel, 信号/事件驱动)
+  -> DeferredChild: useSyncExternalStore 订阅组件增删
+  -> GenericBinder: 按 schema 解析属性, 订阅 DataModel 路径
+  -> useSyncExternalStore 拿到解析后的 props snapshot
+  -> 具体 React 组件 (memo) 渲染
 ```
 
-(4) LLM 根据事件生成新的 A2UI JSON
+细粒度更新的本质: React 只负责组件实例的挂载/卸载决策, 属性级别的响应式更新由 web_core 的订阅机制 + useSyncExternalStore 完成, 不依赖 React 的自顶向下 diff.
 
-LLM 理解用户意图后, 生成预订表单的 A2UI JSON (例如 bookingForm 模板), 通过相同的 createSurface / updateComponents / updateDataModel 消息返回给 Client 渲染.
+### 阶段 13: 用户交互 (Action 事件)
 
-### 阶段 12: Session 管理
+用户点击 "Book Now" 按钮, 触发完整链路:
+
+(1) Button 组件的 action 闭包被触发, GenericBinder 先解析 context 中的数据绑定 (相对路径在当前列表项作用域内解析), 得到:
+
+```json
+{
+  "name": "book_restaurant",
+  "context": {
+    "restaurantName": "Hwa Yuan Szechuan",
+    "imageUrl": "https://...",
+    "address": "40 E Broadway, New York, NY 10002"
+  }
+}
+```
+
+(2) 事件冒泡到 SurfaceGroupModel.onAction, 进入 App.tsx 的全局 actionHandler, 封装为 v0.9 action 消息并发送:
+
+```tsx
+// App.tsx
+const processor = new MessageProcessor([basicCatalog], (action) => {
+  sendAndProcessRef.current?.({ version: "v0.9", action });
+});
+```
+
+(3) 中间件检测到 body 是 JSON 对象, 包装为 A2A DataPart (mimeType: application/a2ui+json) 转发给 Server.
+
+(4) Server 将 UI 事件翻译为 LLM 可理解的自然语言, 注入下一轮对话:
+
+```
+USER_WANTS_TO_BOOK: The user clicked "Book" on restaurant "Hwa Yuan Szechuan"
+at address "40 E Broadway, New York, NY 10002". They want to make a reservation.
+```
+
+(5) LLM 生成预订表单的 A2UI JSON (新的 booking-form Surface, 含 TextField / DateTimeInput / 提交按钮), 走相同的消息流返回渲染.
+
+(6) 用户填写表单 (双向绑定只更新本地 DataModel), 点击 Submit Reservation, 提交按钮的 context 直接引用表单数据路径:
+
+```json
+{
+  "id": "submit-button",
+  "component": "Button",
+  "action": {
+    "event": {
+      "name": "submit_booking",
+      "context": {
+        "restaurantName": { "path": "/restaurantName" },
+        "partySize": { "path": "/partySize" },
+        "reservationTime": { "path": "/reservationTime" },
+        "dietary": { "path": "/dietary" }
+      }
+    }
+  }
+}
+```
+
+点击时客户端解析这些路径 (拿到用户刚输入的值), 随 action 发回 Server, LLM 再生成确认卡片 (confirmation Surface). 这就是 列表 -> 表单 -> 确认 的三轮闭环.
+
+### 阶段 14: Session 管理
 
 多轮对话通过 A2A 协议的 contextId 管理:
 
 ```ts
-// 中间件维护 contextId
 sendParams = {
-  message: { messageId: uuidv4(), role: 'user', parts: [...] },
+  message: { messageId: crypto.randomUUID(), role: "user", parts: [...] },
   configuration: {
-    contextId: sessionId,   // 同一 contextId 下的消息共享对话历史
+    contextId: sessionId, // 同一 contextId 下的消息共享对话历史
   },
 };
 ```
 
 Server 端的 ADK Session 通过 contextId 关联, 确保 LLM 在后续轮次中能看到之前的对话上下文 (包括之前生成的 A2UI 消息和工具调用结果).
+
+## Lit 实现对比
+
+Lit shell (samples/client/lit/shell) 与 React shell 跑同一个协议, 差异集中在三处:
+
+| 维度         | React shell                                            | Lit shell                                                                    |
+| :----------- | :----------------------------------------------------- | :--------------------------------------------------------------------------- |
+| 传输层       | 浏览器 fetch /a2a, Vite 中间件做协议转换 + SSE 流式    | 浏览器内直接用 @a2a-js/sdk 的 A2AClient 连 Server, 非流式 sendMessage        |
+| 响应式       | useSyncExternalStore 订阅 web_core 事件/快照           | SignalWatcher(LitElement) 混入 @lit-labs/signals, 信号驱动细粒度更新         |
+| Surface 渲染 | A2uiSurface + DeferredChild 递归, React state 同步增删 | `<a2ui-surface .surface=${surface}>` 自定义元素, repeat 指令遍历 surfacesMap |
+
+Lit 侧关键代码:
+
+```ts
+// app.ts
+import * as v0_9 from "@a2ui/web_core/v0_9";
+import { basicCatalog } from "@a2ui/lit/v0_9";
+
+@customElement("a2ui-shell")
+export class A2UILayoutEditor extends SignalWatcher(LitElement) {
+  private _processor = new v0_9.MessageProcessor(
+    [basicCatalog],
+    async (action: v0_9.A2uiClientAction) => {
+      // action -> userAction 消息 -> sendAndProcessMessage
+      await this.#sendAndProcessMessage({
+        userAction: {
+          name: action.name,
+          surfaceId: action.surfaceId,
+          sourceComponentId: action.sourceComponentId,
+          timestamp: new Date().toISOString(),
+          context: { ...action.context },
+        },
+      });
+    },
+  );
+
+  #maybeRenderData() {
+    const surfaces = Array.from(this._processor.model.surfacesMap.entries());
+    return html`<section id="surfaces">
+      ${repeat(
+        surfaces,
+        ([id]) => id,
+        ([, surface]) =>
+          html`<a2ui-surface .surface=${surface}></a2ui-surface>`,
+      )}
+    </section>`;
+  }
+}
+```
+
+```ts
+// client.ts -- 浏览器直连 A2A Server
+this.#client = await A2AClient.fromCardUrl(
+  `${baseUrl}/.well-known/agent-card.json`,
+  {
+    fetchImpl: async (url, init) => {
+      const headers = new Headers(init?.headers);
+      headers.set(
+        "X-A2A-Extensions",
+        "https://a2ui.org/a2a-extension/a2ui/v0.9",
+      );
+      return fetch(url, { ...init, headers });
+    },
+  },
+);
+```
+
+结论: MessageProcessor / SurfaceModel / GenericBinder 全部来自框架无关的 @a2ui/web_core, React 和 Lit 只是两种适配层. 业务接入时选择与自身技术栈一致的渲染器即可, 协议层代码完全复用.
+
+## 真实前端业务接入示例
+
+以一个真实场景为例: 电商 App 的智能客服对话流中, Agent 需要动态下发 "退款申请表单" 和 "订单卡片", 前端是 React 18 + Vite 技术栈.
+
+### 接入清单 (5 步)
+
+第 1 步: 安装依赖
+
+```bash
+yarn add @a2ui/react @a2ui/web_core @a2ui/markdown-it
+```
+
+第 2 步: 创建全局 MessageProcessor (单例, 挂在对话页顶层)
+
+```tsx
+// a2ui/processor.ts
+import { basicCatalog } from "@a2ui/react/v0_9";
+import { MessageProcessor } from "@a2ui/web_core/v0_9";
+import { refundCatalog } from "./refund-catalog"; // 业务自定义 catalog (可选)
+
+export const processor = new MessageProcessor(
+  [basicCatalog, refundCatalog],
+  (action) => {
+    // 统一出口: 把 A2UI action 翻译成业务请求
+    if (action.name === "submit_refund") {
+      api.submitRefund(action.context).then(showSuccessToast);
+      return;
+    }
+    // 其余 action 回传给 Agent 继续对话
+    chatStore.sendToAgent({ version: "v0.9", action });
+  },
+);
+```
+
+第 3 步: 在消息流中渲染 Surface
+
+```tsx
+// ChatMessage.tsx -- 对话气泡内嵌 A2UI 区域
+function useSurfaces() {
+  const [surfaces, setSurfaces] = useState<SurfaceModel[]>([]);
+  useEffect(() => {
+    const sub1 = processor.onSurfaceCreated((s) =>
+      setSurfaces((p) => [...p, s]),
+    );
+    const sub2 = processor.onSurfaceDeleted((id) =>
+      setSurfaces((p) => p.filter((s) => s.id !== id)),
+    );
+    return () => {
+      sub1.unsubscribe();
+      sub2.unsubscribe();
+    };
+  }, []);
+  return surfaces;
+}
+
+// 渲染
+{
+  surfaces.map((surface) => <A2uiSurface key={surface.id} surface={surface} />);
+}
+```
+
+第 4 步: 打通传输层. 生产环境通常已有 SSE/WebSocket 网关, 只需保证:
+
+- Agent 下发的每条 A2UI 消息 (JSON 对象) 按序、完整地交给 `processor.processMessages`
+- 用户 action 通过 `{version: "v0.9", action}` 结构发回 Agent
+- 若走 A2A 传输, 参考 react shell 的 middleware: 注入 X-A2A-Extensions 头, 处理累积 parts 的 createSurface 去重
+
+第 5 步: 与 Agent 约定 catalog. 两种方式任选:
+
+- pre-shared: 双方约定 catalogId, Agent 的 system prompt 内置该 catalog schema
+- inline: 请求时携带 `processor.getClientCapabilities({includeInlineCatalogs: true})`, Agent 动态注入
+
+### 自定义组件注册
+
+业务往往需要超出 basic catalog 的组件 (例如订单卡片). 用 createComponentImplementation 把现有 React 组件包装为 A2UI 组件:
+
+```tsx
+// a2ui/components/OrderCard.tsx
+import { createComponentImplementation } from "@a2ui/react/v0_9";
+import { z } from "zod";
+
+// schema 即该组件对 Agent 暴露的属性契约 (Zod 定义, 自动转 JSON Schema)
+const orderCardApi = {
+  name: "OrderCard",
+  schema: z.object({
+    orderId: z.string(), // 静态属性
+    amount: z.custom<{ path?: string }>(), // 动态属性: 支持 {path} 绑定
+    status: z.enum(["paid", "shipped", "refunding"]),
+  }),
+};
+
+export const OrderCardImpl = createComponentImplementation(
+  orderCardApi,
+  ({ props }) => {
+    // props 已被 GenericBinder 解析: 绑定路径替换为 DataModel 中的实际值
+    return (
+      <div className="order-card">
+        <span>订单号: {props.orderId}</span>
+        <span>金额: {props.amount}</span>
+        <StatusTag status={props.status} />
+      </div>
+    );
+  },
+);
+```
+
+注册进自定义 catalog 后, Agent 即可在 JSON 中引用:
+
+```json
+{
+  "id": "order-1",
+  "component": "OrderCard",
+  "orderId": "2026081100001",
+  "amount": { "path": "/order/amount" },
+  "status": "refunding"
+}
+```
+
+安全边界提醒:
+
+- Agent 只能渲染已注册组件, 永远不执行 Agent 下发的代码; 自定义组件内部如需加载第三方内容 (如 iframe), 由组件自己实施沙箱策略 (smart wrapper 模式)
+- 对 Agent 下发的 url / html 类属性, 在自定义组件内做白名单校验
+- 校验类逻辑用 catalog 函数 (checks) 声明, 在客户端本地执行, 不依赖 Agent 自觉
+
+## v0.8 与 v0.9 字段差异对照
+
+阅读旧资料时注意以下差异 (本文全部采用 v0.9 形态):
+
+| 维度            | v0.8                         | v0.9                                             |
+| :-------------- | :--------------------------- | :----------------------------------------------- |
+| 组件类型字段    | componentType                | component                                        |
+| 组件属性        | 包裹在 params 对象内         | 直接平铺在组件对象上                             |
+| createSurface   | 可携带 dataModel 初始值      | 必须携带 catalogId, 数据由 updateDataModel 下发  |
+| updateDataModel | updates 数组 (op/path/value) | 单条 path + value, upsert 语义                   |
+| 设计取向        | 面向 structured output       | prompt-first, schema 嵌入 prompt, 生成后校验修复 |

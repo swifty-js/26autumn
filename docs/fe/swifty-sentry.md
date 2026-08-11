@@ -1643,3 +1643,364 @@ globalThis.addEventListener("beforeunload", () => {
 
 - SDK 自身健康度: 上报 SDK 自身的错误率、丢弃率、队列积压等指标
 - Debug 面板: 提供可视化调试工具, 实时查看事件流、队列状态、上报结果
+
+---
+
+## Q26: 上报数据模型( IReportData) 的完整结构是怎样的? 一条错误日志最终携带哪些信息?
+
+答:
+
+一条事件从采集到上报经历两次数据组装: `getBaseData()`( 采集时) 和 `payloadToReportData()`( 入队时) .
+
+采集时的基础数据( utils/get-base-data.ts) :
+
+```typescript
+function getBaseData(): IReportPayload {
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : getDeviceId(),
+    deviceId: getDeviceId(), // localStorage 持久化的设备 ID
+    sessionId: getSessionId(), // sessionStorage 的会话 ID
+    message: "",
+    timestamp: Date.now(),
+    time: new Date().toISOString(),
+    name: "",
+    status: Status.OK,
+    type: EventType.Custom,
+  };
+}
+```
+
+入队时的外层包装( reporter/report-data.ts) :
+
+```typescript
+export function payloadToReportData(id, payload): IReportData {
+  const { type, name, time, timestamp, message, status } = payload;
+  return {
+    type,
+    name,
+    time,
+    timestamp,
+    message,
+    status,
+    id,
+    url: location.href, // 事件发生时的页面 URL
+    userId: sentry.options.userId,
+    projectId: sentry.options.projectId,
+    sdkVersion: SDK_VERSION,
+    deviceInfo: sentry.deviceInfo, // UA 解析 + Canvas 指纹 + 屏幕分辨率
+    payload, // 原始采集数据整体挂在 payload 字段
+  };
+}
+```
+
+最终一条 JSError 上报数据的完整结构:
+
+```
+IReportData
+├── type: "Error"
+├── name: 出错脚本的 filename
+├── message: 错误消息
+├── status: "Error"
+├── id / timestamp / time: 事件唯一 ID 与时间
+├── url: location.href
+├── userId / projectId / sdkVersion: 归属信息
+├── deviceInfo: { browserName, browserVersion, osName, osVersion,
+│                 userAgent, deviceModel, deviceType, fingerprint,
+│                 language, screenResolution }
+└── payload:
+    ├── deviceId / sessionId: 设备与会话标识
+    ├── line / column: 出错行列号( 配合 sourcemap 反解)
+    └── extra: Error.stack 堆栈字符串( 运行时错误)
+```
+
+设计要点:
+
+1. 双层结构: 外层是统一的检索维度( type/url/userId/deviceInfo) , 内层 payload 保留事件原始细节, 后端可以按外层字段建索引, 按 payload 还原现场
+2. React/Vue 框架错误额外携带 `extra: { error, stack, context }`, context 为 React ErrorInfo( componentStack) 或 Vue 的 instance + info
+3. 批量错误额外携带 `batchError: true`、`batchErrorLength`、`batchErrorLastHappenTime`
+4. 录屏事件携带 `event`( gzip + base64 的 rrweb 事件流) 和 `eventCount`
+
+---
+
+## Q27: Source Map 堆栈反解是如何实现的? 为什么生产环境用 hidden sourcemap?
+
+答:
+
+反解能力实现在 `source-map/` 目录, 是 Node-only 模块, 不会打入浏览器 SDK. 分为三层:
+
+1. 核心反解( source-map/source-map.ts) :
+
+```typescript
+// 1) 解析堆栈字符串, 兼容 Chrome 和 Firefox 两种帧格式
+const CHROME_FRAME = /^\s*at (?:(.+?)\s+)?\(?(\S+?):(\d+):(\d+)\)?\s*$/;
+const FIREFOX_FRAME = /^\s*(?:(.*?)@)?(\S+?):(\d+):(\d+)\s*$/;
+export function parseStack(stack: string): RawFrame[]; // 最多 30 帧
+
+// 2) 单帧反解: 加载 map 文件 -> SourceMapConsumer 查原始位置
+export async function resolveFrame(loadMap: MapLoader, frame: RawFrame) {
+  const map = await loadMap(frame.url);
+  return SourceMapConsumer.with(JSON.stringify(map), null, (consumer) => {
+    // 浏览器行列号是 1-based, sourcemap 列号是 0-based, 需要 column - 1
+    const pos = consumer.originalPositionFor({
+      line: frame.line,
+      column: Math.max(0, frame.column - 1),
+    });
+    // 附带源码片段: 出错行上下各 3 行( SNIPPET_CONTEXT = 3)
+    const content = consumer.sourceContentFor(pos.source, true);
+    ...
+  });
+}
+
+// 3) 整包增强: 对上报批次逐条识别错误类型并附加 sourcemap.frames
+export async function enrichReportData(loadMap, records) {
+  // type === "Error" 且有 line/column: 反解单帧
+  // extra 是堆栈字符串: 反解整条堆栈
+  // type === "React"/"Vue" 且有 stack: 反解整条堆栈
+}
+```
+
+2. Map 文件加载策略( MapLoader 抽象) :
+
+- Vite 开发环境( source-map/vite.ts) : 从 dev server 的内存模块图取 map, `server.moduleGraph.getModuleByUrl(url)` -> `mod.transformResult.map`, 不落盘
+- 生产环境: 由后端服务持有构建产物中的 `.map` 文件做反解
+
+3. 构建侧配合( client demo 的 vite.config.ts) :
+
+```typescript
+export default defineConfig({
+  build: {
+    // hidden: 生成 sourcemap, 但产物中不追加 sourceMappingURL 注释
+    sourcemap: "hidden",
+  },
+  plugins: [moveSourcemaps()], // closeBundle 时把所有 .map 移动到 dist/.sourcemaps
+});
+```
+
+为什么用 `sourcemap: "hidden"` + 移走 .map 文件:
+
+1. 安全: 生产 bundle 不带 `sourceMappingURL` 注释, 浏览器 DevTools 和外部用户拿不到源码; .map 文件单独收集, 只上传到内部监控平台
+2. 可反解: 监控平台按「出错脚本 URL + 构建版本」匹配对应 .map, 服务端还原原始行列号和源码片段
+3. 体积: .map 通常与产物同量级, 剥离后不影响用户下载体积
+
+反解结果( ResolvedFrame) 包含: `source`( 原始文件) 、`originalLine/originalColumn`、`name`( 原始函数名) 、`snippet`( 出错行上下 3 行源码, highlight 标记出错行) .
+
+---
+
+## Q28: Vite dev-server mock 插件( @swifty.js/sentry/vite) 是做什么的?
+
+答:
+
+`sentry/src/vite.ts` 导出 `sentryPlugin`( vite) 和 `sentryPlugin7`( vite 7, 通过 `vite7@npm:vite@7.3.3` 别名同时兼容两个大版本) , 是开发环境的「mock 上报服务端」, 解决本地开发没有日志服务的问题.
+
+工作流程:
+
+```typescript
+export function sentryPlugin({ dsn }: ISentryPluginOptions): Plugin {
+  // 1. 创建 logs/sentry_<timestamp>.jsonl 写流
+  const { fileStream, logFile } = ensureLogStream();
+  return {
+    name: "vite-plugin-sentry",
+    // 2. 注册 connect 中间件, 拦截 POST <dsn> 的请求
+    configureServer: configureServer(
+      dsn || sentry.options.dsn || "/sentry",
+      fileStream,
+    ),
+    closeBundle() {
+      fileStream?.close();
+    },
+  };
+}
+```
+
+中间件逻辑:
+
+1. 匹配 `req.url === dsn && req.method === "POST"`, 其余请求 `next()` 放行
+2. 收集请求体并 JSON.parse
+3. 调用 `enrichReportData(server, parsedBody)` 用 dev server 内存中的 sourcemap 反解错误堆栈( 见 Q27)
+4. 反解后的数据以 JSONL 格式追加写入 `logs/sentry_<timestamp>.jsonl`
+5. 反解失败则原样落盘, 始终返回 `{ code: 0, message: "success" }`
+
+设计价值:
+
+1. 本地闭环: 开发阶段无需部署日志后端, SDK 的 dsn 直接指向 dev server 路径即可完整跑通上报链路
+2. 开发期即可看到反解后的源码位置: dev 环境模块未压缩但经过 esbuild/插件转换, 堆栈同样需要 map 反解
+3. JSONL 格式: 一行一条批次记录, 方便 tail 观察与脚本分析( 仓库 logs/ 目录即此类产物)
+4. 同构扩展: 同一套 `source-map/` 核心也供 webpack 侧( `source-map/webpack.ts`) 使用, 只是 MapLoader 来源不同
+
+---
+
+## Q29: 曝光( Exposure) 插件的实现原理是什么?
+
+答:
+
+ExposurePlugin( plugins/exposure/index.ts) 基于 IntersectionObserver 统计元素曝光时长, 用于广告/推荐场景的曝光归因.
+
+核心数据结构:
+
+```typescript
+class ExposurePlugin extends SentryPlugin {
+  // 按 threshold 复用 observer: 相同阈值的元素共享一个 IntersectionObserver
+  private ioMap = new Map<number, IntersectionObserver>();
+  // 元素 -> 曝光状态
+  private targetMap = new Map<Element, ExposureState>();
+}
+
+interface ExposureState {
+  readonly threshold: number; // 可见面积比例阈值, 默认 0.5
+  readonly observeTime: number; // 开始观察时间
+  showTime?: number; // 进入视口时间( 不在视口内时为 undefined)
+  readonly params: Record<string, unknown>; // 业务自定义参数
+}
+```
+
+曝光时长计算:
+
+```typescript
+new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      const targetObj = this.targetMap.get(entry.target);
+      if (entry.isIntersecting) {
+        targetObj.showTime = Date.now(); // 进入视口: 打点
+      } else {
+        if (!targetObj.showTime) return;
+        const showEndTime = Date.now(); // 离开视口: 结算
+        this.sendEvent(targetObj, showEndTime); // duration = showEndTime - showTime
+        delete targetObj.showTime;
+      }
+    });
+  },
+  { threshold },
+);
+```
+
+使用方式( 命令式 API) :
+
+```typescript
+const exposure = enablePlugin(new ExposurePlugin());
+exposure.observe({ target: bannerEl, threshold: 0.5, params: { slot: "top" } });
+// 组件卸载时
+exposure.unobserve(bannerEl);
+```
+
+上报数据( EventType.Exposure) 的 extra 字段: `threshold`、`observeTime`、`showTime`、`showEndTime`、`duration`、`params`.
+
+设计要点:
+
+1. Observer 复用: 不按元素建 observer, 而是按 threshold 分桶共享, 大量元素曝光监控时 observer 数量恒等于阈值种类数
+2. 入参 Zod 校验: `exposureTargetSchema` 校验 target 必须是 Element 实例, threshold 在 0~1 之间
+3. 幂等观察: 同一元素重复 observe 不会二次注册
+4. 进出配对: 只在「进入后离开」时结算一次时长, 反复进出产生多条记录, 可累加统计总曝光
+5. destroy 时 disconnect 所有 observer 并清空两个 Map, 无泄漏
+
+---
+
+## Q30: 设备 ID 与会话 ID 是如何生成和持久化的?
+
+答:
+
+实现在 `utils/session.ts`, 采用「存储介质区分生命周期」的经典方案:
+
+```typescript
+const DEVICE_ID_KEY = "swifty_sentry_device_id";
+const SESSION_ID_KEY = "swifty_sentry_session_id";
+
+// 设备 ID: localStorage, 跨会话持久
+export function getDeviceId(): string {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
+
+// 会话 ID: sessionStorage, 标签页级生命周期
+export function getSessionId(): string {
+  let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+  }
+  return sessionId;
+}
+
+// 支持主动刷新会话( 如登录态切换)
+export function refreshSessionId(): string;
+```
+
+| 标识        | 生成方式          | 存储           | 生命周期                       |
+| ----------- | ----------------- | -------------- | ------------------------------ |
+| deviceId    | crypto.randomUUID | localStorage   | 持久, 清缓存前不变             |
+| sessionId   | crypto.randomUUID | sessionStorage | 标签页会话级, 关页即失效       |
+| anonymousId | FingerprintJS     | localStorage   | 持久, 需开启 enableFingerprint |
+
+设计要点:
+
+1. 惰性生成: 首次调用时才生成并写入存储, 后续直接读缓存, 保证同一设备/会话内所有事件 ID 一致
+2. 存储异常兜底: localStorage/sessionStorage 不可用( 隐私模式、被禁用) 时 catch 后直接返回新的 randomUUID, 不阻塞上报
+3. 与身份体系分层: deviceId/sessionId 是 SDK 自动维护的匿名标识, 不涉及隐私合规; userId/visitorId 由业务显式设置; anonymousId( FingerprintJS) 涉及浏览器指纹, 默认关闭
+4. 每条事件通过 `getBaseData()` 自动附带 deviceId + sessionId, 后端可以按设备聚合错误率、按会话串联用户行为路径
+
+---
+
+## Q31: demo client 的文件路由改造是如何实现的?
+
+答:
+
+monorepo 中的 `client` 包是 SDK 的 React demo, 它将 react-router 的配置式路由改造为文件路由( 约定式路由) , 由自研构建插件 `plugins/vite-plugin-page-routes.ts`( 另有 webpack 版本) 实现.
+
+约定: `src/pages` 目录下每个 `page.tsx` 文件即一个路由页面, 目录层级即路由层级:
+
+```
+src/pages/
+├── page.tsx                 -> /
+├── favorite-list/page.tsx   -> /favorite-list
+└── search-list/page.tsx     -> /search-list
+```
+
+插件工作流程:
+
+1. `buildStart` 钩子: 递归扫描 `src/pages` 下所有 `page.tsx`, 生成 `src/generated/routes.tsx`
+2. `configureServer` 钩子: dev 时用 `server.watcher` 监听 pages 目录, 文件 add/unlink 时重新生成
+
+生成逻辑( plugins/page-routes.js) :
+
+```javascript
+// 目录相对 pages 根的路径 -> 路由路径
+export function toRoutePath(pagesDir, file) {
+  const relDir = relative(pagesDir, dirname(file));
+  if (relDir === "") return "/";
+  return "/" + relDir.split(sep).join("/");
+}
+
+// 路由路径 -> PascalCase 组件名: /search-list -> SearchList, / -> Home
+export function toComponentName(routePath) { ... }
+
+// 生成内容: 每个页面都是 React.lazy 动态导入
+imports.push(`const ${name} = lazy(() => import("${importPath}"));`);
+entries.push(`  { path: "${routePath}", element: <${name} /> }`);
+```
+
+生成的 routes.tsx:
+
+```tsx
+// Auto-generated by page-routes plugin — DO NOT EDIT!!!
+const FavoriteList = lazy(() => import("../pages/favorite-list/page"));
+const Home = lazy(() => import("../pages/page"));
+const SearchList = lazy(() => import("../pages/search-list/page"));
+
+export const routes: RouteObject[] = [
+  { path: "/favorite-list", element: <FavoriteList /> },
+  { path: "/", element: <Home /> },
+  { path: "/search-list", element: <SearchList /> },
+];
+```
+
+设计要点:
+
+1. 代码生成而非运行时扫描: 产物是静态的 routes.tsx, 打包工具可以做 tree-shaking 和代码分割, 无运行时反射开销
+2. lazy 默认分包: 每个页面独立 chunk, 路由级代码分割开箱即用
+3. 写入幂等: 生成内容与已有文件一致时跳过写入, 避免触发无意义的 HMR
+4. 双构建支持: 同一份生成逻辑( page-routes.js) 被 vite 插件和 webpack 插件( webpack-plugin-page-routes.js) 复用
+5. 与监控联动: demo 同时接入 SDK 与 sourcemap 插件, 演示「页面报错 -> 上报 -> 反解到 page.tsx 源码」的完整链路
