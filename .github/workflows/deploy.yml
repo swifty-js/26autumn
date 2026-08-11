@@ -3,14 +3,6 @@ name: Deploy Docs to GitHub Pages
 on:
   push:
     branches: [main]
-    paths:
-      - "docs/**"
-      - "app/**"
-      - "plugins/**"
-      - "swifty-docs.config.ts"
-      - "vite.config.ts"
-      - "package.json"
-      - "pnpm-lock.yaml"
   workflow_dispatch:
 
 permissions:
