@@ -1,8 +1,11 @@
 {
   "cSpell.words": [
+    "codegraph",
     "FOUC",
     "frontmatter",
+    "gofmt",
     "GOPATH",
+    "groupcache",
     "hangtiancheng",
     "HDFS",
     "HITL",
@@ -17,8 +20,10 @@
     "noopener",
     "noreferrer",
     "nums",
+    "Println",
     "Qdrant",
     "qoder",
+    "Redlock",
     "rels",
     "rrweb",
     "rspack",

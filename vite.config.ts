@@ -6,11 +6,11 @@ import docsConfig from "./swifty-docs.config";
 import { fileURLToPath } from "node:url";
 import { sentryPlugin } from "@swifty.js/sentry/vite";
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
   base: "/26autumn/",
   root: "app",
   plugins: [
-    swiftyDocsPlugin({ config: docsConfig }),
+    swiftyDocsPlugin({ config: docsConfig(command === "serve") }),
     docsGuardPlugin(),
     sentryPlugin({ dsn: "/26autumn" }),
     tailwindcss(),
@@ -23,4 +23,4 @@ export default defineConfig({
       ),
     },
   },
-});
+}));
