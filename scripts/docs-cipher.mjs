@@ -32,7 +32,6 @@ import {
   mkdirSync,
   existsSync,
   statSync,
-  rmSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,7 +93,7 @@ function permutation(seed) {
     perm[i] = perm[j];
     perm[j] = tmp;
   }
-  const inv = new Array(256);
+  const inv = Array.from({ length: 256 });
   for (let i = 0; i < 256; i += 1) inv[perm[i]] = i;
   return { perm, inv };
 }
