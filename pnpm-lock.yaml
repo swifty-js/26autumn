@@ -7,6 +7,9 @@ settings:
 importers:
   .:
     dependencies:
+      "@swifty.js/anti-copy":
+        specifier: ^0.0.2
+        version: 0.0.2(@swifty.js/docs@0.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)))(react@19.2.8)
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -1617,6 +1620,32 @@ packages:
       {
         integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==,
       }
+
+  "@swifty.js/anti-copy@0.0.2":
+    resolution:
+      {
+        integrity: sha512-duVzQo20EcrOL2pQ+FBTCHDySHRXjc1JW4aVb7KKl2KWuE+XZsMyfRvVcdfRjxRZX+3QQ4/SottuPNfhhUhJXg==,
+      }
+    peerDependencies:
+      "@lark.js/mvc": ">=0.0.24"
+      "@rspress/core": ">=2.0.0"
+      "@swifty.js/docs": ">=0.0.11"
+      react: ^18.0.0 || ^19.0.0
+      vitepress: ">=1.0.0"
+      vue: ">=3.0.0"
+    peerDependenciesMeta:
+      "@lark.js/mvc":
+        optional: true
+      "@rspress/core":
+        optional: true
+      "@swifty.js/docs":
+        optional: true
+      react:
+        optional: true
+      vitepress:
+        optional: true
+      vue:
+        optional: true
 
   "@swifty.js/docs@0.0.11":
     resolution:
@@ -4811,6 +4840,11 @@ snapshots:
   "@swc/helpers@0.5.23":
     dependencies:
       tslib: 2.8.1
+
+  "@swifty.js/anti-copy@0.0.2(@swifty.js/docs@0.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)))(react@19.2.8)":
+    optionalDependencies:
+      "@swifty.js/docs": 0.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))
+      react: 19.2.8
 
   "@swifty.js/docs@0.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))":
     dependencies:
