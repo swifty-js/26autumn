@@ -1,7 +1,3 @@
----
-protected: true
----
-
 # A2UI
 
 ## 背景与动机

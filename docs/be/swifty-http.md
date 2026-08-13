@@ -1,7 +1,3 @@
----
-protected: true
----
-
 # swifty_http 高级后端工程师面试 QA
 
 ## Q1: 项目整体架构与设计理念

@@ -1,7 +1,3 @@
----
-protected: true
----
-
 # @swifty.js/sentry 前端监控 SDK 面试 QA
 
 ## Q1: 项目整体架构设计是怎样的? 核心模块有哪些?

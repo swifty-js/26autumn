@@ -1,7 +1,3 @@
----
-protected: true
----
-
 # Swifty Agent 面试 Q/A
 
 > 项目:`apps/swifty-agent` —— 基于 Next.js 16 + React 19 + Vercel AI SDK v7 的 AI OnCall 智能助手,支持 RAG 知识库检索、ReAct 对话 Agent、Plan-Execute-Replan 运维编排、Prometheus 告警分析、MCP 日志工具接入.

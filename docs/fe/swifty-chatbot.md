@@ -1,7 +1,3 @@
----
-protected: true
----
-
 # Swifty-Chatbot 高级全栈工程师面试 QA
 
 ## 一、项目概述与架构设计
