@@ -42,7 +42,7 @@ func New(m model.ChatModel) *Labeler {
 	return &Labeler{model: m}
 }
 
-const systemPrompt = `你是一名视频内容分析专家, 负责分析视频切片的代表帧, 产出聚类标签。
+const systemPrompt = `你是一名视频内容分析专家, 负责分析视频切片的代表帧, 产出聚类标签. 
 
 要求:
 1. 只输出严格的 JSON, 不要输出任何其他内容, 格式: {"labels": ["标签1", "标签2"], "summary": "一句话描述"}
@@ -68,7 +68,7 @@ func (l *Labeler) LabelSegment(ctx context.Context, seg slicer.Segment) (*Result
 		}
 		if attempt > 0 {
 			msgs = append(msgs, schema.UserMessage(
-				fmt.Sprintf("上一次输出不是合法 JSON 或缺少标签 (%v), 请只输出符合要求的 JSON。", lastErr)))
+				fmt.Sprintf("上一次输出不是合法 JSON 或缺少标签 (%v), 请只输出符合要求的 JSON. ", lastErr)))
 		}
 		resp, err := l.model.Generate(ctx, msgs)
 		if err != nil {
@@ -89,7 +89,7 @@ func (l *Labeler) LabelSegment(ctx context.Context, seg slicer.Segment) (*Result
 // the segment, followed by the frame images in time order.
 func buildParts(seg slicer.Segment) ([]schema.MessageInputPart, error) {
 	text := fmt.Sprintf(
-		"这是视频第 %d 个切片 (时间范围 %s - %s) 的 %d 张代表帧, 按时间顺序排列, 请分析并输出 JSON。",
+		"这是视频第 %d 个切片 (时间范围 %s - %s) 的 %d 张代表帧, 按时间顺序排列, 请分析并输出 JSON. ",
 		seg.Index+1, slicer.FormatTime(seg.Start), slicer.FormatTime(seg.End), len(seg.Frames),
 	)
 	parts := []schema.MessageInputPart{

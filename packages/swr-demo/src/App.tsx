@@ -88,7 +88,7 @@ function PerfPanel({ report }: { report: PerfReport }) {
   ];
   return (
     <div className="perf-panel">
-      <h3>性能监控采集结果（手写，模仿 boot.ts）</h3>
+      <h3>性能监控采集结果( 手写, 模仿 boot.ts) </h3>
       <div className="perf-rows">
         {rows.map(([label, value]) => (
           <div key={label} className="perf-row">
@@ -99,8 +99,8 @@ function PerfPanel({ report }: { report: PerfReport }) {
       </div>
       <p className="note">
         数据来自 performance.mark/measure、Navigation Timing、Resource Timing 与
-        PerformanceObserver(longtask)，经 PERF_QUEUE 队列化上报（demo
-        中打印到控制台）。
+        PerformanceObserver(longtask), 经 PERF_QUEUE 队列化上报( demo
+        中打印到控制台) .
       </p>
     </div>
   );
@@ -178,13 +178,13 @@ export default function App() {
 
     const entries: TimelineEntry[] = [];
 
-    // 性能监控打点：启动起点（对应 boot.ts 的 boot-start）
+    // 性能监控打点: 启动起点( 对应 boot.ts 的 boot-start)
     mark("swr-boot-start");
 
-    // SWR 组：模拟 <header> 预加载
+    // SWR 组: 模拟 <header> 预加载
     preload();
 
-    // 模拟页面渲染延迟（React mount），让预加载有时间完成
+    // 模拟页面渲染延迟( React mount) , 让预加载有时间完成
     await new Promise((r) => setTimeout(r, 100));
 
     const [staffR, algoR, vdbR] = await Promise.all([
@@ -198,7 +198,7 @@ export default function App() {
     setSwrVdb(vdbR.data);
     setSwrLoading(false);
 
-    // 性能监控打点：SWR 数据就绪即视为启动完成，采集并上报
+    // 性能监控打点: SWR 数据就绪即视为启动完成, 采集并上报
     mark("swr-boot-end");
     setPerfReport(collectAndReport());
 
@@ -208,7 +208,7 @@ export default function App() {
       { label: "向量库选择器", mode: "swr", key: "vectorDB", ...vdbR },
     );
 
-    // 对照组：组件挂载时才发请求
+    // 对照组: 组件挂载时才发请求
     const [nStaffR, nAlgoR, nVdbR] = await Promise.all([
       normalFetch<StaffItem[]>("staff"),
       normalFetch<AlgorithmItem[]>("algorithm"),
@@ -234,7 +234,7 @@ export default function App() {
     setSecondNormalLoading(true);
     setSecondNormalResults(null);
 
-    // SWR 组：命中缓存，即时返回
+    // SWR 组: 命中缓存, 即时返回
     const [s, a, v] = await Promise.all([
       swrFetch<StaffItem[]>("staff"),
       swrFetch<AlgorithmItem[]>("algorithm"),
@@ -242,7 +242,7 @@ export default function App() {
     ]);
     setSecondFetchResults([s, a, v]);
 
-    // 对照组：无缓存，重新发请求
+    // 对照组: 无缓存, 重新发请求
     const [ns, na, nv] = await Promise.all([
       normalFetch<StaffItem[]>("staff"),
       normalFetch<AlgorithmItem[]>("algorithm"),
@@ -256,7 +256,7 @@ export default function App() {
     <div className="app">
       <h1>手写 SWR 对比 Demo</h1>
       <p className="subtitle">
-        模拟场景：公共选择器数据在 &lt;header&gt; 中预加载，页面组件消费时复用
+        模拟场景: 公共选择器数据在 &lt;header&gt; 中预加载, 页面组件消费时复用
         promise / 命中缓存
       </p>
 
@@ -266,7 +266,7 @@ export default function App() {
         </button>
         {phase === "done" && (
           <button onClick={runSecondFetch} className="btn-secondary">
-            模拟二次消费（SWR 即时返回）
+            模拟二次消费( SWR 即时返回)
           </button>
         )}
       </div>
@@ -274,7 +274,7 @@ export default function App() {
       {phase !== "idle" && (
         <div className="comparison">
           <section className="group">
-            <h2 className="group-title swr-title">SWR 组（预加载 + 去重）</h2>
+            <h2 className="group-title swr-title">SWR 组( 预加载 + 去重) </h2>
             <div className="cards">
               <SelectorCard
                 title="Staff 用户"
@@ -317,7 +317,7 @@ export default function App() {
 
           <section className="group">
             <h2 className="group-title normal-title">
-              对照组（组件挂载时请求）
+              对照组( 组件挂载时请求)
             </h2>
             <div className="cards">
               <SelectorCard
@@ -366,7 +366,7 @@ export default function App() {
           <h2>二次消费对比</h2>
           <div className="comparison">
             <div className="group">
-              <h3 className="group-title swr-title">SWR 组（缓存命中）</h3>
+              <h3 className="group-title swr-title">SWR 组( 缓存命中) </h3>
               <div className="cards">
                 {["Staff 用户", "推荐算法", "向量库"].map((label, i) => (
                   <SelectorCard
@@ -390,7 +390,7 @@ export default function App() {
             </div>
             <div className="group">
               <h3 className="group-title normal-title">
-                对照组（无缓存，重新请求）
+                对照组( 无缓存, 重新请求)
               </h3>
               <div className="cards">
                 {["Staff 用户", "推荐算法", "向量库"].map((label, i) => (
@@ -421,9 +421,8 @@ export default function App() {
             </div>
           </div>
           <p className="note">
-            二次消费时 SWR 组命中 result 缓存，fetcher 立即返回（耗时接近
-            0ms），同时后台静默
-            revalidate；对照组无缓存机制，必须重新等待完整网络请求。
+            二次消费时 SWR 组命中 result 缓存, fetcher 立即返回( 耗时接近 0ms) ,
+            同时后台静默 revalidate; 对照组无缓存机制, 必须重新等待完整网络请求.
           </p>
         </section>
       )}

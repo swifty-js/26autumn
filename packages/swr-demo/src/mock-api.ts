@@ -1,4 +1,4 @@
-// 模拟后端接口，带有人为延迟以体现预加载优势
+// 模拟后端接口, 带有人为延迟以体现预加载优势
 
 export interface StaffItem {
   id: number;
@@ -18,18 +18,18 @@ export interface VectorDBItem {
   region: string;
 }
 
-const NETWORK_DELAY = 800; // ms，模拟网络延迟
+const NETWORK_DELAY = 800; // ms, 模拟网络延迟
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// 真实网络探测请求：产生一条 Resource Timing 条目，供性能监控采集
+// 真实网络探测请求: 产生一条 Resource Timing 条目, 供性能监控采集
 // 对应 boot.ts 中被单独监测耗时的 /member/checkAccess.json 请求
 export function fetchPerfPing(): Promise<void> {
   return fetch("/perf-ping.json", { cache: "no-store" })
     .then(() => undefined)
-    .catch(() => undefined); // 404 / 离线均忽略，只关心 timing 条目
+    .catch(() => undefined); // 404 / 离线均忽略, 只关心 timing 条目
 }
 
 export async function fetchStaff(): Promise<StaffItem[]> {

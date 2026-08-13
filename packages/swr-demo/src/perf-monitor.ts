@@ -1,9 +1,9 @@
-// 手写前端性能监控（模仿 src/boot.ts 的做法）
-// 思路：performance.mark/measure 打点 + PerformanceObserver 长任务监听
+// 手写前端性能监控( 模仿 src/boot.ts 的做法)
+// 思路: performance.mark/measure 打点 + PerformanceObserver 长任务监听
 //       + Navigation Timing 拆解 + Resource Timing 采集 + 队列化上报
-// 不依赖任何第三方监控 SDK，全部基于浏览器原生 Performance API
+// 不依赖任何第三方监控 SDK, 全部基于浏览器原生 Performance API
 
-// ============ 上报队列（对应 boot.ts 的 window.AES_QUEUE） ============
+// ============ 上报队列( 对应 boot.ts 的 window.AES_QUEUE)  ============
 
 export interface PerfLogEntry {
   action: "log";
@@ -13,7 +13,7 @@ export interface PerfLogEntry {
   ];
 }
 
-// 真实项目中由监控 SDK 异步消费该队列，demo 中仅累积并打印
+// 真实项目中由监控 SDK 异步消费该队列, demo 中仅累积并打印
 export const PERF_QUEUE: PerfLogEntry[] = [];
 
 function report(entry: PerfLogEntry["arguments"][1]) {
@@ -21,19 +21,19 @@ function report(entry: PerfLogEntry["arguments"][1]) {
   console.log("[perf-monitor] report:", entry.p1, entry);
 }
 
-// ============ 长任务监听（对应 boot.ts 的 longTaskObserver） ============
+// ============ 长任务监听( 对应 boot.ts 的 longTaskObserver)  ============
 
 let longTaskObserver: PerformanceObserver | undefined;
 
 export function observeLongTasks() {
   if (!("PerformanceObserver" in window)) {
-    console.warn("当前浏览器不支持 PerformanceObserver，无法监听主线程卡顿");
+    console.warn("当前浏览器不支持 PerformanceObserver, 无法监听主线程卡顿");
     return;
   }
   try {
     longTaskObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        // 只上报超过 50ms 的长任务（INP / TBT 口径）
+        // 只上报超过 50ms 的长任务( INP / TBT 口径)
         if (entry.duration > 50) {
           report({
             p1: "main-thread-blocking",
@@ -53,7 +53,7 @@ export function observeLongTasks() {
   }
 }
 
-// ============ mark / measure 工具（对应 boot.ts 的 performanceMeasure） ============
+// ============ mark / measure 工具( 对应 boot.ts 的 performanceMeasure)  ============
 
 export function mark(name: string) {
   try {
@@ -84,7 +84,7 @@ function performanceMeasure(
 // ============ 采集与上报 ============
 
 export interface PerfReport {
-  bootTime: number; // 启动总耗时（swr-boot-start → swr-boot-end）
+  bootTime: number; // 启动总耗时( swr-boot-start → swr-boot-end)
   bootStartAt: number; // 启动起点在时间轴上的位置
   pageLoad: {
     dnsTime: number;
@@ -100,17 +100,17 @@ export interface PerfReport {
 let longTaskCount = 0;
 
 export function collectAndReport(): PerfReport | null {
-  // 启动完成后停止长任务采样，避免后续交互噪声混入启动数据
+  // 启动完成后停止长任务采样, 避免后续交互噪声混入启动数据
   longTaskObserver?.disconnect();
-  // 增大 resource timing 缓冲区，防止条目被丢弃
+  // 增大 resource timing 缓冲区, 防止条目被丢弃
   try {
     performance.setResourceTimingBufferSize(200);
   } catch {
-    // 老浏览器不支持，忽略
+    // 老浏览器不支持, 忽略
   }
 
   try {
-    // 1. Navigation Timing：拆解文档自身的加载耗时
+    // 1. Navigation Timing: 拆解文档自身的加载耗时
     const navEntry = performance.getEntriesByType(
       "navigation",
     )[0] as PerformanceNavigationTiming;
@@ -124,7 +124,7 @@ export function collectAndReport(): PerfReport | null {
         }
       : { dnsTime: 0, requestWaitTime: 0, requestTime: 0, domInteractive: 0 };
 
-    // 2. Resource Timing：找最慢资源与预加载探测请求
+    // 2. Resource Timing: 找最慢资源与预加载探测请求
     const resources = performance.getEntriesByType(
       "resource",
     ) as PerformanceResourceTiming[];
@@ -139,7 +139,7 @@ export function collectAndReport(): PerfReport | null {
       ? { duration: Math.round(pingEntry.duration) }
       : null;
 
-    // 3. mark/measure：启动总耗时
+    // 3. mark/measure: 启动总耗时
     const bootMeasure = performanceMeasure(
       "swr-boot-time",
       "swr-boot-start",
@@ -148,7 +148,7 @@ export function collectAndReport(): PerfReport | null {
     const bootTime = bootMeasure ? Math.round(bootMeasure.duration) : 0;
     const bootStartAt = bootMeasure ? Math.round(bootMeasure.startTime) : 0;
 
-    // 4. 启动耗时上报（对应 boot.ts 的 qn-fcp）
+    // 4. 启动耗时上报( 对应 boot.ts 的 qn-fcp)
     if (bootMeasure) {
       report({
         p1: "swr-demo-boot",
@@ -161,7 +161,7 @@ export function collectAndReport(): PerfReport | null {
       });
     }
 
-    // 5. 文档加载性能上报（对应 boot.ts 的 performance-index）
+    // 5. 文档加载性能上报( 对应 boot.ts 的 performance-index)
     report({
       p1: "performance-index",
       c1: Math.round(pageLoad.dnsTime),
@@ -201,7 +201,7 @@ export function initPerfMonitor() {
   observeLongTasks();
 }
 
-// 每轮对比实验前重置打点，保证 measure 反映本轮启动
+// 每轮对比实验前重置打点, 保证 measure 反映本轮启动
 export function resetBootMarks() {
   try {
     performance.clearMarks("swr-boot-start");
