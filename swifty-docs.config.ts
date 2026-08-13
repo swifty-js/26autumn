@@ -8,7 +8,7 @@ export default defineConfig({
     { text: "前端基础", link: "fe/react" },
     { text: "Swifty 前端", link: "fe/swifty" },
     { text: "后端基础", link: "be/go" },
-    { text: "Swifty 后端", link: "be/swifty-cli" },
+    { text: "Swifty 后端", link: "be/swifty-agent" },
   ],
   sidebar: {
     "/fe/": [
@@ -23,6 +23,10 @@ export default defineConfig({
           { text: "React 面试题", link: "fe/react" },
           { text: "Vite 面试题", link: "fe/vite" },
           { text: "codegraph", link: "fe/codegraph" },
+          // {
+          //   text: "whistle + SwitchyOmega 本地代理调试指南",
+          //   link: "fe/whistle+switchy-omega",
+          // },
         ],
       },
       {
@@ -56,9 +60,9 @@ export default defineConfig({
         items: [
           { text: "Swifty Agent 面试题", link: "be/swifty-agent" },
           { text: "Swifty Cache 面试题", link: "be/swifty-cache" },
-          { text: "Swifty CLI 面试题", link: "be/swifty-cli" },
           { text: "Swifty HTTP 面试题", link: "be/swifty-http" },
           { text: "Swifty RPC 面试题", link: "be/swifty-rpc" },
+          { text: "Swiftx 面试题", link: "be/swiftx" },
         ],
       },
     ],

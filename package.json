@@ -18,7 +18,7 @@
     "git:push": "pnpm git:commit && git push origin main",
     "format": "prettier -w ./ --experimental-cli",
     "prepare": "husky",
-    "postinstall": "echo 'node scripts/docs-cipher.mjs unpack",
+    "postinstall": "echo 'node scripts/docs-cipher.mjs unpack'",
     "docs:pack": "node scripts/docs-cipher.mjs pack",
     "docs:unpack": "node scripts/docs-cipher.mjs unpack"
   },
