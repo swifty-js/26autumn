@@ -280,3 +280,25 @@ sendBeacon 与 fetch keepalive 均在页面卸载时仍能完成发送，保证 
 | 三级降级上报                   | reporter/transports.ts + index.ts:142-150                       |
 | 离线 localStorage + 自动 flush | offline-cache.ts + network-listener.ts:31-43                    |
 | React16+/Vue3+ 集成            | src/react.ts:83-155 / src/vue.ts:29-47                          |
+
+## JS error
+
+JS 内置错误类型继承自 Error，共 7 种（ES2021 新增 AggregateError）：
+
+| 错误类型       | 触发场景                                                                   | 示例                                                  |
+| -------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
+| TypeError      | 值的类型不符合预期：对 undefined/null 调方法、非函数当函数调、修改只读属性 | `undefined.indexOf('x')`、`const obj = {}; obj()`     |
+| ReferenceError | 引用了未声明的变量，或在 TDZ（暂时性死区）内访问 let/const 变量            | `console.log(foo)`（foo 未声明）                      |
+| SyntaxError    | 代码解析阶段报错，运行时不会遇到；JSON.parse 非法字符串也抛此错误          | `JSON.parse('{bad}')`、`if (`                         |
+| RangeError     | 值超出合法范围：数组长度为负、递归栈溢出、Number 精度方法参数越界          | `new Array(-1)`、无限递归                             |
+| URIError       | URI 编解码函数收到非法输入                                                 | `decodeURIComponent('%')`                             |
+| EvalError      | 与 eval() 相关，现代引擎不再主动抛出，仅为规范兼容保留                     | 实际开发中几乎不会遇到                                |
+| AggregateError | ES2021，将多个错误聚合为一个；Promise.any 所有 promise 都 reject 时抛出    | `Promise.any([Promise.reject(1), Promise.reject(2)])` |
+
+补充说明：
+
+- TypeError 是前端监控中最高频的错误类型，资源加载失败、接口返回结构异常、可选链缺失等场景最终都表现为 TypeError
+- ReferenceError 和 SyntaxError 通常意味着代码本身有 bug，而非运行时边界条件；SyntaxError 无法被 try-catch 捕获（解析阶段先于执行阶段）
+- RangeError 中的栈溢出（Maximum call stack size exceeded）在递归未设终止条件时触发，监控 SDK 中需注意自身递归防护
+- 浏览器 Web API 还会抛 DOMException（如操作已移除的 DOM 节点、跨域 iframe 访问），它不继承自 Error，有独立的 code/name 体系
+- Node.js 额外有 SystemError（文件系统、网络 I/O 失败），通过 error.code 区分（ENOENT、ECONNREFUSED 等）
