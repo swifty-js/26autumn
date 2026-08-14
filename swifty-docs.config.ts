@@ -16,6 +16,7 @@ export default defineConfig({
         text: "文档",
         items: [
           { text: "review", link: "docs/review" },
+          { text: "handle", link: "docs/handle" },
           {
             text: "视频切片与 LLM 聚类标签: 真实实现记录",
             link: "docs/0",
