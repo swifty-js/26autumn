@@ -243,11 +243,9 @@ Vite 对应 `build.sourcemap: true | 'hidden' | 'inline'`, 语义一致.
 
 Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container.get` 这套 runtime API; Vite 没有等价 runtime, @module-federation/vite 要在插件层实现模块注册表、remoteEntry 动态生成和 shared 版本协商, 且要处理与 optimizeDeps 预构建的时序关系.
 
-我的贡献 (共 4 个 PR, 3 个已合并, 1 个在 review 中):
+我的贡献 (以 PR #860 为例, 已合并):
 
-1. 修复 dev 模式远程模块 HMR 失效: 远程模块变更后 consumer 端对应的虚拟模块没有被 invalidate, 导致整页 reload 而非局部热更新. 我在插件的 HMR 处理链路中补上了远程模块映射的失效与刷新逻辑.
-2. shared 依赖预构建优化: 将逐个执行的 optimizeDeps 合并为一次调用, 预构建时间从约 12 秒降到 3 秒.
-3. runtime plugin 机制: 允许运行时动态修改远程模块加载行为 (注入鉴权 header、切换 CDN 源、加载失败降级), 对齐 Webpack 版 MF 的 runtime plugin API.
+修复 workspace 包双格式导出在浏览器端崩溃: monorepo 里的 workspace 包若通过 `exports` 字段同时提供 ESM/CJS 入口, 并被配置为 shared 依赖, 浏览器运行时会抛 `ReferenceError: module is not defined`. 根因是插件用 `createRequire().resolve()` 解析 shared 包路径, 走的是 Node CJS 条件 (`["node", "require"]`), 命中 `.cjs` 入口; node_modules 里的包有 Vite optimizeDeps 兜底做 CJS 转 ESM, 但 workspace 包是软链接、跳过了预构建, `.cjs` 路径被直接写进生成的 `import` 语句, 浏览器加载后遇到 `module.exports` 即崩溃. 我在 `virtualShared_preBuild.ts` 中新增 `resolveWorkspaceEsmEntry()` 辅助函数: 对 workspace 包改用 `['browser', 'import', 'module', 'default']` 条件重解析到 ESM 入口, 非 workspace 包原样返回交给 optimizeDeps 处理, ESM 解析失败则优雅回退到原路径; 并在三个 `createRequire().resolve()` 调用点统一接入, 补充了对应测试用例.
 
 生产实践要点: React 必须 `singleton: true` 防止多实例导致 hooks 报错; remoteEntry 加载失败要有重试 + ErrorBoundary fallback + 兜底版本 URL 三层降级.
 
