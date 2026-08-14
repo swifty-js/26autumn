@@ -11,7 +11,7 @@ export default defineConfig({
   root: "app",
   plugins: [
     swiftyDocsPlugin({ config: docsConfig }),
-    docsGuardPlugin(),
+    // docsGuardPlugin(),
     sentryPlugin({ dsn: "/26autumn" }),
     tailwindcss(),
   ],
