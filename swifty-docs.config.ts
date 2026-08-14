@@ -11,62 +11,6 @@ export default defineConfig({
     { text: "Swifty 后端", link: "be/swifty-agent" },
   ],
   sidebar: {
-    "/fe/": [
-      {
-        text: "前端基础",
-        items: [
-          { text: "A2UI 面试题", link: "fe/a2ui" },
-          { text: "Anti Copy 面试题", link: "fe/anti-copy" },
-          { text: "CSS 面试题", link: "fe/css" },
-          { text: "前端面试题", link: "fe/fe" },
-          { text: "Next.js 面试题", link: "fe/next" },
-          { text: "React 面试题", link: "fe/react" },
-          { text: "Vite 面试题", link: "fe/vite" },
-          { text: "codegraph", link: "fe/codegraph" },
-          // {
-          //   text: "whistle + SwitchyOmega 本地代理调试指南",
-          //   link: "fe/whistle+switchy-omega",
-          // },
-        ],
-      },
-      {
-        text: "Swifty 前端",
-        items: [
-          { text: "Swifty Agent 面试题", link: "fe/swifty-agent" },
-          {
-            text: "Swifty Chatbot 面试题",
-            link: "fe/swifty-chatbot",
-          },
-          {
-            text: "Swifty Sentry 面试题",
-            link: "fe/swifty-sentry",
-          },
-          { text: "Swifty 面试题", link: "fe/swifty" },
-        ],
-      },
-    ],
-    "/be/": [
-      {
-        text: "后端基础",
-        items: [
-          { text: "Go 面试题", link: "be/go" },
-          { text: "中间件面试题", link: "be/middleware" },
-          { text: "MySQL 面试题", link: "be/mysql" },
-          { text: "Redis 面试题", link: "be/redis" },
-        ],
-      },
-      {
-        text: "Swifty 后端",
-        items: [
-          { text: "Swifty Agent 面试题", link: "be/swifty-agent" },
-          { text: "Swifty Cache 面试题", link: "be/swifty-cache" },
-          { text: "Swifty HTTP 面试题", link: "be/swifty-http" },
-          { text: "Swifty RPC 面试题", link: "be/swifty-rpc" },
-          { text: "Swiftx 面试题", link: "be/swiftx" },
-        ],
-      },
-    ],
-
     "/docs/": [
       {
         text: "文档",
@@ -145,6 +89,11 @@ export default defineConfig({
         ],
       },
     ],
+    "/fe/": "auto",
+    "/be/": "auto",
+    "/lark-mvc/": "auto",
+    "/lark-docs/": "auto",
+    "/lit/": "auto",
   },
   highlight: {
     theme: "github-light",
