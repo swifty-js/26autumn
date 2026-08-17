@@ -88,7 +88,6 @@ TypeScript 同时支持实验性装饰器和标准装饰器。我们建议 TypeS
     "experimentalDecorators": true,
     "useDefineForClassFields": false
   }
-}
 ```
 
 不需要启用 `emitDecoratorMetadata`，也不推荐启用。

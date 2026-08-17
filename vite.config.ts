@@ -1,7 +1,7 @@
 import { resolve, dirname } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
-import { docsGuardPlugin, swiftyDocsPlugin } from "@swifty.js/docs/vite";
+import { swiftyDocsPlugin } from "@swifty.js/docs/vite";
 import docsConfig from "./swifty-docs.config";
 import { fileURLToPath } from "node:url";
 import { sentryPlugin } from "@swifty.js/sentry/vite";
