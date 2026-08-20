@@ -8,6 +8,7 @@ protected: true
 > 基于 `github.com/hangtiancheng/swifty.go/swiftx` 项目源码分析( Go 1.26, 约 2.7 万行非测试代码)
 > 技术栈: Go 1.26 / Anthropic SDK / OpenAI SDK / MCP / Bubble Tea TUI
 > 该项目是一个终端 CLI Coding Agent, 具备多模型接入、流式工具执行、双层上下文管理、五层权限体系、OS 级沙箱、长期记忆、多智能体协作( 子代理 / 团队 / git worktree 隔离) 、技能系统与 MCP 集成等能力.
+> 注: 文中行号引用为撰写时的近似位置, 代码迭代后可能存在偏移, 以函数/结构体名称为准.
 
 ## 一、系统架构设计
 
@@ -145,7 +146,8 @@ type Client interface {
 
 4. Model Resolver 模式:
    ```go
-   type ModelResolver func(alias string) (llm.Client, error)
+   // NewModelResolver 返回一个 func(string) (Client, error) 闭包, 并非导出的命名类型
+   // func NewModelResolver(baseCfg config.ProviderConfig) func(string) (Client, error)
    // "haiku" → claude-haiku-4-5, "sonnet" → claude-sonnet-4-6
    ```
    子 Agent 可以指定不同模型, 通过 resolver 延迟创建 Client 实例
@@ -556,7 +558,7 @@ A:
 
 ```go
 type Sandbox interface {
-    Wrap(command string, config Config) string  // 返回包装后的命令
+    Wrap(command string, config Config) (string, error)  // 返回包装后的命令, 沙箱不可用时返回 error
     Available() bool
 }
 ```

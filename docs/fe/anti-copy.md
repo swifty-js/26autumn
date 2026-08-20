@@ -137,7 +137,7 @@ typeof window !== "undefined" && typeof document !== "undefined";
 
 ### 5.3 isExcluded: 豁免区域判定
 
-沿祖先链对每个选择器执行 `el.closest(selector)`. 两个关键点:
+沿祖先链对每个选择器执行 `el.closest(selector)`. 三个关键点:
 
 - closest 在 shadow root 边界停止, 因此循环中通过 `getRootNode().host` 跨越 shadow 边界继续向上查找, 直到没有宿主为止.
 - 无效选择器导致的异常被静默吞掉, 保证一个坏选择器不影响其余选择器的判定.
@@ -185,7 +185,7 @@ dragstart 处理器: 把选区或图片拖出窗口不会触发 copy 事件, 必
 
 复制类( COPY_KEYS: c / x / a) : Ctrl/Cmd+C、Ctrl/Cmd+X、Ctrl/Cmd+A, 以及 Ctrl+Insert.
 
-导出类( EXPORT_KEYS: s / p) : Ctrl/Cmd+S 保存页面与 Ctrl/Cmd+P 打印会泄漏整页内容, 因此即使在可编辑控件或豁免区域内也强制拦截( 这是唯一不做 editable/excluded 豁免的分支) , 且仅在 print 选项开启时生效.
+导出类( EXPORT_KEYS: s / p) : Ctrl/Cmd+S 保存页面与 Ctrl/Cmd+P 打印会泄漏整页内容, 因此即使在可编辑控件或豁免区域内也强制拦截( 这是 ctrl/meta 组合键分支中唯一不做 editable/excluded 豁免的分支, DevTools 类快捷键同样无条件拦截) , 且仅在 print 选项开启时生效.
 
 DevTools 类( devtoolsShortcut) : F12; Windows/Linux 的 Ctrl+Shift+I/J/C; macOS 的 Cmd+Opt+I/J/C; 查看源码的 Ctrl+U( Windows/Linux) 与 Cmd+Opt+U( macOS) . 这类快捷键无条件拦截并上报, key 字段携带如 "Ctrl+Shift+I" 的可读描述.
 
