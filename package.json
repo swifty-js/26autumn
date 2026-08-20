@@ -2,14 +2,14 @@
   "name": "26autumn",
   "version": "0.0.0",
   "private": true,
-  "description": "2026 autumn",
+  "description": "2026 autumn --- Best wishes",
   "keywords": [
     "2026",
     "autumn"
   ],
   "license": "MIT",
   "type": "module",
-  "author": "https://github.com/hangtiancheng",
+  "author": "https://github.com/swifty-js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -21,14 +21,13 @@
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^11.16.0",
-    "@swifty.js/docs": "^0.0.12",
-    "@swifty.js/sentry": "^0.0.5",
+    "@lark.js/docs": "^0.0.19",
+    "@lark.js/sentry": "^0.0.16",
     "@tailwindcss/vite": "^4.3.3",
     "@types/adm-zip": "^0.5.8",
     "@types/node": "24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "adm-zip": "^0.6.0",
     "husky": "^9.1.7",
     "mermaid": "^11.16.0",
     "prettier": "^3.9.6",

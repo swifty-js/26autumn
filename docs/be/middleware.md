@@ -21,7 +21,7 @@ Leader 选举
 - 每个节点在一个 Term 内只能投一票 (先到先得)
 - Candidate 获得多数票 (N/2 + 1) 成为 Leader
 - 日志较新的节点优先当选 (比较 lastLogTerm, 再比较 lastLogIndex)
-- 随机化 election timeout (150~300ms) 避免活锁
+- 随机化 election timeout (etcd 在 [electiontimeout, 2*electiontimeout) 区间取随机值, 默认即 [1000ms, 2000ms)) 避免活锁
 ```
 
 日志复制
@@ -541,7 +541,7 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 
 ### Q22: groupcache 的分布式请求流程是怎样的? 如何处理节点故障?
 
-故障处理: 远程请求失败时降级到本地 Getter; 通过 etcd Watch 感知节点变化, 更新哈希环; 节点恢复后重新加入, 缓存逐步预热.
+故障处理: 远程请求失败时降级到本地 Getter. 原版 groupcache 不内置服务发现, 节点列表在启动时静态配置; 生产环境通常外接 etcd/ZooKeeper Watch 感知节点变化并更新哈希环 (如 swifty_cache 的做法); 节点恢复后重新加入, 缓存逐步预热.
 
 ---
 

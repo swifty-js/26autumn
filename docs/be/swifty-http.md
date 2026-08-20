@@ -267,9 +267,9 @@ type Context struct {
     Path    string
     Method  string
     Status  int
-    Body    interface{}
+    Body    any
     Type    string
-    State   map[string]interface{}
+    State   map[string]any
     Params  map[string]string
     headers map[string]string
     app     *Application
@@ -281,7 +281,7 @@ type Context struct {
 Koa 风格特征:
 
 - `State`: 等价于 Koa 的 `ctx.state`, 用于中间件间传递数据( 如认证中间件写入 `ctx.State["user"]`, 下游 handler 读取)
-- `Body` 为 `interface{}`: 等价于 Koa 的 `ctx.body`, 支持任意类型, 由 respond() 根据类型分发序列化
+- `Body` 为 `any`: 等价于 Koa 的 `ctx.body`, 支持任意类型, 由 respond() 根据类型分发序列化
 - `Throw(status, msg)`: 等价于 Koa 的 `ctx.throw()`, 设置状态码并生成错误 Body
 
 Throw 的统一错误格式( `context.go:71-77`) :
@@ -634,22 +634,29 @@ writeFrame( `websocket.go:474-504`) : 服务端到客户端不 mask( RFC 规定)
 
 Q: 框架中有哪些并发安全的设计? WSConn 的读写锁如何工作?
 
-A: WSConn 的锁设计( `websocket.go:65-78`) :
+A: WSConn 的锁设计( `websocket.go:68-82`) :
 
 ```go
 type WSConn struct {
-    conn    net.Conn
-    br      *bufio.Reader
-    writeMu sync.Mutex   // 写锁
-    readMu  sync.Mutex   // 读锁
-    closed  chan struct{}
-    once    sync.Once
+    conn           net.Conn
+    br             *bufio.Reader
+    writeMu        sync.Mutex   // 写锁
+    readMu         sync.Mutex   // 读锁
+    closed         chan struct{}
+    once           sync.Once
+    maxMessageSize int          // 最大消息大小限制
+    onMessage      func(...)    // 消息回调
+    onClose        func(...)    // 关闭回调
+    onError        func(...)    // 错误回调
+    onPing         func(...)    // Ping 回调
+    onPong         func(...)    // Pong 回调
 }
 ```
 
 - `writeMu`: 保护所有写操作( WriteMessage、Ping、Close、writeCloseFrame) , 确保帧不会交错写入
 - `readMu`: 保护 ReadMessage, 确保分片重组的中间状态不被并发读取破坏
 - 读写分离: 一个 goroutine 读、另一个 goroutine 写是安全的( 全双工)
+- 事件回调: 支持注册 onMessage/onClose/onError/onPing/onPong 回调, 便于事件驱动风格的业务处理
 
 closed channel + sync.Once:
 

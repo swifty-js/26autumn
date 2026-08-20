@@ -1,1 +1,1 @@
-/// <reference types="@swifty.js/docs/client" />
+/// <reference types="@lark.js/docs/client" />

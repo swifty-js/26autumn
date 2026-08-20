@@ -234,7 +234,7 @@ type SingleFlightGroup struct {
     m sync.Map
 }
 
-func (g *SingleFlightGroup) Do(key string, fn func() (interface{}, error)) (interface{}, error)
+func (g *SingleFlightGroup) Do(key string, fn func() (any, error)) (any, error)
 ```
 
 实现原理:

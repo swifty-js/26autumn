@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-@source "@swifty.js/docs/theme.js";
-@import "@swifty.js/docs/client.css";
+@source "../node_modules/@lark.js/docs/dist/theme.js";
+@import "@lark.js/docs/client.css";
 
 /* --- Monospace-first typography --- */
 

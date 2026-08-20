@@ -31,7 +31,7 @@ update 会经过与 select 相同的连接器、解析器、优化器、执行�
 
 1. 执行器调用 InnoDB 接口, 读取目标行: 若数据页在 Buffer Pool 中直接返回, 否则从磁盘读入 Buffer Pool
 2. InnoDB 先写 undo log 记录旧值 (更新非主键列时记录反向 update 操作), undo log 页的修改本身也受 redo log 保护
-3. 更新 Buffer Pool 中的记录, 将该页标记为脏页; 此时并不立刻写磁盘, 而是由后台线程异步刷盘 (WAL)
+3. 更新 Buffer Pool 中的记录, 将该页标记为脏页; 此时并不立刻写数据页到磁盘, 而是由后台线程异步刷脏 (checkpoint 机制)
 4. 写 redo log (物理日志, 记录"某页某偏移量做了什么修改"), 进入 prepare 状态
 5. 执行器写 binlog (逻辑日志, Server 层)
 6. 提交事务, redo log 打上 commit 标记——即两阶段提交, 保证 redo log 与 binlog 一致

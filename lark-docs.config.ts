@@ -1,4 +1,4 @@
-import { defineConfig } from "@swifty.js/docs/vite";
+import { defineConfig } from "@lark.js/docs/vite";
 
 export default defineConfig({
   docs: "docs",

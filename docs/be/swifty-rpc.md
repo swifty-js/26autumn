@@ -194,11 +194,12 @@ Protobuf 约束: `Marshal`/`Unmarshal` 内部做类型断言 `v.(proto.Message)`
 ```go
 type TCPClient struct {
     conn    *TCPConnection
+    addr    string
+    writeMu sync.Mutex      // 写串行化
     seq     atomic.Uint64   // 递增, 起始 1
     pending sync.Map        // map[uint64]*Future (unary)
     streams sync.Map        // map[uint64]*ClientStreamConn (stream)
     closed  atomic.Int32    // 关闭标志
-    writeMu sync.Mutex      // 写串行化
 }
 ```
 
@@ -843,7 +844,7 @@ type TokenBucket struct {
 
 特点: 这是固定窗口限流器而非经典令牌桶. 经典令牌桶按时间平滑补充 (如每 100us 补一个), 而这里每秒一次性补满. 效果是窗口边界可能出现 2x burst (上一秒末尾 + 下一秒开头).
 
-硬编码: 服务端和注册模式客户端都是 `NewTokenBucket(10000)`, 不暴露配置选项.
+调用方约定: `NewTokenBucket(rate int)` 接受任意正整数参数, 但当前服务端 (`internal/server/server.go`) 和注册模式客户端 (`internal/client/client.go`) 统一传 10000, 未通过 ServerOption/DialOption 暴露给外部用户.
 
 ---
 

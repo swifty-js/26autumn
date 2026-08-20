@@ -35,7 +35,7 @@ A2UI (Agent-to-User Interface) 是 Google 开源的开放标准: 让 Agent "说 
 
 Keywords: 流式传输 JSON、声明式 UI (抽象组件树/邻接表)、数据绑定 (JSON Pointer)、catalog 白名单、传输无关 (A2A / AG-UI / MCP / SSE)
 
-本文以 React 渲染器 (@a2ui/react) + v0.9 协议为主线, 参考实现为 fork/a2ui/samples/client/react/shell (餐厅预订 demo), 并在末尾与 Lit 实现做对比.
+本文以 React 渲染器 (@a2ui/react) + v0.9 协议为主线, 参考实现为 fork/a2ui/samples/client/react/shell (餐厅预订 demo), 并在末尾与 Lit 实现做对比. 在此之上补充两部分实践内容: @swifty.js/a2ui-shadcn 组件库 (用 shadcn/ui 重实现并扩展 catalog 的三合一包) 与 swifty-agent (一个不依赖 CopilotKit 的生产级 A2UI 应用案例).
 
 ## 概念
 
@@ -348,6 +348,20 @@ theme 支持三个属性: primaryColor (主色), iconUrl 和 agentDisplayName (A
 - sendDataModel 定向投递: UI 状态只回传给创建该 Surface 的 Server
 - 身份归属防伪: 编排者校验/覆写 iconUrl 与 agentDisplayName
 - 自定义组件的 smart wrapper 模式: 接入第三方内容 (如 iframe) 时由组件自身实施沙箱与信任策略
+- 双 iframe 隔离: 对需要运行不受信第三方代码的场景 (MCP Apps), 内层 iframe 严格排除 allow-same-origin, 防止 allow-scripts + allow-same-origin 组合导致沙箱逃逸, 同时维持结构化 JSON-RPC 通道
+
+## 生态与定位
+
+协议出处: A2UI 由 Google 发起, CopilotKit 与开源社区共建, Apache 2.0 许可, 仓库 a2ui-project/a2ui, 包含规范 (v0.9.1 当前, v1.0 候选) 、多端渲染器实现与 A2A 等传输绑定.
+
+与周边项目的关系:
+
+- AG-UI 是传输协议 (连接 Agent 后端与前端, 负责实时状态同步) , A2UI 是 UI 格式 (描述渲染什么的有效载荷) . 二者互补: AG-UI 是管道, A2UI 是内容. AG-UI 由 CopilotKit 团队发起, 对 A2UI 有 day-zero 兼容
+- CopilotKit 是基于 AG-UI 的全栈 agentic 框架, 提供 A2UI 渲染的开箱集成 (CopilotKitProvider 传 a2ui catalog 即可) . 但 A2UI 不依赖 CopilotKit, 完全可以自建链路 (见文末 swifty-agent 案例)
+- 对比 OpenAI ChatKit: 设计哲学相近 (基础组件 + 可配置声明式抽象层) , 但 A2UI 平台无关, 面向跨 web/移动/桌面自建 agentic 界面, 以及需要跨信任边界渲染的多 Agent 系统
+- 采用案例: Google 内部团队、AG2 多 Agent 框架 (A2UIAgent, 可经 A2A 服务 Flutter GenUI 客户端) 、CopilotKit 生态应用等
+
+渲染器生态: 官方实现覆盖 React、Lit、Angular、Flutter (GenUI SDK) 、Markdown; 社区有基于 shadcn 的 React 渲染器 (如 @xpert-ai/a2ui-react、本文的 @swifty.js/a2ui-shadcn) 及实验性 3D 渲染器. 配套工具: A2UI Composer (可视化编辑器, 无需安装即可生成 A2UI JSON) 、A2UI Theater (预置流式场景的演示场) .
 
 ## 完整流程 (React + v0.9)
 
@@ -1403,6 +1417,190 @@ export const OrderCardImpl = createComponentImplementation(
 - Agent 只能渲染已注册组件, 永远不执行 Agent 下发的代码; 自定义组件内部如需加载第三方内容 (如 iframe), 由组件自己实施沙箱策略 (smart wrapper 模式)
 - 对 Agent 下发的 url / html 类属性, 在自定义组件内做白名单校验
 - 校验类逻辑用 catalog 函数 (checks) 声明, 在客户端本地执行, 不依赖 Agent 自觉
+
+## @swifty.js/a2ui-shadcn: 三合一组件库
+
+上文示例都基于官方 basic catalog (18 个组件) . 真实业务需要更丰富的组件与自己的设计系统, @swifty.js/a2ui-shadcn (位于 a2ui monorepo 的 packages/shadcn) 给出了一个完整答案: 用 shadcn/ui 重实现 basic catalog 并大幅扩展, 把渲染端与生成端封装进一个包. 该 monorepo 是官方 restaurant-finder 示例的全栈 TypeScript 移植, 协议固定 v0.9.
+
+### 包结构: 三个导出入口
+
+- "." -> src/index.ts: 渲染器 A2uiView + catalog 再导出
+- "./catalog" -> src/catalog/index.ts: 组件 catalog 注册表
+- "./prompt" -> src/prompt/index.ts: LLM 系统提示词生成器
+
+即一个包同时覆盖渲染端 (把 A2UI 消息画出来) 和生成端 (教 LLM 怎么产出 A2UI 消息) .
+
+关键依赖:
+
+- 协议栈: @a2ui/react ^0.10.2、@a2ui/web_core ^0.10.6、@a2ui/markdown-it
+- UI 底座: @base-ui/react (Base UI 原语而非 Radix) 、class-variance-authority、tailwind-merge、lucide-react、cmdk、recharts、react-day-picker、embla-carousel-react 等
+- peer: react ^18||^19、zod ^3
+
+构建双模式 (Vite) : lib 模式三入口输出 ES + CJS + d.ts; app 模式跑 demo (端口 5005) , 并注册 middleware/a2a.ts 插件把浏览器请求包装成 A2A 协议代理到 packages/server.
+
+### Catalog: 65 个组件
+
+注册表 src/catalog/index.ts:
+
+```ts
+export const SHADCN_CATALOG_ID =
+  "https://raw.githubusercontent.com/hangtiancheng/a2ui/main/packages/shadcn/catalog.json";
+
+const components: ReactComponentImplementation[] = [
+  Text, Image, Icon, Video, AudioPlayer, Row, Column, List, Card, Tabs,
+  Divider, Modal, Button, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput,
+  ...shadcnExtensionComponents,
+];
+
+export const shadcnCatalog = new Catalog<ReactComponentImplementation>(
+  SHADCN_CATALOG_ID, components, BASIC_FUNCTIONS,
+);
+```
+
+- 18 个 basic 组件直接复用官方 basic_catalog 的 zod Api schema (ButtonApi / TextApi / ListApi 等) , 只替换视觉层为 shadcn 实现. 例如 Button 把协议的 variant 映射到 shadcn variant (primary -> default, borderless -> ghost) , action prop 直接作为 onClick
+- 47 个扩展组件按家族分组: display (Alert / Avatar / Badge / Progress / Skeleton / Spinner 等) 、structure (Accordion / Carousel / Table / Resizable 等) 、overlays (AlertDialog / Drawer / Sheet / Tooltip / Popover 等) 、navigation (Breadcrumb / Menubar / Pagination 等) 、forms (Calendar / Combobox / Command / Select / Switch / InputOtp 等) 、chat (Bubble / Message / MessageScroller / Questionnaire / Attachment / Marker) 、data (Chart) . 源码注释明确排除了 sidebar (属于应用骨架) 、toast (命令式 API) 、direction (provider 性质)
+- 扩展组件自定义 Api = { name, schema: z.object({...}).strict() }, 属性用 DynamicStringSchema 等结构化类型声明, 自动获得数据绑定能力:
+
+```tsx
+export const AlertApi = {
+  name: "Alert",
+  schema: z.object({
+    ...COMMON, // weight, accessibility
+    title: DynamicStringSchema.describe("The alert title."),
+    description: DynamicStringSchema.describe("The alert description.").optional(),
+    variant: z.enum(["default", "destructive"]).default("default"),
+    icon: ICON_NAME.optional(), // 由 ICON_MAP 派生的枚举, 映射到 lucide-react
+  }).strict(),
+};
+export const Alert = createComponentImplementation(AlertApi, ({ props }) => (...));
+```
+
+### catalog.json 生成: 单一事实源
+
+scripts/catalog.ts (pnpm catalog) 生成约 118KB 的 catalog.json:
+
+1. 合并官方 basic catalog (postinstall 从 A2UI v0.9 规范下载) 与 47 个扩展组件
+2. 用 zod-to-json-schema 把扩展组件的 zod schema 转成 JSON Schema
+3. 协议公共类型 (DynamicString / Action / DataBinding) 通过形状签名匹配后改写成 $ref 指向规范的 common_types.json, 压缩体积
+4. 以 SHADCN_CATALOG_ID 发布, 并同步拷贝到 src/prompt/schemas/catalog.json
+
+这份 catalog.json 会被服务端嵌入 LLM 系统提示词, 构成"组件实现 -> zod schema -> catalog.json -> LLM prompt"的单一事实源链路: 改组件 props, prompt 契约自动跟着变. 两条硬约定: schema 变更后必须重新生成并提交; 服务端不得 import 包内的 Catalog 实例 (Map 序列化会丢组件契约) , 只能读 catalog.json 文件.
+
+### 渲染器 A2uiView
+
+宿主应用只需一个组件:
+
+```tsx
+import { A2uiView } from "@swifty.js/a2ui-shadcn";
+
+<A2uiView
+  messages={messages} // A2uiMessage[], 来自任意消息源
+  onRawAction={(action) => /* 事件回传 Agent */}
+/>;
+```
+
+内部流程:
+
+1. A2uiMessageSchema.safeParse 逐条校验, 非法消息丢弃并打日志
+2. new MessageProcessor([shadcnCatalog], actionHandler), actionHandler 优先走 onRawAction, 否则用 buildQueryFromAction 转成文本 "[a2ui_action] {name}\ncontext: {JSON}"
+3. processedCount ref 记录已处理条数, 只把新增消息交给 processor.processMessages —— 增量处理是支持"原地更新"(action 回传后追加 update 消息) 的基础
+4. 订阅 onSurfaceCreated/onSurfaceDeleted 维护 surfaces 状态, MarkdownContext 注入 renderMarkdown, 逐个渲染 A2uiSurface
+
+求值由 web_core 的 generic binder 按 zod schema 结构化完成: Dynamic* 标注的 prop 解析为实际值并自动生成 setX 回写函数 (双向绑定) ; ActionSchema 标注的 prop 变成可调用函数; ComponentId/ChildList 变成 buildChild 能力; z.any() 保持静态不参与绑定. .strict() schema 使 MessageProcessor 运行时拒绝未知 prop.
+
+### prompt 生成端
+
+src/prompt/ 把 A2UI Python agent SDK 的四种推理格式提示词生成器移植为 TypeScript (DirectJson / Elemental / Atom / Express) , 内嵌 schemas/{catalog,common_types,server_to_client}.json, 对外提供 generateSystemPrompt(format, options) 与 applySchemaModifiers 等工具. 服务端用它把协议 schema + catalog 契约 + few-shot 示例注入系统提示词, 具体用法见下一节的 swifty-agent.
+
+## swifty-agent: 生产级 A2UI 应用案例
+
+swifty-cli/apps/swifty-agent 是一个 AI OnCall 运维助手: 告警分析、日志查询、Prometheus 运维问答, 通过 A2UI 让 LLM 直接生成交互式 UI (告警列表卡片、指标图表、静默表单) . 它最重要的架构选择是不用 CopilotKit, 完全自建"生成 -> 渲染 -> 交互 -> 原地更新"闭环.
+
+### 技术栈
+
+- Next.js 16 (App Router) + React 19 + TypeScript; 页面: app/page.tsx (主聊天) 、app/gallery/page.tsx (组件画廊)
+- Vercel AI SDK v7: streamText/generateText + tools + stopWhen, provider 为 @ai-sdk/openai 与 @ai-sdk/anthropic, 区分 thinkModel/quickModel
+- A2UI: @a2ui/web_core、@a2ui/react、@a2ui/markdown-it, 以及 "@swifty.js/a2ui-shadcn": "file:../../../a2ui/packages/shadcn" —— 本地 file 链接, 两个仓库协同演进
+- 其他: Redis Stack 向量检索 (RAG) 、knex + mysql2、MCP SDK (日志工具) 、prom-client、Tailwind v4
+
+一个配套配置: reactStrictMode: false. 原因是 MessageProcessor 是有状态外部存储, StrictMode 的开发态双执行会重放已创建的 surface.
+
+### 生成侧: direct-json 模式 + 内联标签
+
+lib/ai/a2ui/prompt.ts 用 shadcn 包的 prompt 入口构造系统提示词:
+
+```ts
+import { applySchemaModifiers, generateSystemPrompt, removeStrictValidation,
+  SHADCN_PROMPT_CATALOG } from "@swifty.js/a2ui-shadcn/prompt";
+
+const PROMPT_CATALOG = applySchemaModifiers(SHADCN_PROMPT_CATALOG, [removeStrictValidation]);
+
+export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
+  roleDescription: `## Interactive UI (A2UI v0.9) ...`,
+  workflowDescription: `- WHEN: only when the answer presents structured data ...`,
+  includeSchema: true,
+  examples: [renderExample("ALERT_LIST_EXAMPLE", buildAlertListExample()), ...].join("\n"),
+}, PROMPT_CATALOG);
+```
+
+要点:
+
+- direct-json 模式: LLM 在 markdown 回复后追加一个 <a2ui-json>[...]</a2ui-json> 标签块 (JSON 消息数组) , 与文本共用同一输出通道
+- prompt 内嵌完整 schema 契约 + 3 个由 builder 函数生成的 few-shot 示例 (告警列表、QPS 指标报告、静默表单) . builder 化的好处: 改 UI 结构只需改 builder, prompt 自动同步
+- removeStrictValidation 去掉 closed-object 约束, 避免 LLM 因无害的额外字段被过度拒绝
+- 服务端从 SHADCN_PROMPT_CATALOG 取出的 catalogId 与客户端 shadcnCatalog 严格一致, 否则 renderer 抛 "Catalog not found"
+
+两条生成管线:
+
+- 非流式 POST /api/chat: RAG 检索 + 历史记忆 -> generateText (tools + 25 步上限) -> extractA2ui 切出标签块并用 A2uiMessageListSchema.safeParse 校验 -> 返回 { answer, a2ui }
+- 流式 POST /api/chat_stream: createA2uiStreamFilter() 是一个有状态流过滤器 —— 普通文本即时透传 (仅扣留可能是标签前缀的尾部) , <a2ui-json> 块静默缓冲直到闭合标签; 跨 chunk 的部分标签扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃. 完整块校验后以 SSE event: a2ui 一次性下发
+
+纠错重试: 块校验失败时调用 correctA2uiBlock —— 关闭工具的一次重试, 把错误信息回灌模型要求只输出修正块; 仍失败则降级为 notice 提示, 绝不伪造 UI 数据. 这正是 v0.9 prompt-first 取向 (schema 嵌入 prompt, 生成后校验修复) 在应用层的标准落地.
+
+### 消费侧: unknown[] 边界 + 增量渲染
+
+hooks/use-chat.ts 中 ChatMessage.a2ui?: unknown[] 挂在助手消息上 (持久化到 localStorage) . SSE 解析器处理 event: a2ui 事件后追加到最后一条助手消息的 a2ui 数组. 设计红线: web_core 自带 zod v3, 不得与应用层 zod v4 混用, 边界一律 unknown[], 渲染时才由 web_core schema 逐条校验.
+
+components/msg-list.tsx 中每条带 a2ui 数据的助手消息渲染一个 A2uiView, onRawAction 接到动作后走独立的 action 管线.
+
+### 交互回传: out-of-band 原地更新
+
+这是本应用最有特色的设计 —— surface 内的动作不走聊天消息流:
+
+1. 用户点击 surface 内按钮 -> MessageProcessor 回调 -> A2uiView.onRawAction(action), action 为 {name, surfaceId, sourceComponentId, context}
+2. sendA2uiAction POST /api/a2ui_action, body 为 { action, a2ui: 该消息当前的完整 a2ui 消息列表 } (surface 的权威状态随请求带上)
+3. 服务端 runA2uiAction: action payload + surface 全量消息组成 user prompt; generateText 使用 A2UI_ACTION_SYSTEM_PROMPT —— 通过 allowedMessages 裁剪 schema, 使 action 场景下 createSurface/deleteSurface 根本无法通过校验; 输出经 extractA2ui + 纠错重试
+4. filterInPlaceMessages 只保留针对同一 surfaceId 的 updateComponents/updateDataModel —— 杂散的 createSurface 会让客户端抛 "Surface already exists" 并丢弃整批消息
+5. 客户端把返回的 patch 追加到原消息的 a2ui 数组, A2uiView 增量 processMessages 原地更新 surface (如表单提交后在原卡片内显示状态行)
+
+更新不产生新的聊天气泡, 交互体验收敛在 surface 内部.
+
+### AI Ops 管线与其他
+
+POST /api/ai_ops 走 plan-execute-replan: Planner (think 模型结构化输出 steps) -> Executor (quick 模型 + 工具逐步执行) -> Replanner 循环 (≤20 轮) ; 完成后 uiifyReport() 用 think 模型做一次无工具的"UI 化"后处理, 把报告可选地渲染为 A2UI surface, 失败绝不影响报告本身.
+
+工具三层拆分 (lib/ai/tools/) : schemas.ts (zod) -> operations.ts (纯函数) -> index.ts (AI SDK tool) , 含 get_current_time、mysql_crud、query_internal_docs (RAG) 、query_prometheus_alerts, 另有经 MCP SDK 引入的 SSE 日志工具. instrumentation.ts 启动时把 data/docs/ 文档全部 embedding 入 Redis 向量库.
+
+界面示例 (prompt few-shot builder) :
+
+- 告警列表: Column/Text/List (模板绑定 children:{componentId, path:"/alerts"}) /Card/Row/Badge/Button (action ack_alert, context 用相对路径绑定)
+- QPS 指标报告: Chart (variant:"line") + Table (rows 绑定 /rows)
+- 告警静默表单: Card + TextField x3 (value 绑定数据模型) + Button (action create_silence, context 携带表单值)
+
+验证手段: /gallery 页面无后端渲染全部 shadcn 扩展组件 (消息顺序 createSurface -> updateDataModel -> updateComponents) ; scripts/a2ui-smoke.ts 检查 prompt 示例、流过滤器分块与校验语义.
+
+### 工程坑位清单
+
+1. zod 版本红线: web_core 内置 zod v3, 应用层 zod v4 不得混用 schema, 边界用 unknown[] 隔离
+2. MessageProcessor 有状态: React StrictMode 双执行会重放 surface, 需关闭或妥善处理
+3. catalogId 两端必须一致, 否则 "Catalog not found"; 服务端只能消费 catalog.json 文件, 不能 import Catalog 实例
+4. action 回传的 patch 中杂散 createSurface 会导致整批消息被丢弃, 服务端必须先过滤
+5. LLM 生成的 A2UI 块天然存在格式错误概率, 必须有校验 + 有限次纠错重试 + 诚实降级的完整兜底
+6. 两个仓库的 AGENTS.md 都存在与现行代码不一致的描述 (如 action 走聊天通道的旧设计) , 以代码为准
+
+### 小结
+
+A2UI 把"Agent 发 UI"从发代码变成发数据, 用 catalog 契约 + 数据绑定 + 扁平组件树换取 LLM 生成的可靠性与跨信任边界的安全性; @swifty.js/a2ui-shadcn 用 65 个组件和三合一封装证明协议可以承载真实设计系统; swifty-agent 则验证了从 prompt 生成、流式渲染到交互原地更新的完整工程闭环, 其自建链路 (而非 CopilotKit) 为自建 agentic 应用提供了可复用的参考实现.
 
 ## v0.8 与 v0.9 字段差异对照
 

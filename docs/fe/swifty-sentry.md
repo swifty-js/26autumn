@@ -60,29 +60,32 @@
 
 ```typescript
 export function init(options: InitOptions): void {
-  // 1. 合并默认配置 + Zod 校验
+  // 1. 单例守卫( 最先检查, 避免重复 parse 开销)
+  if (isInitialized()) return;
+
+  // 2. 合并默认配置 + Zod 校验
   const parsedOptions = optionsSchema.parse({ ...DEFAULT_OPTIONS, ...options });
   sentry.setOptions(parsedOptions);
 
-  // 2. 防护检查
+  // 3. 防护检查
   if (sentry.options.disabled) return; // 用户主动禁用
   if (dsn === "") return; // DSN 为空拒绝初始化
-  if (isInitialized()) return; // 防止重复初始化
 
-  // 3. 启动事件订阅和猴子补丁
+  // 4. 设置面包屑容量, 启动事件订阅和猴子补丁
+  breadcrumb.capacity = sentry.options.maxBreadcrumbs;
   cleanupSetup = setup();
 
-  // 4. 异步初始化身份识别
+  // 5. 异步初始化身份识别
   void initIdentity();
 }
 ```
 
 防护机制:
 
-1. Zod 运行时校验: 所有配置项通过 `optionsSchema.parse()` 校验, 非法配置会抛出明确错误
-2. disabled 开关: 支持通过配置完全禁用 SDK( 适用于 A/B 测试或环境区分)
-3. DSN 非空检查: 上报地址为空时拒绝初始化, 避免无效运行
-4. 单例守卫: `isInitialized()` 通过 `cleanupSetup !== null` 判断, 防止重复初始化
+1. 单例守卫: `isInitialized()` 通过 `cleanupSetup !== null` 判断, 防止重复初始化. 放在最前面是因为重复调用 init 是常见场景( 如 HMR), 提前返回避免不必要的 zod parse 开销
+2. Zod 运行时校验: 所有配置项通过 `optionsSchema.parse()` 校验, 非法配置会抛出明确错误
+3. disabled 开关: 支持通过配置完全禁用 SDK( 适用于 A/B 测试或环境区分)
+4. DSN 非空检查: 上报地址为空时拒绝初始化, 避免无效运行
 5. destroy 完整清理: 销毁时依次执行 `destroyPlugins()` -> `cleanupSetup()` -> `destroyBatchErrorManager()` -> `resetReporter()`, 确保无内存泄漏
 
 setup() 的清理函数设计:
@@ -99,19 +102,19 @@ setup() 的清理函数设计:
 
 ```typescript
 // 核心结构
-const subscriptions = new Map<EventType, Set<TEventHandler>>();
+const event2handlers = new Map<EventType, Set<TEventHandler>>();
 
 // 发布
 function pub(type: EventType, data: unknown): void {
-  const handlers = subscriptions.get(type);
+  const handlers = event2handlers.get(type);
   if (handlers) handlers.forEach((handler) => handler(data));
 }
 
 // 订阅( 返回清理函数)
 function sub(type: EventType, handler: TEventHandler): Cleanup {
-  if (!subscriptions.has(type)) subscriptions.set(type, new Set());
-  subscriptions.get(type)!.add(handler);
-  return () => subscriptions.get(type)?.delete(handler);
+  if (!event2handlers.has(type)) event2handlers.set(type, new Set());
+  event2handlers.get(type)!.add(handler);
+  return () => event2handlers.get(type)?.delete(handler);
 }
 ```
 
@@ -397,7 +400,7 @@ private sendBatch(finalSendData: readonly IReportData[]): Promise<boolean> | boo
 
 fetch 通道的特殊处理:
 
-- 使用 `keepalive: true` 选项, 在页面卸载时仍尝试完成请求
+- 条件性 `keepalive`: 载荷 <= 60KB 时设置 `keepalive: true`( 页面卸载时仍尝试完成请求) ; 超过 60KB 则关闭——Chromium 对 keepalive fetch 有约 64KB 的在途预算, 大载荷( 如屏幕录制) 若强制 keepalive 会被浏览器拒绝, 导致请求永远失败并阻塞队列头部( `transports.ts:44-48`)
 - 失败时触发 `handleServerError()`, 启动定时 HEAD 探测恢复机制
 
 ---
@@ -758,7 +761,7 @@ class MinHeap<T extends { timestamp: number }> {
 
 dump() 的调用时机:
 
-`dump()` 返回按时间戳排序的有序面包屑列表. 需要注意的是, 当前代码中它尚未被接线: src 内没有任何 `.dump()` 调用点, 面包屑目前只进不出, 没有被附加到上报数据中. 这是一个预留能力, 设计上可以在上报时导出有序面包屑帮助还原用户操作路径.
+`dump()` 返回按时间戳排序的有序面包屑列表. 它在上报数据组装时被调用: `reporter/report-data.ts:59` 中 `data.breadcrumbs = breadcrumb.dump()`, 将有序面包屑附加到每条上报数据中, 帮助后端还原用户操作路径.
 
 ---
 
@@ -771,26 +774,46 @@ dump() 的调用时机:
 滚动窗口机制:
 
 ```typescript
-// recorder.ts 核心逻辑
-class RollingRecorder {
-  private events: RRWebEvent[] = [];
-  private durationMs: number; // 默认 3000ms
+// recorder.ts 核心逻辑( 闭包实现, 非 class)
+function getRollingWindow(
+  events: readonly RecordEvent[],
+  currentTimestamp: number,
+): readonly RecordEvent[] {
+  const minTimestamp = currentTimestamp - sentry.options.screenRecordDurationMs;
+  return events.filter((event) => event.timestamp >= minTimestamp);
+}
 
-  onEvent(event: RRWebEvent) {
-    this.events.push(event);
-    // 过滤: 只保留最近 durationMs 内的事件
-    const cutoff = event.timestamp - this.durationMs;
-    this.events = this.events.filter((e) => e.timestamp >= cutoff);
-  }
+export async function recorder(reporter: IDataReporter): Promise<Cleanup> {
+  const [{ record }, pako] = await Promise.all([
+    import("@rrweb/record"), import("pako"),
+  ]);
+  let recordWindow: readonly RecordEvent[] = [];
 
-  getSnapshot(): string {
-    // JSON -> pako gzip -> base64
-    const json = JSON.stringify(this.events);
-    const compressed = pako.gzip(json);
-    return base64Encode(compressed);
-  }
+  const stopRecord = record({
+    emit(e, isCheckout) {
+      const result = recordEventSchema.safeParse(e);
+      if (!result.success) return;
+      recordWindow = getRollingWindow(
+        [...recordWindow, result.data], result.data.timestamp,
+      );
+      if (sentry.shouldScreenRecord && recordWindow.length > 0) {
+        reporter.send({
+          ...getBaseData(),
+          name: "ScreenRecord",
+          type: EventType.ScreenRecord,
+          event: zip(recordWindow), // JSON -> gzip -> base64
+          eventCount: recordWindow.length,
+        });
+        sentry.shouldScreenRecord = false;
+      }
+    },
+    checkoutEveryNms: sentry.options.screenRecordDurationMs,
+  });
+  return typeof stopRecord === "function" ? stopRecord : noop;
 }
 ```
+
+设计要点: `recorder` 是闭包而非 class——`recordWindow` 作为闭包变量维护滚动窗口, `getRollingWindow` 是纯函数负责按时间戳过滤. rrweb 的 `record()` 返回停止函数, 直接作为 cleanup 返回给插件的 destroy 链路. 动态 `import("@rrweb/record")` 和 `import("pako")` 并行加载, 避免录制库阻塞主 bundle.
 
 触发机制:
 
@@ -851,10 +874,11 @@ function destroyPlugins(): void {
 启用入口( core/sdk-lifecycle.ts) :
 
 ```typescript
-export function enablePlugin(plugin: SentryPlugin): SentryPlugin {
-  plugin.init();
-  registerPlugin(plugin);
-  return plugin;
+export function enablePlugin(...plugins: SentryPlugin[]): void {
+  for (const plugin of plugins) {
+    plugin.init();
+    registerPlugin(plugin);
+  }
 }
 ```
 
@@ -868,8 +892,7 @@ import {
 } from "@swifty.js/sentry/plugins";
 
 init({ dsn: "https://..." });
-enablePlugin(new PerformancePlugin());
-enablePlugin(new ScreenRecordPlugin());
+enablePlugin(new PerformancePlugin(), new ScreenRecordPlugin());
 ```
 
 可插拔设计要点:
@@ -1875,7 +1898,8 @@ new IntersectionObserver(
 使用方式( 命令式 API) :
 
 ```typescript
-const exposure = enablePlugin(new ExposurePlugin());
+const exposure = new ExposurePlugin();
+enablePlugin(exposure);
 exposure.observe({ target: bannerEl, threshold: 0.5, params: { slot: "top" } });
 // 组件卸载时
 exposure.unobserve(bannerEl);
@@ -1922,9 +1946,6 @@ export function getSessionId(): string {
   }
   return sessionId;
 }
-
-// 支持主动刷新会话( 如登录态切换)
-export function refreshSessionId(): string;
 ```
 
 | 标识        | 生成方式          | 存储           | 生命周期                       |

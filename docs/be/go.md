@@ -265,7 +265,7 @@ if newLen > doublecap {
 ```
 
 - Go 1.17 及以前阈值是 1024 且是硬切换 (<1024 翻倍, >=1024 乘 1.25); 1.18 改为 256 并平滑过渡, 减少大 slice 的突变.
-- 第二步 `roundupsize`: 期望容量乘元素大小后, 会向上取整到 malloc 的 size class (如 48、64、80、96、112 字节……), 所以 `append([]int{1,2,3}, 4)` 得到的 cap 是 4 (3 个 int=24B, 翻倍 48B 正好是 size class), 而某些元素类型会出现 cap 比翻倍值更大的"怪异"结果. 面试时能讲出 roundupsize 这一步是区分度所在.
+- 第二步 `roundupsize`: 期望容量乘元素大小后, 会向上取整到 malloc 的 size class (如 48、64、80、96、112 字节……), 所以 `append([]int{1,2,3}, 4)` 得到的 cap 是 6 (oldCap=3 < 256 走翻倍, newcap=6, 6*8=48B 正好是 size class), 而某些元素类型会出现 cap 比翻倍值更大的"怪异"结果. 面试时能讲出 roundupsize 这一步是区分度所在.
 - 扩容必然发生 `mallocgc` 分配新数组 + `memmove` 拷贝 + 旧数组等待 GC, 因此已知规模时必须 `make([]T, 0, n)` 预分配. 基准测试中, 预分配对热点路径 (如 RPC 编解码缓冲) 常有数倍收益.
 
 ### 2.3 共享底层数组的经典陷阱
@@ -760,7 +760,7 @@ Q: 容器里 GOMAXPROCS 有什么坑?
 
 A: `GOMAXPROCS` 默认取机器逻辑 CPU 数. 容器场景的经典问题: Pod limit 2 核, 宿主机 64 核, Go 1.24 及以前默认 GOMAXPROCS=64 → 64 个 P 的调度开销、GC 标记并行度失衡、CFS 配额下频繁被内核限流 (throttling), P99 明显劣化. 解法:
 
-- Go 1.25+: 运行时原生感知 cgroup CPU 配额 (cgroup v2), 自动设置合理的 GOMAXPROCS, 并能在配额变化时动态调整;
+- Go 1.25+: 运行时原生感知 cgroup CPU 配额 (cgroup v1 和 v2 均支持), 自动设置合理的 GOMAXPROCS, 并能在配额变化时动态调整;
 - 旧版本: `uber-go/automaxprocs` 或部署层显式注入 `GOMAXPROCS` 环境变量.
 
 ### 7.8 sysmon 与 goroutine 状态机

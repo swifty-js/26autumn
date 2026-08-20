@@ -244,11 +244,11 @@ Swifty 有三类自愈机制, 都在 `agent.ts` 中:
 
 `turn_complete` 在每一轮结束时发出, `loop_complete` 只在循环退出时发出一次. UI 对两者的利用完全不同( `app.tsx` 事件循环) :
 
-`turn_complete` 时( `app.tsx:1401`) :
+`turn_complete` 时( `app.tsx:1618`) :
 
 1. 冲刷( flush) 50ms 节流定时器, 确保流式文本最终态渲染出来;
-2. 清空 `streamingText`, 把本轮积累的 thinking + 工具调用折叠为一条 `turn_summary` 消息写入消息列表;
-3. 推进 `committedIndexRef`, 把新消息"提交"到 `<Static>` 区( 进入终端回滚缓冲, 永不重绘) .
+2. 清空 `streamingText`, 把本轮积累的 thinking + 工具调用折叠为 `turn_summary` 消息, 流式文本保留为 `assistant` 消息, 一并 push 进消息列表;
+3. 新消息进入 `<Static>` 的 items 数组后, Ink 自动将其渲染到终端回滚缓冲( 永不重绘) .
 
 `loop_complete` 时( `app.tsx:1429`) :
 
@@ -291,7 +291,7 @@ case "stream_text":
 
 Swifty 用 Promise-based suspension( Promise 悬挂) 把"同步阻塞等待用户"桥接进异步生成器:
 
-1. Agent 构造时注入回调 `onPermissionRequest: (req) => Promise<PermissionAction>`( `app.tsx:1276`) .
+1. Agent 构造时注入回调 `onPermissionRequest: (toolName, args, decision) => Promise<"allow" | "deny" | "allowAlways">`(`agent.ts:101-105`) .
 2. 权限检查判定需要询问时, Agent `await onPermissionRequest(...)` —— 生成器在这一帧挂起.
 3. TUI 侧的注入实现: 把 `resolve` 函数存入 `permissionResolveRef`, 同时 `setPermissionRequest({...})` 触发 React 渲染 `PermissionDialog`.
 4. 用户在对话框按键选择( Yes / Yes, don't ask again / No) , `onComplete` 调用 `permissionResolveRef.current?.(action)`.
@@ -678,34 +678,45 @@ interface Tool {
 
 ## 六、TUI 渲染层与性能优化
 
-### Q30: Ink 的 `<Static>` 组件在 Swifty 中扮演什么角色? `committedIndexRef` 的提交策略是怎样的?
+### Q30: Ink 的 `<Static>` 组件在 Swifty 中扮演什么角色? 消息是如何"提交"到不可变区域的?
 
 答:
 
 终端渲染有个根本约束: 已滚出可视区的内容无法再修改( 终端不是 DOM, 没有真正的重绘已滚动区域的能力) . Ink 的 `<Static>` 正是为此设计: 其子树渲染一次后写入终端回滚缓冲区( scrollback) , 之后任何 React 更新都不再触碰它, 也不参与 `eraseLines` 清屏.
 
-Swifty 把消息列表切成两段( `app.tsx:1688`) :
+Swifty 将全部消息传入 `<Static>` 的 items 数组( `app.tsx:1902-1916`) :
 
 ```tsx
-<Static items={messages.slice(0, committedIndexRef.current)}>
-  {(item) => <CommittedMessage message={item} />}
+<Static
+  key={`transcript-${sessionIdRef.current}-${String(termWidth)}-${String(toolsExpanded)}`}
+  items={[
+    { type: "brand", _key: "brand", model, workDir },
+    ...messages.map((message, index) => ({
+      type: "message", _key: `message-${index}`, message,
+    })),
+  ]}
+>
+  {(item) => item.type === "brand" ? <BrandHeader .../> : <MessageBlock .../>}
 </Static>
-<ChatView messages={messages.slice(committedIndexRef.current)} streamingText={...} />
 ```
 
-`committedIndexRef`( 用 ref 而非 state, 因为它的变化本身不需要触发渲染) 是"已提交/未提交"分界线, 推进时机:
+"提交"并非由显式索引控制, 而是 Ink `<Static>` 的内建行为: 它内部记录已渲染的 items 数量, 每次 re-render 只渲染新增的 items. 因此消息一旦通过 `setMessages` 进入数组, 就被 `<Static>` 渲染到回滚区并永不重绘.
 
-- `turn_complete`: 本轮 turn_summary 落列表后推进 —— 中间过程冻结进回滚区;
-- `loop_complete`: assistant 最终正文提交;
-- `/clear`: 归零; `/resume`: 设为恢复的消息数.
+消息进入数组的时机:
+
+- `turn_complete`: 本轮 thinking/工具调用折叠为 `turn_summary`, 流式文本保留为 `assistant`, 一并 push 进消息列表;
+- `loop_complete`: assistant 最终正文 push 进列表;
+- `/clear`: 清空消息数组; `/resume`: 从持久化恢复全部消息.
+
+`key` 的设计值得注意: 包含 sessionId、termWidth、toolsExpanded 三个维度. 终端宽度变化时, 已打印的行会重新换行导致 Ink 的 `eraseLines` 计数失准, 此时通过改变 key 强制卸载并重新挂载 `<Static>`, 整个转录区在新宽度下重印( 先 `\x1b[2J\x1b[H` 清可视区, 保留回滚) .
 
 收益有三:
 
-1. 零闪烁: 历史消息永不重绘, 只有动态区( 未提交消息 + 流式文本 + spinner + 对话框) 在更新;
+1. 零闪烁: 历史消息永不重绘, 只有动态区( 流式文本 + spinner + 对话框) 在更新;
 2. 渲染成本恒定化: 无论对话多长, 每帧 React 协调的动态子树大小恒定, 长会话不退化;
 3. 终端语义正确: 回滚区内容用户可向上翻阅, 且不受后续清屏影响.
 
-类比前端: `<Static>` 之于终端 ≈ `content-visibility: auto` + 虚拟列表之于长页面 —— 都是"把已离开焦点区域的内容从渲染管线上摘除".
+类比前端: `<Static>` 之于终端 约等于 `content-visibility: auto` + 虚拟列表之于长页面 —— 都是"把已离开焦点区域的内容从渲染管线上摘除".
 
 ---
 
@@ -743,7 +754,7 @@ case "stream_text":
 
 问题: 流式渲染要对文本做 markdown 解析( `marked`) , 若每帧全量解析累计文本, 第 n 帧成本 O(n), 总成本 O(n²) —— 长回复后半段会明显卡顿.
 
-`StreamingText`( `chat.tsx:87`) 的解法:
+`StreamingText`( `chat.tsx:90`) 的解法:
 
 ```ts
 const boundary = text.lastIndexOf("\n\n");
@@ -776,7 +787,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 1. 渲染态( useState) : `messages`、`streamingText`、`activeTools`、`error` 等 —— 直接驱动视图的;
 2. 镜像态( useRef 双写) : `streamingTextRef`、`permModeRef` —— 异步回调需要最新值的( 见 Q11) ;
-3. 边界态( useRef) : `committedIndexRef`、`headerPrintedRef`、`submittingRef`( 重入守卫) —— 参与逻辑但不驱动渲染;
+3. 边界态( useRef) : `headerPrintedRef`、`submittingRef`( 重入守卫) 、`streamingTextRef`( 流式文本镜像) —— 参与逻辑但不驱动渲染;
 4. 服务实例态( useRef) : `clientRef`、`convRef`、`registryRef`、`hookEngineRef`、`teamManagerRef` 等十几个 —— 本质是用 ref 当依赖注入容器: 这些对象有方法、有内部状态、生命周期等于会话, 放进 ref 既不触发渲染又保证单例;
 5. 异步句柄态( useRef) : `permissionResolveRef`、`askResolveRef`、`abortControllerRef`、`streamThrottleRef` —— 跨渲染帧存活的 Promise/定时器句柄.
 
@@ -1754,7 +1765,7 @@ AsyncLocalStorage 上下文( `context.ts`) : 问题 —— 子代理/teammate �
 
 UI 状态重建( 用户看到的画面) :
 
-- TUI: 从恢复的消息重建 `messages` 数组, `committedIndexRef` 直接设为消息总数 —— 全部进 `<Static>` 区( 历史已定型, 无需再编辑) ;
+- TUI: 从恢复的消息重建 `messages` 数组, 全部传入 `<Static>` 的 items —— Ink 内建机制保证它们只渲染一次, 历史已定型无需再编辑;
 - remote: 先广播 `clear`, 再逐条广播 `replay_user`/`replay_assistant` 让前端重建聊天流.
 
 不支持恢复的部分: usage anchor( token 基线归零, 首轮估算回退字符估算) 、文件历史快照( rewind 不可跨会话) 、会话白名单( 内存态) . 这些是刻意的: 恢复的是"对话记忆", 不是"进程状态" —— 会话文件是唯一事实来源, 内存结构全部按需重建.

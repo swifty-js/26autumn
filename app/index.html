@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>面试 QA 文档</title>
     <script>
-      // No-FOUC: apply dark class before first paint
       (() => {
-        const stored = localStorage.getItem("swifty-docs-theme");
+        const stored = localStorage.getItem("lark-docs-theme");
         const prefersDark = window.matchMedia(
           "(prefers-color-scheme: dark)",
         ).matches;
@@ -19,6 +18,6 @@
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="./main.tsx"></script>
+    <script type="module" src="./boot.ts"></script>
   </body>
 </html>

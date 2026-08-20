@@ -108,7 +108,7 @@ A:
 
 经典面试追问: 为什么 `a` 标签的 `color` 不继承父元素? 因为浏览器的 UA 默认样式表直接给 `a` 设置了颜色, 直接命中的声明优先级高于继承值; 想继承需显式写 `a { color: inherit; }`.
 
-### 42. CSS 中的 :root 和 html 选择器有什么区别?
+### 4. CSS 中的 :root 和 html 选择器有什么区别?
 
 A:
 
@@ -162,7 +162,7 @@ html {
 
 在独立 SVG 文档 (.svg 文件) 中的区别: 文档根元素是 `<svg>`, 因此 `:root` 能匹配到根 `<svg>` 元素, 而 `html` 选择器匹配不到任何元素 — 这是两者在非 HTML 文档中语义分野的典型例子.
 
-### 43. CSS 中的 :is() 和 :where() 伪类有什么区别?
+### 5. CSS 中的 :is() 和 :where() 伪类有什么区别?
 
 A:
 
@@ -280,7 +280,7 @@ A:
 
 ## 盒模型与布局
 
-### 4. 标准盒模型与怪异盒模型 (IE 盒模型) 有什么区别?
+### 6. 标准盒模型与怪异盒模型 (IE 盒模型) 有什么区别?
 
 A:
 
@@ -312,7 +312,7 @@ A:
 
 注意 `box-sizing` 不影响 margin, margin 塌陷、margin 合并规则在两种盒模型下完全一致.
 
-### 5. 什么是 BFC? 如何触发 BFC? BFC 有什么作用?
+### 7. 什么是 BFC? 如何触发 BFC? BFC 有什么作用?
 
 A:
 
@@ -361,7 +361,7 @@ BFC 内部布局规则:
 
 `display: flow-root` 是现代最推荐的触发方式, 它只为创建 BFC 而生, 没有 `overflow: hidden` 裁剪内容、`float` 改变布局等副作用.
 
-### 6. 如何实现元素的水平垂直居中?
+### 8. 如何实现元素的水平垂直居中?
 
 A:
 
@@ -386,7 +386,7 @@ A:
 
 选择建议: 现代项目优先 flex/grid, 语义清晰且对子元素数量、尺寸变化健壮; 需要兼容老浏览器或弹窗居中常用 absolute + transform; transform 方案会创建合成层, 对动画友好, 但可能引发模糊 (亚像素渲染), 必要时对尺寸取整.
 
-### 7. 介绍 flex 布局和 grid 布局
+### 9. 介绍 flex 布局和 grid 布局
 
 A:
 
@@ -444,7 +444,7 @@ grid 项目属性: `grid-column` / `grid-row` (如 `grid-column: 1 / 3` 跨两�
 
 `auto-fill` 与 `auto-fit` 的区别: 容器有剩余空间时, `auto-fill` 保留空轨道, `auto-fit` 折叠空轨道让现有项目拉伸填满, 均分卡片场景通常用 `auto-fit`.
 
-### 8. 如何使用 CSS 实现中间宽度固定、两边宽度自适应的布局?
+### 10. 如何使用 CSS 实现中间宽度固定、两边宽度自适应的布局?
 
 A:
 
@@ -534,7 +534,7 @@ A:
 
 对比总结: 现代项目直接用 flex/grid; 浮动与绝对定位方案主要考察对文档流、浮动负 margin 的理解; 圣杯/双飞翼考察中间栏优先加载 (SEO 时代诉求) 与负 margin 机制.
 
-### 9. 什么是 margin 塌陷与 margin 合并? 如何解决?
+### 11. 什么是 margin 塌陷与 margin 合并? 如何解决?
 
 A:
 
@@ -554,7 +554,7 @@ margin 合并 (collapsing margins) 指垂直方向上两个 margin 相遇时, �
 
 理解要点: margin 合并是规范刻意设计的排版行为 (段落间距不至于翻倍), 不是 bug; 工程上的最佳实践是用 `gap` 与单向 margin 约定规避它.
 
-### 10. position 有哪些取值? sticky 是如何工作的?
+### 12. position 有哪些取值? sticky 是如何工作的?
 
 A:
 
@@ -577,7 +577,7 @@ sticky 常见失效原因 (高频追问):
 
 `fixed` 的坑 (高频追问): 当祖先元素存在 `transform`、`filter`、`perspective`、`backdrop-filter`、`will-change: transform` 时, 该祖先会成为 fixed 元素的包含块, fixed 不再相对视口, 弹窗/悬浮按钮"跑飞"多半是这个原因.
 
-### 11. z-index 为什么会失效? 什么是层叠上下文?
+### 13. z-index 为什么会失效? 什么是层叠上下文?
 
 A:
 
@@ -615,7 +615,7 @@ z-index 失效的典型场景:
 
 工程解法: 全局规划层级区间 (如基础 0、吸顶 100、抽屉 500、弹窗 1000、toast 2000), 弹窗类组件用 portal 挂到 `body` 下避开祖先层叠上下文, 或使用原生 `<dialog>` (top layer, 顶层渲染, 天然不被任何 z-index 遮挡).
 
-### 44. CSS 中的浮动有什么特点? 如何清除浮动?
+### 14. CSS 中的浮动有什么特点? 如何清除浮动?
 
 A:
 
@@ -702,7 +702,7 @@ clear 属性的值:
 
 浮动布局的历史地位: 在 Flex 和 Grid 出现之前, 浮动是主要的布局手段. 现代开发中, 浮动应仅用于其原始目的 — 文字环绕效果, 布局应使用 Flex 或 Grid.
 
-### 45. CSS 中的 grid 和 flex 应该如何选择?
+### 15. CSS 中的 grid 和 flex 应该如何选择?
 
 A:
 
@@ -788,7 +788,7 @@ Grid 和 Flex 不是竞争关系, 而是互补的布局系统. 选择取决于�
 5. 需要重叠? 选 Grid
 6. 不确定? 两者都试试, 选代码更简洁的
 
-### 46. CSS 中的 gap 属性在 flex 和 grid 中有什么区别?
+### 16. CSS 中的 gap 属性在 flex 和 grid 中有什么区别?
 
 A:
 
@@ -857,7 +857,7 @@ gap 的优势:
 
 ## 视觉绘制与常见效果
 
-### 12. CSS 如何绘制一个三角形?
+### 17. CSS 如何绘制一个三角形?
 
 A:
 
@@ -924,7 +924,7 @@ A:
 
 追问"如何画带边框的三角形": border 法做不到, 常用双层叠加 (两个伪元素三角形错位 1px, 底色三角形稍大露边) 或方法四的旋转正方形方案.
 
-### 13. 移动端 1px 问题是什么? 如何实现 0.5px 边框?
+### 18. 移动端 1px 问题是什么? 如何实现 0.5px 边框?
 
 A:
 
@@ -978,7 +978,7 @@ A:
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) { ... }
 ```
 
-### 14. 隐藏元素有哪些方式? 它们有什么区别?
+### 19. 隐藏元素有哪些方式? 它们有什么区别?
 
 A:
 
@@ -995,7 +995,7 @@ A:
 
 选择建议: 要过渡动画选 `opacity`/`visibility`; 彻底移除且不需要读屏选 `display: none`; 无障碍隐藏文本 (如图标按钮的文字说明) 用 visually-hidden 方案 (`clip-path` + 1px 尺寸 + 溢出裁剪) 而不是 `display: none`.
 
-### 15. 如何实现单行和多行文本溢出省略号?
+### 20. 如何实现单行和多行文本溢出省略号?
 
 A:
 
@@ -1034,7 +1034,7 @@ A:
 
 flex/grid 容器中文本省略失效是高频 bug: flex 子项默认 `min-width: auto` 不会收缩到内容以下, 需要给 flex 子项加 `min-width: 0` (grid 子项同理可能需要 `minmax(0, 1fr)`), 内部 `text-overflow` 才生效.
 
-### 16. px、em、rem、vw、vh 有什么区别? 如何选择?
+### 21. px、em、rem、vw、vh 有什么区别? 如何选择?
 
 A:
 
@@ -1058,7 +1058,7 @@ A:
 - 全屏弹层/首屏高度: `100dvh` 优于 `100vh` (移动端地址栏)
 - 最大宽度限制阅读宽度: `max-width: 70ch` 之类
 
-### 47. 什么是 CSS 的 aspect-ratio 属性?
+### 22. 什么是 CSS 的 aspect-ratio 属性?
 
 A:
 
@@ -1140,7 +1140,7 @@ aspect-ratio 方案:
 
 ## CSS 工程化与样式方案
 
-### 17. 介绍 CSS 原子化 (tailwindcss 的核心原理)、css-in-js 的核心原理、CSS 模块化 (.module.css 的核心原理), 按性能排序, 解释 css-in-js 为什么性能差?
+### 23. 介绍 CSS 原子化 (tailwindcss 的核心原理)、css-in-js 的核心原理、CSS 模块化 (.module.css 的核心原理), 按性能排序, 解释 css-in-js 为什么性能差?
 
 A:
 
@@ -1188,7 +1188,7 @@ CSS 原子化 ≈ CSS Modules > 编译时 css-in-js > 运行时 css-in-js
 
 补充结论: 这不是说 css-in-js 一无是处 — 它的动态样式表达力、与组件共存亡的维护性仍适合强主题化、强动态的场景; 但性能敏感、SSR、大体量项目应优先选静态方案 (Tailwind / CSS Modules / 编译时 css-in-js), 这也是 styled-components 官方也转向推荐静态抽取方案的行业背景.
 
-### 18. Web Component 如何实现样式隔离?
+### 24. Web Component 如何实现样式隔离?
 
 A:
 
@@ -1227,7 +1227,7 @@ customElements.define("my-card", MyCard);
 - 全局 reset、字体、`@font-face` 不会自动进入影子树, 需要每个组件内自行引入或通过 adoptedStyleSheets 注入
 - 与 iframe 对比: Shadow DOM 是"样式与 DOM 作用域"隔离, 共享同一文档与 JS 上下文; iframe 是完整的浏览上下文隔离, 更彻底但通信成本高
 
-### 19. scss 是什么? 有什么用? scss 的 mixin 等常用语法有哪些?
+### 25. scss 是什么? 有什么用? scss 的 mixin 等常用语法有哪些?
 
 A:
 
@@ -1302,7 +1302,7 @@ mixin 与 extend 的核心区别 (高频追问): mixin 是"复制声明"到每�
 
 现代定位: CSS 原生变量、嵌套 (CSS Nesting) 普及后, SCSS 的变量与嵌套需求在弱化, 但 mixin、循环、函数、构建期逻辑仍是不可替代的生产力工具, 常与 PostCSS 串联使用 (scss → autoprefixer → cssnano).
 
-### 20. PostCSS 是什么? 有什么用?
+### 26. PostCSS 是什么? 有什么用?
 
 A:
 
@@ -1338,7 +1338,7 @@ plugin.postcss = true;
 
 延伸: Lightning CSS (Rust) 与基于 SWC 的方案用原生速度重做了 PostCSS 的多数场景 (前缀、压缩、降级), 是新构建工具链的趋势.
 
-### 21. CSS 变量 (自定义属性) 与 SCSS 变量有什么区别?
+### 27. CSS 变量 (自定义属性) 与 SCSS 变量有什么区别?
 
 A:
 
@@ -1379,7 +1379,7 @@ $brand: #1677ff;
 }
 ```
 
-### 22. link 和 @import 有什么区别?
+### 28. link 和 @import 有什么区别?
 
 A:
 
@@ -1391,7 +1391,7 @@ A:
 
 结论: 生产环境永远用 `<link>` 加载样式表, 避免 `@import`; 需要异步加载非关键 CSS 时用 `media="print" onload` 或 `rel="preload" as="style"` 技巧.
 
-### 48. 什么是 CSS Modules? 它的原理是什么?
+### 29. 什么是 CSS Modules? 它的原理是什么?
 
 A:
 
@@ -1490,7 +1490,7 @@ function Button({ size }) {
 - 调试时类名是哈希值, 不够直观 (可通过配置保留原始类名)
 - 无法处理 JavaScript 驱动的动态样式 (如根据状态改变颜色)
 
-### 49. 如何实现 CSS 的按需加载和懒加载?
+### 30. 如何实现 CSS 的按需加载和懒加载?
 
 A:
 
@@ -1584,7 +1584,7 @@ module.exports = {
 - 组件库使用按需引入 (如 babel-plugin-import)
 - 避免 @import, 它会串行加载 CSS
 
-### 50. 什么是 CSS 的 @layer 规则?
+### 31. 什么是 CSS 的 @layer 规则?
 
 A:
 
@@ -1710,7 +1710,7 @@ A:
 
 ## 渲染原理与性能优化
 
-### 23. 什么是重排 (reflow) 和重绘 (repaint)? 如何避免?
+### 32. 什么是重排 (reflow) 和重绘 (repaint)? 如何避免?
 
 A:
 
@@ -1733,7 +1733,7 @@ A:
 - 使用 `requestAnimationFrame` 合并每帧的样式写操作
 - 虚拟列表、`content-visibility: auto` 减少参与布局的节点数
 
-### 24. CSS 会阻塞渲染吗? 会阻塞 JS 执行吗?
+### 33. CSS 会阻塞渲染吗? 会阻塞 JS 执行吗?
 
 A:
 
@@ -1756,7 +1756,7 @@ media 的例外: `media="print"` 或媒体查询当前不匹配 (如 `media="(ma
 - `<link>` 尽量靠前放在 `<head>`, 让预加载扫描器尽早发现
 - 脚本加 `defer`/`async` 解除对解析的阻塞; `defer` 脚本同样要等 CSSOM, 这是规范行为
 
-### 25. 什么是 GPU 合成层? 如何开启 GPU 加速? 有什么注意事项?
+### 34. 什么是 GPU 合成层? 如何开启 GPU 加速? 有什么注意事项?
 
 A:
 
@@ -1786,10 +1786,10 @@ A:
 1. 内存代价: 每个合成层都是一份独立纹理, 过度提升 (尤其隐式合成引发的"层爆炸") 会暴涨 GPU 内存, 低端设备反而掉帧卡顿
 2. `will-change` 是"预告"不是"许愿": 应在动画前短期添加、结束后移除, 长期挂在大量元素上等于白白占内存
 3. 合成层只对 `transform`/`opacity`/`filter` 的动画免 layout/paint; 改 `top`/`left`/`width` 照样走主线程
-4. 层提升会改变渲染上下文: 创建层叠上下文、`transform` 会成为 `fixed` 后代的包含块 (见第 10 题), 可能引入定位 bug
+4. 层提升会改变渲染上下文: 创建层叠上下文、`transform` 会成为 `fixed` 后代的包含块 (见第 12 题), 可能引入定位 bug
 5. 文字模糊: 缩放类 transform 动画后位图放大可能模糊, 需要重新栅格化或调整动画策略
 
-### 26. 浏览器渲染页面的完整流程是什么? 什么是 CSSOM?
+### 35. 浏览器渲染页面的完整流程是什么? 什么是 CSSOM?
 
 A:
 
@@ -1802,13 +1802,13 @@ A:
 5. Paint (绘制): 分层并把每个图层绘制成绘制指令记录, 再栅格化 (raster) 为位图, 现代浏览器栅格化也在 GPU 进程分块 (tile) 进行
 6. Composite (合成): 合成器线程把各图层位图按 transform/opacity/z-order 合成最终帧, 提交显示
 
-关键渲染路径 (Critical Rendering Path) 优化的所有手段都围绕这条链: 减少关键资源数量与体积 (压缩、拆分、内联关键 CSS)、缩短关键路径长度 (预加载、提前发现)、减少重排重绘 (第 23 题).
+关键渲染路径 (Critical Rendering Path) 优化的所有手段都围绕这条链: 减少关键资源数量与体积 (压缩、拆分、内联关键 CSS)、缩短关键路径长度 (预加载、提前发现)、减少重排重绘 (第 32 题).
 
 预加载扫描器 (preload scanner): 主解析器被脚本阻塞时, 扫描器向前预读 HTML, 提前发起 CSS/JS/字体/图片请求, 是浏览器的重要优化, 也说明为什么资源要写在 HTML 里而不是 JS 动态插入.
 
 `async` 与 `defer` 区别 (常一并考察): `async` 下载完立即执行 (执行时阻塞解析, 顺序不保证); `defer` 下载并行、延迟到 DOM 解析完成后按顺序执行; `type="module"` 默认 defer 行为.
 
-### 27. CSS 选择器是从左往右还是从右往左匹配的? 为什么?
+### 36. CSS 选择器是从左往右还是从右往左匹配的? 为什么?
 
 A:
 
@@ -1826,7 +1826,7 @@ A:
 
 这条规则也解释了为什么"父选择器"长期不存在: 从左的上下文决定右侧元素需要反向查询, 与引擎匹配方向冲突. `:has()` 的出现是引擎专门做了前向检查优化才实现的, 所以规范禁止 `:has()` 内嵌伪元素等可能引发循环/高成本的组合.
 
-### 28. content-visibility 和 contain 属性有什么用?
+### 37. content-visibility 和 contain 属性有什么用?
 
 A:
 
@@ -1857,7 +1857,7 @@ A:
 
 适用场景与定位: 超长列表/长页面 (信息流、文档站) 的低成本优化, 实测可显著降低首屏渲染时间; 与虚拟列表互补 — 虚拟列表解决 DOM 节点数, `content-visibility` 解决渲染成本, 简单场景甚至可替代虚拟列表. 注意点: `auto` 下浏览器查找 (Ctrl+F) 与锚点跳转对未渲染区域的行为有细节差异; 预估尺寸不准会有轻微滚动抖动.
 
-### 51. CSS 中的 will-change 属性有什么作用?
+### 38. CSS 中的 will-change 属性有什么作用?
 
 A:
 
@@ -1922,7 +1922,7 @@ element.addEventListener("animationend", () => {
 - translateZ(0) 是 hack 手段, 会实际改变元素的 3D 变换
 - will-change 可以声明更多变化类型 (scroll-position、contents 等)
 
-### 52. CSS 中的 transform 和 position 有什么区别?
+### 39. CSS 中的 transform 和 position 有什么区别?
 
 A:
 
@@ -2013,7 +2013,7 @@ function animateWithTransform(element, x) {
 
 ## 响应式与现代 CSS
 
-### 29. 响应式布局有哪些方案? 媒体查询怎么用?
+### 40. 响应式布局有哪些方案? 媒体查询怎么用?
 
 A:
 
@@ -2041,12 +2041,12 @@ A:
 3. 媒体查询断点: 处理布局结构级变化 (侧栏隐藏、栅格列数、字号阶梯)
 4. rem / vw 缩放体系: rem + JS 计算根字号, 或纯 vw (postcss-px-to-viewport), 让一切尺寸随屏宽线性缩放
 5. 响应式图片: `srcset` + `sizes` 按 DPR/视口选图, `<picture>` 做艺术方向裁剪与 WebP/AVIF 格式协商, `loading="lazy"`
-6. 容器查询: 组件级响应式 (见第 30 题)
+6. 容器查询: 组件级响应式 (见第 41 题)
 7. 排版自适应: `clamp(min, preferred, max)` 一行实现流式字号, 如 `font-size: clamp(14px, 1vw + 12px, 20px)`
 
 理念要点: 现代响应式的趋势是"能不用媒体查询就不用", 优先用内在尺寸 (intrinsic sizing)、flex/grid 自适应性、`clamp()`, 把断点留给真正的结构变化.
 
-### 30. 什么是容器查询 (container query)? 与媒体查询有什么区别?
+### 41. 什么是容器查询 (container query)? 与媒体查询有什么区别?
 
 A:
 
@@ -2086,7 +2086,7 @@ A:
 - 不能查询自身, 只能影响容器的后代元素
 - 浏览器支持: 2023 年起主流浏览器已全部支持, 可用于生产
 
-### 31. :has() 选择器有什么用?
+### 42. :has() 选择器有什么用?
 
 A:
 
@@ -2120,7 +2120,7 @@ ul:has(li:nth-child(6)) { ... }
 - 性能: 浏览器为 `:has()` 做了缓存与快照优化, 常规使用无碍, 但在超大 DOM 上写 `:has(*)` 这类宽泛参数仍应避免
 - 浏览器支持: 2023 年底起全主流支持, 可用 `@supports selector(:has(a))` 做特性检测与降级
 
-### 32. 如何用 prefers-color-scheme 实现暗色模式?
+### 43. 如何用 prefers-color-scheme 实现暗色模式?
 
 A:
 
@@ -2189,7 +2189,7 @@ if (saved) document.documentElement.dataset.theme = saved;
 
 防闪烁: 主题判定脚本要内联在 `<head>` 最前同步执行, 否则暗色用户会看到一帧亮色 (FOUC 主题版).
 
-### 53. CSS 中的 calc()、min()、max()、clamp() 函数如何使用?
+### 44. CSS 中的 calc()、min()、max()、clamp() 函数如何使用?
 
 A:
 
@@ -2290,7 +2290,7 @@ font-size: max(16px, min(2.5vw, 24px));
 - min() / max(): IE 不支持, 现代浏览器均支持
 - clamp(): IE 不支持, Chrome 79+, Firefox 75+, Safari 13.1+
 
-### 54. 什么是 CSS 的 @supports 规则?
+### 45. 什么是 CSS 的 @supports 规则?
 
 A:
 
@@ -2386,7 +2386,7 @@ if (CSS.supports("(display: grid) and (gap: 10px)")) {
 - @supports 只能检测 CSS 属性, 无法检测 JavaScript API
 - 现代项目中, @supports 已能覆盖大部分 CSS 特性检测需求
 
-### 55. 什么是 CSS 的 scroll-snap?
+### 46. 什么是 CSS 的 scroll-snap?
 
 A:
 
@@ -2499,7 +2499,7 @@ container.scrollTo({ left: 0, behavior: "smooth" });
 
 ## 动画与交互
 
-### 33. CSS 动画和 JS 动画 (requestAnimationFrame) 有什么区别?
+### 47. CSS 动画和 JS 动画 (requestAnimationFrame) 有什么区别?
 
 A:
 
@@ -2531,7 +2531,7 @@ el.animate(
 
 选择建议: 状态过渡/hover/loading 等用 CSS; 需要交互驱动 (拖拽、滚动进度)、复杂时序编排用 rAF 或 WAAPI; 库层面 GSAP 等底层也是 rAF + WAAPI 思路.
 
-### 34. transition 和 animation 有什么区别?
+### 48. transition 和 animation 有什么区别?
 
 A:
 
@@ -2560,7 +2560,7 @@ A:
 1. transition 对 `display: none ↔ block` 无效: 因为元素进出渲染树没有可插值的中间状态. 现代解法: `transition-behavior: allow-discrete` + `@starting-style` 定义入场前样式, 或改用 opacity/visibility
 2. `height: auto` 无法过渡: auto 不是可插值数值. 方案: JS 测 scrollHeight 赋值、grid 的 `grid-template-rows: 0fr → 1fr` 技巧、或新特性 `interpolate-size: allow-keywords` / `calc-size()`
 
-### 35. 为什么 transform 动画比修改 top/left 更流畅?
+### 49. 为什么 transform 动画比修改 top/left 更流畅?
 
 A:
 
@@ -2583,13 +2583,13 @@ top/left 动画: JS → Style → Layout → Paint → Composite   (每帧全套
 transform 动画: JS → Style → Composite                     (每帧合成, 合成线程)
 ```
 
-实践要点: 动画属性白名单就是 `transform` 和 `opacity` (filter 视情况); 用 `will-change: transform` 提前提升合成层; 位移用 `translate`、缩放用 `scale`、旋转用 `rotate` 等效替代布局属性; 同时警惕层爆炸带来的内存问题 (见第 25 题). 这与 FLIP 动画技术 (First Last Invert Play, 用 transform 模拟布局变化) 的思想一致: 把昂贵的 layout 动画换算成便宜的 transform 动画.
+实践要点: 动画属性白名单就是 `transform` 和 `opacity` (filter 视情况); 用 `will-change: transform` 提前提升合成层; 位移用 `translate`、缩放用 `scale`、旋转用 `rotate` 等效替代布局属性; 同时警惕层爆炸带来的内存问题 (见第 34 题). 这与 FLIP 动画技术 (First Last Invert Play, 用 transform 模拟布局变化) 的思想一致: 把昂贵的 layout 动画换算成便宜的 transform 动画.
 
 ---
 
 ## 跨端与框架中的 CSS
 
-### 36. React Native 中的 CSS 和 Web 中的 CSS 有什么不同? Yoga 引擎是什么?
+### 50. React Native 中的 CSS 和 Web 中的 CSS 有什么不同? Yoga 引擎是什么?
 
 A:
 
@@ -2613,16 +2613,16 @@ Yoga 引擎:
 
 面试话术总结: RN 的 CSS 是"长得像 CSS 的布局 DSL", Web CSS 是"声明式样式表 + 层叠 + 完整排版引擎"; Yoga 是把这套 DSL 翻译成原生视图 frame 的跨端 Flexbox 计算引擎.
 
-### 37. React/Vue 中有哪些 CSS 方案? 如何选择?
+### 51. React/Vue 中有哪些 CSS 方案? 如何选择?
 
 A:
 
 方案全景:
 
 1. 全局 CSS + 命名约定 (BEM/SMACSS): 零工具成本, 靠纪律防冲突; 适合小项目或配合组件库主题
-2. CSS Modules: 类名 hash 化局部作用域 (见第 17 题), 零运行时, React/Vue/Svelte 全通用, 是中大型项目的稳妥默认项
-3. Vue SFC scoped style: 编译期属性选择器隔离 (见第 38 题), Vue 项目首选
-4. css-in-js 运行时流派 (styled-components、emotion): 动态样式与组件共生, 但有运行时性能成本与 React Server Components 不兼容的问题, 新项目谨慎 (见第 17 题)
+2. CSS Modules: 类名 hash 化局部作用域 (见第 23 题), 零运行时, React/Vue/Svelte 全通用, 是中大型项目的稳妥默认项
+3. Vue SFC scoped style: 编译期属性选择器隔离 (见第 52 题), Vue 项目首选
+4. css-in-js 运行时流派 (styled-components、emotion): 动态样式与组件共生, 但有运行时性能成本与 React Server Components 不兼容的问题, 新项目谨慎 (见第 23 题)
 5. css-in-js 编译时流派 (vanilla-extract、Linaria、Panda CSS): 保留"样式即代码"体验, 产物是静态 CSS, 兼顾性能
 6. 原子化框架 (Tailwind CSS、UnoCSS): 工具类拼装, 设计约束内置, 与组件化框架契合度高, 产物体积小
 7. 组件库 + 设计 token (CSS 变量主题): 中后台项目的现实主流
@@ -2635,7 +2635,7 @@ A:
 - 框架生态: Vue 用 scoped 或 CSS Modules; React 无内置方案, 社区主流是 Tailwind 或 CSS Modules
 - 包体积与缓存: 静态 CSS 可长缓存、可并行加载, 运行时方案样式随 JS 走
 
-### 38. Vue 的 scoped CSS 是如何实现样式隔离的?
+### 52. Vue 的 scoped CSS 是如何实现样式隔离的?
 
 A:
 
@@ -2660,7 +2660,7 @@ Vue 单文件组件 `<style scoped>` 的隔离是编译期转换, 分两步:
 
 ## 现代 CSS 新特性进阶
 
-### 39. CSS 原生嵌套 (CSS Nesting) 与预处理器嵌套有什么区别?
+### 53. CSS 原生嵌套 (CSS Nesting) 与预处理器嵌套有什么区别?
 
 A:
 
@@ -2693,7 +2693,7 @@ CSS 原生嵌套 (CSS Nesting Module) 已在 2023 年被主流浏览器全部支
 
 工程建议: 新项目可用原生嵌套逐步替代 SCSS 的嵌套需求; 涉及 BEM 拼接、循环与 mixin 的场景仍需预处理器或 PostCSS 插件降级 (postcss-nesting).
 
-### 40. @property 是什么? CSS Houdini 了解多少?
+### 54. @property 是什么? CSS Houdini 了解多少?
 
 A:
 
@@ -2726,7 +2726,7 @@ CSS Houdini 是一组开放浏览器渲染引擎底层能力的 API 集合:
 
 面试口径: Houdini 的价值是"把过去只能靠 JS 模拟或等浏览器实现的能力, 下放为可编程的渲染管线钩子"; 目前生产可用的主要是 @property 与 Typed OM, Paint API 需要按浏览器支持渐进增强.
 
-### 41. View Transitions 与滚动驱动动画是什么?
+### 55. View Transitions 与滚动驱动动画是什么?
 
 A:
 
