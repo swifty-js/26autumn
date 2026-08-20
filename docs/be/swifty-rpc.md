@@ -262,13 +262,13 @@ func (c *TCPClient) shutdown(err error) {
     }
     c.conn.Close()
 
-    c.pending.Range(func(key, value interface{}) bool {
+    c.pending.Range(func(key, value any) bool {
         value.(*Future).Done(nil, err)
         c.pending.Delete(key)
         return true
     })
 
-    c.streams.Range(func(key, value interface{}) bool {
+    c.streams.Range(func(key, value any) bool {
         value.(*ClientStreamConn).Error(err)
         c.streams.Delete(key)
         return true
@@ -653,7 +653,7 @@ func (s *ClientStreamConn) Push(body []byte) {
 ### Q25: Recv 的 drain-before-terminal 语义是什么? 为什么需要?
 
 ```go
-func (s *ClientStreamConn) Recv(msg interface{}) error {
+func (s *ClientStreamConn) Recv(msg any) error {
     // 第一次非阻塞尝试: 快速路径
     select {
     case frame := <-s.ch:
@@ -802,7 +802,7 @@ type observedStream struct {
     once  sync.Once
 }
 
-func (s *observedStream) Recv(msg interface{}) error {
+func (s *observedStream) Recv(msg any) error {
     err := s.inner.Recv(msg)
     if err == nil { return nil }
 
