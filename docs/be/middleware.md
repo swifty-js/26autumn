@@ -1,4 +1,4 @@
-# 后端中间件高级后端工程师面试 QA
+# 后端中间件面试 QA
 
 > 面向 3-5 年经验后端工程师, 覆盖 etcd、Kafka、groupcache、gRPC、Prometheus、Grafana、OpenTelemetry、Redis Stack 向量存储八大中间件的底层原理、生产实践与故障排查. 基于 Go 技术栈, 结合分布式系统理论与真实生产场景.
 

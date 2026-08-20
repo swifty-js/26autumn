@@ -20,7 +20,7 @@ swifty_rpc 采用严格的分层架构, 从上到下分为:
 | 编解码层   | `internal/codec`                                                | Codec 接口、JSON/Protobuf 实现、Gzip 压缩                        |
 | 治理组件   | `internal/breaker`, `internal/limiter`, `internal/load_balance` | 熔断、限流、负载均衡                                             |
 | 注册中心   | `internal/registry`                                             | etcd v3 注册、发现、Watch                                        |
-| 流接口     | `internal/stream`                                               | ServerStream/ClientStream 接口定义 (打破循环依赖)                |
+| 流接口     | `internal/stream`                                               | ServerStream/ClientStream 接口定义 (避免包间耦合)                |
 
 调用链路 (注册模式 unary):
 
@@ -60,19 +60,20 @@ type alias (`=`) 而非 type definition 意味着 `rpc.Future` 和 `transport.Fu
 
 ### Q3: internal/stream 包存在的意义是什么?
 
-`internal/server` 需要实现 `ServerStream` 接口 (serverStream 结构体), `internal/transport` 需要实现 `ClientStream` 接口 (ClientStreamConn). 如果接口定义在 server 或 transport 任一方, 另一方就需要导入它, 形成循环依赖:
+`internal/server` 需要 `ServerStream` 接口做反射类型匹配 (判断方法第二参数是否为流), `internal/client` 需要 `ClientStream` 接口作为 `InvokeStream` 的返回类型. 如果 `ServerStream` 定义在 server 包, 而 client 或 pkg/rpc 需要引用它, 就必须导入 server 包, 导致不必要的耦合:
 
 ```
-server -> transport (使用 TCPConnection 写帧)
-transport -> server (需要 ServerStream 接口) -- 循环!
+server  -> stream (反射匹配 ServerStream, 实现 serverStream)
+client  -> stream (InvokeStream 返回 ClientStream)
+pkg/rpc -> stream (re-export 两个接口)
 ```
 
-`internal/stream` 作为独立的接口包, 被 server 和 transport 同时引用, 打破了这个环:
+`internal/stream` 作为独立的接口包, 只定义接口不含实现, 被 server、client、pkg/rpc 同时引用, 避免了包间耦合:
 
 ```
-server   -> stream (实现 ServerStream)
-transport -> stream (实现 ClientStream)
-server   -> transport (使用 TCPConnection)
+server   -> stream (匹配 ServerStream 接口)
+client   -> stream (返回 ClientStream 接口)
+transport 的 ClientStreamConn 隐式实现 ClientStream (无需导入 stream)
 ```
 
 ---
@@ -416,11 +417,12 @@ func (c *Client) InvokeAsync(ctx, service, method, args) (*Future, error) {
     future, err := c.invokeAsync(ctx, service, method, args)
     if err != nil { return nil, err }
 
-    timer := time.NewTimer(c.timeout)
     go func() {
+        timer := time.NewTimer(c.timeout)
+        defer timer.Stop()  // 无论哪个分支都回收定时器
         select {
         case <-future.DoneChan():
-            timer.Stop()  // 正常完成, 回收定时器
+            // 正常完成, defer 回收定时器
         case <-timer.C:
             future.Done(nil, context.DeadlineExceeded)  // 超时强制完成
         }
@@ -431,8 +433,8 @@ func (c *Client) InvokeAsync(ctx, service, method, args) (*Future, error) {
 
 设计要点:
 
-- 看门狗是独立 goroutine, 不阻塞调用者.
-- `timer.Stop()` 在正常完成时避免不必要的 Done 调用 (虽然 Done 幂等, 但减少无意义操作).
+- 看门狗是独立 goroutine, 不阻塞调用者. timer 在 goroutine 内部创建, 避免跨 goroutine 共享.
+- `defer timer.Stop()` 保证无论正常完成还是超时, 定时器资源都被回收.
 - 超时后 `Done(nil, context.DeadlineExceeded)` 触发 OnComplete -> 断路器记录失败.
 - 与 `Invoke` (同步) 的区别: Invoke 使用 `context.WithTimeout` + `GetResultWithContext`, 超时后主动 Done; InvokeAsync 使用独立定时器, 调用者可以在任意时刻通过 `future.Wait()` 系列方法获取结果.
 
@@ -531,8 +533,8 @@ Stop 在 GracefulStop 之后仍有效: 只有 listener 关闭由 `shutdownOnce` 
 ```go
 func (s *Server) Handle(conn *transport.TCPConnection) {
     var streamWg sync.WaitGroup
-    defer streamWg.Wait()
     defer conn.Close()
+    defer streamWg.Wait()  // LIFO: 先等流完成, 再关连接
 
     for {
         msg, err := conn.Read()  // 阻塞读
@@ -804,12 +806,14 @@ type observedStream struct {
 
 func (s *observedStream) Recv(msg any) error {
     err := s.inner.Recv(msg)
-    if err == nil { return nil }
-
-    if err == io.EOF {
-        s.once.Do(func() { s.br.RecordSuccess() })
-    } else if err != context.Canceled {
-        s.once.Do(func() { s.br.RecordFailure() })
+    switch {
+    case err == nil:
+    case errors.Is(err, io.EOF):
+        s.once.Do(s.br.RecordSuccess)
+    case errors.Is(err, context.Canceled):
+        // 调用者主动取消, 不算服务失败
+    default:
+        s.once.Do(s.br.RecordFailure)
     }
     return err
 }
@@ -817,7 +821,7 @@ func (s *observedStream) Recv(msg any) error {
 
 设计决策:
 
-- `io.EOF` (流正常结束) -> 记录成功.
+- `io.EOF` (流正常结束) -> 记录成功, 使用 `errors.Is` 匹配.
 - `context.Canceled` (调用者主动取消) -> 忽略, 不算服务失败.
 - 其他错误 (网络断开、服务端错误) -> 记录失败.
 - `sync.Once` 保证每个流最多记录一次, 避免一个流的多次 Recv 错误重复计入.
@@ -972,9 +976,17 @@ watch(service):
 当前实现:
 
 ```go
-ch, _ := client.KeepAlive(ctx, leaseID)
+ch, err := client.KeepAlive(ctx, leaseID)
+if err != nil {
+    return err  // 初始错误有处理
+}
 go func() {
-    for range ch {}  // 只排空, 不检查内容
+    for {
+        _, ok := <-ch
+        if !ok {
+            return  // channel 关闭后静默退出, 无重注册
+        }
+    }
 }()
 ```
 
@@ -982,7 +994,7 @@ go func() {
 
 1. Lease 过期无感知: 如果 etcd 重启或网络分区导致 KeepAlive 失败, channel 关闭, goroutine 退出, 但没有任何重注册逻辑. 实例的 key 在 TTL 后自动删除, 服务从发现中消失, 且永远不会恢复.
 2. 无健康检查: 即使服务本身已经不可用 (如 handler 死锁), 只要 etcd 连接正常, 实例仍然注册.
-3. 错误被忽略: `Grant` 和 `KeepAlive` 的错误都没有处理.
+3. 排空 goroutine 静默退出: channel 关闭后 goroutine 直接 return, 无日志、无指标、无重连, 运维难以感知注册失效.
 
 改进方向:
 

@@ -93,7 +93,7 @@ A: 延迟响应是 Koa.js 的核心设计: 中间件不直接操作 `http.Respon
 
 设计优势:
 
-- 下游中间件在 `next()` 返回后可以检查/修改上游设置的响应( 如统一包装、压缩、添加 header)
+- 上游中间件在 `next()` 返回后可以检查/修改下游设置的响应( 如统一包装、压缩、添加 header)
 - 避免"header 已发送"的不可逆问题
 - 错误处理中间件可以覆盖之前设置的 Body
 
@@ -425,15 +425,20 @@ A: SSEWriter 初始化( `sse.go:38-51`) :
 func (ctx *Context) SSE() *SSEWriter {
     flusher, _ := ctx.Writer.(http.Flusher)
     ctx.flushed = true
+    ctx.Status = http.StatusOK
+    ctx.statusSet = true
     ctx.Writer.Header().Set("Content-Type", "text/event-stream")
     ctx.Writer.Header().Set("Cache-Control", "no-cache")
     ctx.Writer.Header().Set("Connection", "keep-alive")
+    for k, v := range ctx.headers {
+        ctx.Writer.Header().Set(k, v)
+    }
     ctx.Writer.WriteHeader(http.StatusOK)
     return &SSEWriter{ctx: ctx, flusher: flusher}
 }
 ```
 
-设置 `flushed = true` 阻止 `respond()` 干预. 类型断言获取 `http.Flusher`( `net/http` 的 ResponseWriter 实现了此接口) .
+设置 `flushed = true` 阻止 `respond()` 干预; 同时设置 `Status` 和 `statusSet` 使状态码不被后续逻辑覆盖. 类型断言获取 `http.Flusher`( `net/http` 的 ResponseWriter 实现了此接口) . 写入 SSE 标准 header 前, 先将上游中间件通过 `ctx.Set()` 缓冲的延迟 header 刷到 ResponseWriter, 避免丢失( 如 CORS header) .
 
 线程安全: 每个写入方法( Event、Data、JSON、ID、Retry、Comment) 都持有 `sync.Mutex`:
 
@@ -453,8 +458,8 @@ writeData 的多行处理( `sse.go:160-166`) :
 
 ```go
 func (w *SSEWriter) writeData(data string) {
-    lines := strings.Split(data, "\n")
-    for _, line := range lines {
+    lines := strings.SplitSeq(data, "\n")
+    for line := range lines {
         fmt.Fprintf(w.ctx.Writer, "data: %s\n", line)
     }
     fmt.Fprint(w.ctx.Writer, "\n")
@@ -492,7 +497,7 @@ func (w *SSEWriter) Heartbeat(interval time.Duration) func() {
 }
 ```
 
-返回的 stop 函数使用 `sync.Once` 保证幂等, `<-done` 确保 goroutine 完全退出( 无泄漏) . 三种退出路径: ticker 触发写入、客户端断开( Request Context Done) 、主动调用 stop.
+返回的 stop 函数使用 `sync.Once` 保证幂等, `<-done` 确保 goroutine 完全退出( 无泄漏) . select 有三条路径: ticker 触发发送心跳、客户端断开( Request Context Done) 退出循环、主动调用 stop 退出循环.
 
 Stream 方法( `sse.go:138-150`) : 阻塞式消费 channel, 适合将上游 channel( 如 LLM 流式输出) 直接桥接到 SSE:
 
@@ -516,7 +521,7 @@ func (w *SSEWriter) Stream(ch <-chan string) {
 
 Q: WebSocket 握手过程如何实现? 为什么选择 Hijack 而非标准 ResponseWriter? CheckOrigin 的安全意义?
 
-A: 握手流程( `websocket.go:80-164`) :
+A: 握手流程( `websocket.go:91-178`) :
 
 1. 验证请求: 检查 Method == GET、Connection: upgrade、Upgrade: websocket、Sec-WebSocket-Version: 13、Sec-WebSocket-Key 非空
 2. 子协议协商: `negotiateSubprotocol` 按服务端优先级匹配客户端提供的协议列表
@@ -526,7 +531,7 @@ A: 握手流程( `websocket.go:80-164`) :
 
 为什么用 Hijack: WebSocket 升级后, 连接不再是 HTTP 语义——需要双向、全双工通信. 标准 `http.ResponseWriter` 只能写响应, 无法读取后续帧. Hijack 将底层 TCP 连接的所有权从 `net/http` 转移到应用层.
 
-Accept Key 计算( `websocket.go:527-532`) :
+Accept Key 计算( `websocket.go:541-546`) :
 
 ```go
 func computeAcceptKey(key string) string {
@@ -541,7 +546,7 @@ RFC 6455 规定: 将客户端 Key 与固定 GUID 拼接后 SHA-1 再 Base64.
 
 CheckOrigin 安全意义: WebSocket 不受同源策略限制( 浏览器不会自动拦截跨域 WS 请求) . 如果不校验 Origin, 恶意网站可以建立到服务器的 WebSocket 连接, 利用用户的 Cookie 进行 CSRF 攻击. 默认不设置 CheckOrigin 时跳过检查( 开发便利) , 生产环境应配置.
 
-bufio.Reader 复用( `websocket.go:128-139`) :
+bufio.Reader 复用( `websocket.go:139-150`) :
 
 ```go
 if brw.Reader.Buffered() > 0 {
@@ -576,7 +581,7 @@ A: 帧格式( RFC 6455 Section 5.2) :
 +-------------------------------------+-------------------------+
 ```
 
-readFrame 实现( `websocket.go:364-429`) :
+readFrame 实现( `websocket.go:378-443`) :
 
 安全校验:
 
@@ -584,7 +589,7 @@ readFrame 实现( `websocket.go:364-429`) :
 2. opcode 合法性: 仅允许 0(continuation)、1(text)、2(binary)、8(close)、9(ping)、10(pong)
 3. 控制帧约束: 必须 FIN=1( 不可分片) 、payload <= 125 字节
 4. Mask 必须存在: RFC 6455 要求客户端到服务端的帧必须 mask( 防止缓存投毒攻击)
-5. 最大帧大小: `maxFrameSize = 65536`, 防止内存耗尽攻击
+5. 最大帧大小: 单帧 payload 不得超过 `messageLimit()`( 默认 maxFrameSize = 65536) , 防止内存耗尽攻击
 
 Unmask:
 
@@ -594,7 +599,7 @@ for i := range payload {
 }
 ```
 
-readMessage 分片重组( `websocket.go:434-472`) :
+readMessage 分片重组( `websocket.go:448-486`) :
 
 ```go
 func (ws *WSConn) readMessage() (opcode int, payload []byte, err error) {
@@ -602,15 +607,19 @@ func (ws *WSConn) readMessage() (opcode int, payload []byte, err error) {
     var buf []byte
     for {
         opcode, fin, data, err := ws.readFrame()
+        if err != nil { return 0, nil, err }
         switch opcode {
         case CloseMessage, PingMessage, PongMessage:
             return opcode, data, nil  // 控制帧立即返回
         case continuationFrame:
-            if msgType == 0 { return ErrWSInvalidFrame }  // 无前导帧
+            if msgType == 0 { return 0, nil, ErrWSInvalidFrame }  // 无前导帧
+            if len(buf)+len(data) > ws.messageLimit() {
+                return 0, nil, ErrWSInvalidFrame  // 重组后超限
+            }
             buf = append(buf, data...)
             if fin { return msgType, buf, nil }
         default:  // Text/Binary
-            if msgType != 0 { return ErrWSInvalidFrame }  // 分片中途出现新数据帧
+            if msgType != 0 { return 0, nil, ErrWSInvalidFrame }  // 分片中途出现新数据帧
             if fin { return opcode, data, nil }  // 未分片, 直接返回
             msgType = opcode
             buf = append(buf, data...)
@@ -624,9 +633,9 @@ func (ws *WSConn) readMessage() (opcode int, payload []byte, err error) {
 - 分片消息中间可以插入控制帧( ping/pong/close) , 控制帧立即返回
 - continuation 帧必须跟在数据帧之后
 - 分片中途不能出现新的数据帧
-- 重组后总大小不超过 maxFrameSize
+- 重组后总大小不超过 `messageLimit()`( 默认 maxFrameSize = 64KB, 可通过 `UpgradeOptions.MaxMessageSize` 配置)
 
-writeFrame( `websocket.go:474-504`) : 服务端到客户端不 mask( RFC 规定) . 根据 payload 长度选择 7-bit、16-bit、64-bit 长度编码.
+writeFrame( `websocket.go:488-518`) : 服务端到客户端不 mask( RFC 规定) . 根据 payload 长度选择 7-bit、16-bit、64-bit 长度编码.
 
 ---
 
@@ -751,7 +760,7 @@ A:
 
 设计哲学差异:
 
-1. 延迟响应 vs 即时写入: swifty_http 的延迟响应允许下游中间件修改响应, 但牺牲了流式写入的灵活性( SSE/WS 需要 flushed 标志绕过) . Gin 的 `c.JSON()` 立即写入, 更直观但不可逆.
+1. 延迟响应 vs 即时写入: swifty_http 的延迟响应允许上游中间件在 `next()` 返回后修改下游设置的响应, 但牺牲了流式写入的灵活性( SSE/WS 需要 flushed 标志绕过) . Gin 的 `c.JSON()` 立即写入, 更直观但不可逆.
 
 2. 零依赖 vs 生态: swifty_http 手写 WebSocket 和 SSE, 代码量约 600 行, 覆盖了核心场景. Gin 生态依赖 gorilla/websocket 等成熟库, 边界情况处理更完善.
 
@@ -781,7 +790,7 @@ A: 优势:
 1. 无 permessage-deflate 压缩: RSV1 非零直接拒绝, 不支持消息压缩
 2. 无写超时自动管理: 需要用户手动调用 SetWriteDeadline
 3. 无并发写缓冲: gorilla 有 `NextWriter` 支持流式写入大消息, swifty_http 的 WriteMessage 是一次性写入
-4. maxFrameSize 硬编码 64KB: 不可配置, 大消息场景受限
+4. maxFrameSize 默认 64KB: 可通过 `UpgradeOptions.MaxMessageSize` 覆盖, 但单帧上限与重组消息上限耦合为同一个 `messageLimit()` 值, 无法独立配置
 5. 无 CloseHandler 超时: 发送 Close 帧后不等待对端回复即关闭连接
 6. 无 TLS/代理支持: 依赖底层 net.Conn, 不处理 X-Forwarded-For 等
 
@@ -805,7 +814,7 @@ A:
 3. 路由冲突检测: 当前 `/users/:id` 和 `/users/:name` 可以同时注册但行为未定义( 先注册的优先) . 应在注册时检测冲突并 panic.
 
 4. WebSocket 增强:
-   - 可配置的 maxFrameSize / maxMessageSize
+   - 将单帧上限与重组消息上限分离为独立配置( 当前共用 `messageLimit()`)
    - 写超时( 防止慢客户端阻塞写 goroutine)
    - Close 握手超时( 发送 Close 后等待对端回复, 超时强制断开)
    - permessage-deflate 支持
