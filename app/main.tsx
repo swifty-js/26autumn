@@ -28,9 +28,11 @@ init({
     return eventList;
   },
 });
-enablePlugin(new ScreenRecordPlugin());
-enablePlugin(new PerformancePlugin());
-enablePlugin(new ExposurePlugin());
+enablePlugin(
+  new ScreenRecordPlugin(),
+  new PerformancePlugin(),
+  new ExposurePlugin(),
+);
 
 // Built-in password guard: pages compiled with docsGuardPlugin()
 // (frontmatter `protected: true` + DOCS_PASSWORD env) prompt for a

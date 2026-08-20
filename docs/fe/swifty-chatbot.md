@@ -1,5 +1,7 @@
 # Swifty-Chatbot 高级全栈工程师面试 QA
 
+> 本机器路径 `$HOME/github/swifty-chatbot`
+
 ## 一、项目概述与架构设计
 
 ### Q1: 请介绍 swifty-chatbot 项目的整体架构
@@ -8,16 +10,16 @@
 
 swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用前后端分离架构:
 
-| 层级     | 技术选型                                                  |
-| -------- | --------------------------------------------------------- |
-| 前端     | React 19 + TypeScript 5.9 + Vite 8                        |
-| 状态管理 | Jotai (客户端状态) + TanStack React Query v5 (服务端状态) |
-| UI       | Radix UI + Tailwind CSS 4 + shadcn/ui 模式                |
-| 后端     | Koa 3 + @koa/router                                       |
-| LLM      | LangChain + Ollama (本地部署, 默认 qwen3)                 |
-| 数据库   | MySQL (Knex 查询构建器)                                   |
-| 缓存     | Redis (ioredis) + LRU 降级                                |
-| RAG      | LangChain MemoryVectorStore + OllamaEmbeddings            |
+| 层级     | 技术选型                                                     |
+| -------- | ------------------------------------------------------------ |
+| 前端     | React 19 + TypeScript 5.9 + Vite 8                           |
+| 状态管理 | Jotai (客户端状态) + TanStack React Query v5 (服务端状态)    |
+| UI       | Base UI (@base-ui/react) + Tailwind CSS 4 + shadcn/ui 模式   |
+| 后端     | Koa 3 + @koa/router                                          |
+| LLM      | LangChain + Ollama (OpenAI 兼容接口, 默认 qwen3)             |
+| 数据库   | MySQL (Knex 查询构建器)                                      |
+| 缓存     | Redis (ioredis) + LRU 降级                                   |
+| RAG      | LangChain MemoryVectorStore + OpenAIEmbeddings (对接 Ollama) |
 
 项目结构为 monorepo, 包含 `client/` 和 `server/` 两个 package. 后端采用 Router -> Controller -> Service -> DAO -> DB 的经典分层架构. AI 能力通过工厂模式封装, 支持普通对话和 RAG 增强两种模型类型.
 
@@ -125,7 +127,7 @@ function withAuth<P extends object>(WrappedComponent: ComponentType<P>) {
 用户输入 -> useStreamMessage hook (Fetch API POST)
          -> Koa Controller (res.writeHead SSE headers)
          -> SessionService -> AiAgent.responseStream()
-         -> ChatOllama.stream() (async iterator)
+         -> ChatOpenAI.stream() (async iterator, 对接 Ollama OpenAI 兼容端点)
          -> 逐 token 回调 -> res.write(`data: ${JSON.stringify(token)}\n\n`)
          -> 客户端 ReadableStream reader.read() 循环
          -> 逐行解析 SSE data 协议
@@ -373,7 +375,7 @@ if (agent) {
 }
 ```
 
-当用户在前端切换模型类型 (如从普通 Ollama 切换到 Ollama+RAG) 时:
+当用户在前端切换模型类型 (如从 OpenAI 切换到 OpenAI with RAG) 时:
 
 1. 请求携带新的 `model_type` 参数
 2. Manager 发现已有 Agent 的 modelType 与请求不匹配
@@ -393,7 +395,7 @@ if (agent) {
 2. 逐条消息调用 `AiAgentManager.getOrCreateAiAgent(username, session_id, ...)` 获取或创建对应 session 的 `AiAgent` 实例
 3. 通过 `agent.addMessage(..., false)` 将消息注入 `messages` 数组, 第 4 个参数传 `false` 表示仅恢复内存状态, 不再重复写回数据库
 
-这确保了即使服务崩溃重启, 用户再次进入对话时, AI 仍然 "记得" 之前的对话内容. 代价是启动时间随历史消息量线性增长. 另外, 恢复时统一使用 `ModelType.OLLAMA_MODEL` 创建 Agent, 若用户上次使用的是 RAG 模型, 需等下一次请求携带新 `model_type` 时通过热切换纠正.
+这确保了即使服务崩溃重启, 用户再次进入对话时, AI 仍然 "记得" 之前的对话内容. 代价是启动时间随历史消息量线性增长. 另外, 恢复时统一使用 `ModelType.OPENAI_MODEL` 创建 Agent, 若用户上次使用的是 RAG 模型, 需等下一次请求携带新 `model_type` 时通过热切换纠正.
 
 ---
 
@@ -407,14 +409,14 @@ if (agent) {
 用户上传文件 (.md/.txt/.json)
   -> multer 接收, CRC32 命名去重, 存入 uploads/{username}/
 
-用户发送消息 (model_type = "ollama-rag")
+用户发送消息 (model_type = "openai-rag")
   -> DocumentLoader.loadFromDirectory() 读取用户目录下所有文件
   -> RecursiveCharacterTextSplitter 分块 (chunkSize=1000, overlap=200)
-  -> OllamaEmbeddings (nomic-embed-text, 1024维) 向量化
+  -> OpenAIEmbeddings (nomic-embed-text, 对接 Ollama) 向量化
   -> MemoryVectorStore.fromDocuments() 构建内存向量索引
   -> similaritySearchWithScore(query, k=5) 检索 Top-5 相关文档
   -> buildRagPrompt() 将检索结果注入 Prompt
-  -> ChatOllama 基于增强 Prompt 生成回答
+  -> ChatOpenAI 基于增强 Prompt 生成回答
 ```
 
 Prompt 模板:
@@ -619,7 +621,7 @@ db/cache.ts
 | ----------- | ------------------------------------------- | -------------------------------------------------- |
 | 工厂模式    | AiModelFactory                              | 解耦模型创建与使用, 新增模型类型只需 registerModel |
 | 单例模式    | AiAgentManager, AiModelFactory              | 全局唯一的 Agent 管理器和模型注册表                |
-| 策略模式    | AiModel 接口 (OllamaModel / OllamaRagModel) | 同一 Agent 可切换不同推理策略                      |
+| 策略模式    | AiModel 接口 (OpenAIModel / OpenAIRagModel) | 同一 Agent 可切换不同推理策略                      |
 | 观察者/回调 | StreamCallback                              | 解耦 token 生成与 SSE 写入                         |
 | 中间件模式  | Koa auth middleware                         | 横切关注点 (鉴权) 与业务逻辑分离                   |
 | 分层架构    | Router->Controller->Service->DAO            | 关注点分离, 各层可独立测试和替换                   |
@@ -668,7 +670,7 @@ factory.registerModel("openai", (config) => new OpenAIModel(config));
 
 采用 shadcn/ui 模式 (非 npm 依赖, 而是源码拷贝到项目中):
 
-- 基础原语: Radix UI (无样式、可访问性优先的 headless 组件)
+- 基础原语: Base UI (@base-ui/react, 无样式、可访问性优先的 headless 组件, Radix UI 的继任者)
 - 样式层: Tailwind CSS 4 + CVA (class-variance-authority) 管理变体
 - 工具函数: `tailwind-merge` 解决类名冲突, `clsx` 条件组合
 - 组件目录: `components/ui/` 包含 button, card, input, select, textarea, dropdown-menu, skeleton, sonner (toast) 等
@@ -676,7 +678,7 @@ factory.registerModel("openai", (config) => new OpenAIModel(config));
 优势:
 
 1. 组件源码在项目中, 可任意定制, 不受库版本约束
-2. Radix 保证 WAI-ARIA 可访问性
+2. Base UI 保证 WAI-ARIA 可访问性
 3. Tailwind 原子化样式避免 CSS 命名冲突
 4. CVA 提供类型安全的变体管理
 

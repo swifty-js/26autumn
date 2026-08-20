@@ -1,6 +1,7 @@
 # @swifty.js/anti-copy 核心技术文档
 
-本文档基于 `swifty.js/packages/anti-copy` 仓库 `src/core` 目录的源码事实撰写, 只覆盖框架无关的核心防护逻辑, 不涉及 vitepress / rspress / lark-docs / lark-mvc / swifty-docs 等接入层实现.
+> 本机器路径 `$HOME/github/swifty.js/packages/anti-copy`
+> 本文档基于 `swifty.js/packages/anti-copy` 仓库 `src/core` 目录的源码事实撰写, 只覆盖框架无关的核心防护逻辑, 不涉及 vitepress / rspress / lark-docs / lark-mvc / swifty-docs 等接入层实现.
 
 ## 1. 定位与设计目标
 

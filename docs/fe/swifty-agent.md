@@ -1,5 +1,7 @@
 # Swifty Agent 面试 Q/A
 
+> 本机器路径 `$HOME/github/swifty-cli/apps/swifty-agent`
+
 > 项目:`apps/swifty-agent` —— 基于 Next.js 16 + React 19 + Vercel AI SDK v7 的 AI OnCall 智能助手,支持 RAG 知识库检索、ReAct 对话 Agent、Plan-Execute-Replan 运维编排、Prometheus 告警分析、MCP 日志工具接入.
 >
 > 本文档面向高级前端工程师面试场景,问题覆盖架构设计、LLM 工程、RAG、Agent 编排、流式输出、React 工程化、性能与安全等方向. 所有回答均基于项目真实源码,关键结论附 `文件:行号` 引用.
@@ -12,7 +14,7 @@
 
 Swifty Agent 是一个 Next.js 16 App Router 全栈应用,前后端同仓同进程,整体可分为五层:
 
-1. 接入层( `app/api/*`): 四个 Route Handler, 分别是 `chat`( 非流式对话) 、`chat_stream`(SSE 流式对话) 、`ai_ops`(Plan-Execute-Replan 运维分析) 、`upload`( 知识库文件上传) . 统一响应结构 `{ message, data }`,对齐源 Go 项目的 ResponseMiddleware(`app/api/chat/route.ts:24`).
+1. 接入层( `app/api/*`): 七个 Route Handler, 核心四个为 `chat`( 非流式对话) 、`chat_stream`(SSE 流式对话) 、`ai_ops`(Plan-Execute-Replan 运维分析) 、`upload`( 知识库文件上传) ; 另有 `log`( MCP 日志查询) 、`metrics`( Prometheus 指标代理) 、`a2ui_action`( A2UI 交互动作) . 统一响应结构 `{ message, data }`,对齐源 Go 项目的 ResponseMiddleware(`app/api/chat/route.ts:24`).
 2. 编排层( `lib/ai/pipelines/*`): 三条管线——`chat.ts`(RAG + ReAct agent)、`plan-execute-replan/`( 规划-执行-重规划循环) 、`knowledge-index.ts`( 知识库索引构建) .
 3. 能力层( `lib/ai/*`、`lib/redis/*`): 模型工厂( `models.ts` 双模型双 provider)、Embedding 封装( `embedder.ts` 双 provider)、工具系统( `tools/` 三层分离) 、Redis Stack 向量存取( `client.ts`/`indexer.ts`/`retriever.ts`)、会话记忆( `memory.ts` 内存 LRU).
 4. 配置层( `lib/config.ts`): 集中读取 `.env`, 导出冻结的 `config` 对象与 `EMBEDDING_DIM`,替代源项目的 GoFrame `g.Cfg()`.

@@ -1,2 +1,0 @@
-# 混淆文档包是二进制: 禁止行尾转换 / 文本 diff, 避免 git 破坏 zip 内容
-docs/docs.bundle.zip binary

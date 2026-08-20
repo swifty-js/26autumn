@@ -4,6 +4,7 @@ protected: true
 
 # swifty_cache 分布式缓存 -- 高级后端工程师面试 QA
 
+> 本机器路径: `$HOME/github/swifty.go/swifty_cache`
 > 基于项目 `github.com/hangtiancheng/swifty.go/swifty_cache` 源码整理, 覆盖架构设计、存储引擎、一致性哈希、服务发现、并发控制、容错机制等核心主题.
 
 ## 1. 项目整体架构
@@ -138,10 +139,14 @@ Q: lruStore 的分桶双层设计解决了什么问题?
 
 ```go
 type lruStore struct {
-    locks          []sync.Mutex   // 每个桶一把锁
-    caches         [][2]*cache    // [bucket][level], L1=热数据, L2=温数据
-    maxBucketBytes int64          // MaxBytes / (mask+1)
-    mask           int32          // 桶选择的位掩码
+    locks          []sync.Mutex              // 每个桶一把锁
+    caches         [][2]*cache               // [bucket][level], L0=近期层, L1=频繁层
+    onEvicted      func(key string, value Value) // 淘汰回调
+    cleanupTick    *time.Ticker              // TTL 过期清理定时器
+    closeCh        chan struct{}             // 关闭信号
+    closeOnce      sync.Once                 // 保证 Close 幂等
+    maxBucketBytes int64                     // MaxBytes / (mask+1)
+    mask           int32                     // 桶选择的位掩码
 }
 ```
 
@@ -151,20 +156,25 @@ type lruStore struct {
 - 每个桶独立的 `sync.Mutex`, 并发写入不同桶时完全无竞争
 - 桶数取 2 的幂次, 用位运算 `hash & mask` 替代取模
 
-双层 (L1/L2) 解决扫描污染问题:
+双层 (L1/L2) 解决扫描污染问题 (类似 2Q 算法):
 
-- L1 (热层): 新写入的数据进入 L1, 容量较大 (默认 512)
-- L2 (温层): 从 L1 被淘汰的数据降级到 L2 (默认 256)
-- Get 命中 L1 时, 数据提升到 L2 (类似 2Q/LIRS 思想)
-- 一次性扫描 (scan) 的数据只污染 L1, 不会挤占 L2 中的热数据
+- L1 (近期层/probationary): 新写入的数据进入 L1, 容量较大 (默认 512), 类似 2Q 的 A1in
+- L2 (频繁层/frequent): 被再次访问的数据从 L1 提升到 L2 (默认 256), 类似 2Q 的 Am
+- Get 命中 L1 时, 数据从 L1 移除并提升到 L2 (证明该 key 有重复访问价值)
+- Get 命中 L2 时, 仅调整位置到最近使用端 (LRU 语义)
+- 一次性扫描 (scan) 的数据只经过 L1, 不会被再次访问因此不会进入 L2, 避免挤占频繁访问的热数据
+- 字节预算淘汰时优先从 L1 淘汰, L1 为空才淘汰 L2
 
 Q: 底层 cache 结构为什么用数组而非链表节点?
 
 ```go
 type cache struct {
-    doubleLink [][2]uint16       // 侵入式双向链表 (数组下标)
-    m          []node            // 固定容量节点池
+    doubleLink [][2]uint16       // 侵入式双向链表 (数组下标, [0] 为哨兵节点)
+    m          []node            // 固定容量节点池, node{k, v, expireAt}
     hashMap    map[string]uint16 // key -> 1-based index
+    bytes      int64             // 当前存活条目的总字节数
+    nevict     int64             // 累计淘汰次数
+    last       uint16            // 已分配的最大槽位 (单调递增直到 cap)
 }
 ```
 
@@ -174,6 +184,7 @@ type cache struct {
 - 零分配: 节点在 `Create(cap)` 时一次性分配, 后续 put/evict 只修改索引
 - 缓存友好: 连续内存布局对 CPU cache line 友好
 - uint16 索引: 容量上限 65535, 节省内存 (相比指针 8 字节, uint16 仅 2 字节)
+- 槽位复用: 淘汰后不回收槽位, 新数据直接复用被淘汰槽位的下标 (通过 `hashMap[key] = doubleLink[0][p]` 实现)
 
 Q: 字节预算 (byte budget) 淘汰是如何工作的?
 
@@ -203,11 +214,12 @@ var clock, p, n = time.Now().UnixNano(), uint16(0), uint16(1)
 
 实现:
 
-- `init()` 启动后台 goroutine, 每秒与 `time.Now()` 同步一次
-- 两次同步之间, 以 100ms 为步长线性插值
+- `init()` 启动后台 goroutine, 每秒与 `time.Now()` 同步一次 (原子写)
+- 两次同步之间, 以 100ms 为步长线性插值 (共 9 次 `atomic.AddInt64`, 覆盖 900ms)
+- 最后 100ms 等待下一轮同步, 期间时钟冻结 (最大漂移约 100ms + 调度抖动)
 - `Now()` 函数直接读取原子变量, 开销约 1ns
 
-精度: 最大误差约 1 秒, 对缓存 TTL (通常分钟级) 完全可接受.
+精度: 正常负载下最大误差约 100ms; 极端 CPU 争抢下 goroutine 调度延迟可能使误差接近 1 秒, 对缓存 TTL (通常分钟级) 完全可接受.
 
 ---
 

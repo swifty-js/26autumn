@@ -1,5 +1,8 @@
 # swifty_http 高级后端工程师面试 QA
 
+> 本机器路径: `$HOME/github/swifty.go/swifty_http`
+> 基于项目 `github.com/hangtiancheng/swifty.go/swifty_http` 源码整理, 覆盖洋葱模型中间件、延迟响应、Trie 路由、SSE、WebSocket (RFC 6455) 等核心主题.
+
 ## Q1: 项目整体架构与设计理念
 
 Q: 请介绍 swifty_http 的整体架构, 它的核心设计理念是什么?

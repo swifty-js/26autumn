@@ -8,15 +8,13 @@ export default defineConfig({
     { text: "前端基础", link: "fe/react" },
     { text: "Swifty 前端", link: "fe/swifty" },
     { text: "后端基础", link: "be/go" },
-    { text: "Swifty 后端", link: "be/swifty-agent" },
+    { text: "Swifty 后端", link: "fe/swifty-agent" },
   ],
   sidebar: {
     "/docs/": [
       {
         text: "文档",
         items: [
-          { text: "review", link: "docs/review" },
-          { text: "handle", link: "docs/handle" },
           {
             text: "视频切片与 LLM 聚类标签: 真实实现记录",
             link: "docs/0",
@@ -61,26 +59,28 @@ export default defineConfig({
             link: "docs/12",
           },
           { text: "竞品调研报告", link: "docs/14" },
-          { text: "竞品调研报告", link: "docs/15" },
-          { text: "竞品调研报告", link: "docs/16" },
-          { text: "竞品调研报告", link: "docs/17" },
-          { text: "竞品调研报告", link: "docs/20" },
           {
             text: "Formily 新手入门教程与原理解析",
             link: "docs/formily",
           },
           {
             text: "@swifty.js/sentry 技术说明文档",
-            link: "docs/tech-report",
+            link: "docs/swifty-sentry",
+          },
+          {
+            text: "CodeGraph 深度解析: 给 AI 编码 Agent 的本地代码知识图谱",
+            link: "docs/codegraph",
+          },
+          { text: "A2UI", link: "docs/a2ui" },
+          {
+            text: "whistle + SwitchyOmega 本地代理调试指南",
+            link: "docs/whistle+switchy-omega",
           },
         ],
       },
     ],
     "/fe/": "auto",
     "/be/": "auto",
-    "/lark-mvc/": "auto",
-    "/lark-docs/": "auto",
-    "/lit/": "auto",
   },
   highlight: {
     theme: "github-light",

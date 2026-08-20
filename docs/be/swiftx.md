@@ -4,6 +4,7 @@ protected: true
 
 # Swiftx — 高级后端工程师面试 QA
 
+> 本机器路径: `$HOME/github/swifty.go/swiftx`
 > 基于 `github.com/hangtiancheng/swifty.go/swiftx` 项目源码分析( Go 1.26, 约 2.7 万行非测试代码)
 > 技术栈: Go 1.26 / Anthropic SDK / OpenAI SDK / MCP / Bubble Tea TUI
 > 该项目是一个终端 CLI Coding Agent, 具备多模型接入、流式工具执行、双层上下文管理、五层权限体系、OS 级沙箱、长期记忆、多智能体协作( 子代理 / 团队 / git worktree 隔离) 、技能系统与 MCP 集成等能力.

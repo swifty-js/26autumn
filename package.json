@@ -17,14 +17,11 @@
     "git:commit": "git add -A && git commit -m \"feat: Introduce new features\"",
     "git:push": "pnpm git:commit && git push origin main",
     "format": "prettier -w ./ --experimental-cli",
-    "prepare": "husky",
-    "postinstall": "echo 'node scripts/docs-cipher.mjs unpack'",
-    "docs:pack": "node scripts/docs-cipher.mjs pack",
-    "docs:unpack": "node scripts/docs-cipher.mjs unpack"
+    "prepare": "husky"
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^11.16.0",
-    "@swifty.js/docs": "^0.0.11",
+    "@swifty.js/docs": "^0.0.12",
     "@swifty.js/sentry": "^0.0.5",
     "@tailwindcss/vite": "^4.3.3",
     "@types/adm-zip": "^0.5.8",
@@ -41,7 +38,7 @@
   },
   "packageManager": "pnpm@10.32.1",
   "dependencies": {
-    "@swifty.js/anti-copy": "^0.0.2",
+    "@swifty.js/anti-copy": "^0.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }

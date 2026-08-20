@@ -1,5 +1,7 @@
 # @swifty.js/sentry 前端监控 SDK 面试 QA
 
+> 本机器路径 `$HOME/github/swifty-sentry/sentry`
+
 ## Q1: 项目整体架构设计是怎样的? 核心模块有哪些?
 
 答:
