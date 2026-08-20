@@ -113,10 +113,10 @@ Swifty Agent 是一个 Next.js 16 App Router 全栈应用, 前后端同仓同进
 
 答:
 
-| API              | 返回                                | 本项目用途                                                                                               | 选用依据                                                                  |
-| ---------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `generateText`   | 完整文本( Promise)                  | 非流式 chat(`chat.ts:90`)、plan 步骤执行( `executor.ts:36`)                                              | 不需要逐字输出时最简单; 配合 `tools + stopWhen` 自动完成多轮 tool-calling |
-| `streamText`     | 文本流( `textStream` AsyncIterable) | SSE 流式 chat(`chat.ts:114`)                                                                             | 边生成边推送, 降低首 token 感知延迟; 服务端把 chunk 转成 SSE 事件         |
+| API                                | 返回                                       | 本项目用途                                                                                                | 选用依据                                                                  |
+| ---------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `generateText`                     | 完整文本( Promise)                         | 非流式 chat(`chat.ts:90`)、plan 步骤执行( `executor.ts:36`)                                               | 不需要逐字输出时最简单; 配合 `tools + stopWhen` 自动完成多轮 tool-calling |
+| `streamText`                       | 文本流( `textStream` AsyncIterable)        | SSE 流式 chat(`chat.ts:114`)                                                                              | 边生成边推送, 降低首 token 感知延迟; 服务端把 chunk 转成 SSE 事件         |
 | `generateText` + `Output.object()` | 按 zod schema 校验的结构化对象( `.output`) | Planner 产出步骤数组、Replanner 产出 `{done, remaining, summary}`(`plan-execute-replan/index.ts:138,161`) | 编排循环的控制信号必须是机器可解析的, 不能依赖自由文本                    |
 
 关键洞察:文本是给"人"看的, 对象是给"程序"用的. Planner/Replanner 的输出要驱动 for 循环和分支判断, 如果用 `generateText` 再 `JSON.parse`, 就要处理模型输出 markdown 围栏、尾逗号、解释性废话等各种解析失败; `Output.object({schema})` 在协议层( 多数 provider 走 tool/function calling 通道强制 schema) 保证输出可解析, 结果通过 `.output` 属性获取. 注意 AI SDK v7 中独立的 `generateObject` 已标记废弃, 项目遵循 AGENTS.md 规范统一使用 `generateText` + `output: Output.object({schema})` 的组合.
@@ -689,7 +689,10 @@ const stream = new ReadableStream<Uint8Array>({
     const send = (event: string, data: string) => {
       // SSE payloads must not contain raw newlines: emit one `data:` line
       // per text line (the client rejoins them with "\n")
-      const dataLines = data.split("\n").map((line) => `data: ${line}`).join("\n");
+      const dataLines = data
+        .split("\n")
+        .map((line) => `data: ${line}`)
+        .join("\n");
       controller.enqueue(
         encoder.encode(`id: ${Date.now()}\nevent: ${event}\n${dataLines}\n\n`),
       );
@@ -706,7 +709,7 @@ const stream = new ReadableStream<Uint8Array>({
     } finally {
       controller.close();
     }
-  }
+  },
 });
 ```
 

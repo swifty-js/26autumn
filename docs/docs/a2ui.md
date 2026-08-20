@@ -1447,13 +1447,31 @@ export const SHADCN_CATALOG_ID =
   "https://raw.githubusercontent.com/hangtiancheng/a2ui/main/packages/shadcn/catalog.json";
 
 const components: ReactComponentImplementation[] = [
-  Text, Image, Icon, Video, AudioPlayer, Row, Column, List, Card, Tabs,
-  Divider, Modal, Button, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput,
+  Text,
+  Image,
+  Icon,
+  Video,
+  AudioPlayer,
+  Row,
+  Column,
+  List,
+  Card,
+  Tabs,
+  Divider,
+  Modal,
+  Button,
+  TextField,
+  CheckBox,
+  ChoicePicker,
+  Slider,
+  DateTimeInput,
   ...shadcnExtensionComponents,
 ];
 
 export const shadcnCatalog = new Catalog<ReactComponentImplementation>(
-  SHADCN_CATALOG_ID, components, BASIC_FUNCTIONS,
+  SHADCN_CATALOG_ID,
+  components,
+  BASIC_FUNCTIONS,
 );
 ```
 

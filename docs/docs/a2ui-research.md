@@ -2,6 +2,7 @@
 
 调研日期: 2026-08-20
 调研来源:
+
 - swifty-mcp 本地知识库中的 A2UI 官方文档( a2ui/ 目录, 含 introduction、concepts、reference、guides、ecosystem)
 - /Users/hangtiancheng/github/a2ui/packages/shadcn( @swifty.js/a2ui-shadcn 包源码)
 - /Users/hangtiancheng/github/swifty-cli/apps/swifty-agent( A2UI 应用源码)
@@ -45,12 +46,14 @@ A2UI 的定义: 一个声明式 UI 协议, 让 AI agent 生成富交互 UI, 并�
 所有 A2UI 消息都是 JSON 对象, 以 JSON Lines( JSONL) 传输, 每行恰好一条消息.
 
 v0.8( Legacy) 消息类型:
+
 - beginRendering: 通知客户端渲染一个 surface
 - surfaceUpdate: 新增或更新组件
 - dataModelUpdate: 更新应用状态
 - deleteSurface: 删除 surface
 
 v0.9( 当前) 消息类型, 所有消息都带 "version": "v0.9" 字段:
+
 - createSurface: 创建 surface 并指定其 catalog
 - updateComponents: 新增或更新组件
 - updateDataModel: 更新应用状态
@@ -59,11 +62,41 @@ v0.9( 当前) 消息类型, 所有消息都带 "version": "v0.9" 字段:
 一个 v0.8 风格的简化示例( 订位表单) :
 
 ```json
-{"surfaceUpdate": {"surfaceId": "main", "components": [
-  {"id": "header", "component": {"Text": {"text": {"literalString": "Book Your Table"}, "usageHint": "h1"}}},
-  {"id": "date-picker", "component": {"DateTimeInput": {"label": {"literalString": "Select Date"}, "value": {"path": "/reservation/date"}, "enableDate": true}}},
-  {"id": "submit-btn", "component": {"Button": {"child": "submit-text", "action": {"name": "confirm_booking"}}}}
-]}}
+{
+  "surfaceUpdate": {
+    "surfaceId": "main",
+    "components": [
+      {
+        "id": "header",
+        "component": {
+          "Text": {
+            "text": { "literalString": "Book Your Table" },
+            "usageHint": "h1"
+          }
+        }
+      },
+      {
+        "id": "date-picker",
+        "component": {
+          "DateTimeInput": {
+            "label": { "literalString": "Select Date" },
+            "value": { "path": "/reservation/date" },
+            "enableDate": true
+          }
+        }
+      },
+      {
+        "id": "submit-btn",
+        "component": {
+          "Button": {
+            "child": "submit-text",
+            "action": { "name": "confirm_booking" }
+          }
+        }
+      }
+    ]
+  }
+}
 ```
 
 ### 1.4 组件结构: 邻接表模型
@@ -75,16 +108,28 @@ A2UI 用邻接表( adjacency list) 而非嵌套树来表达组件层级: 组件�
   "surfaceUpdate": {
     "surfaceId": "main",
     "components": [
-      {"id": "root", "component": {"Column": {"children": {"explicitList": ["header", "body"]}}}},
-      {"id": "header", "component": {"Text": {"text": {"literalString": "Welcome"}}}},
-      {"id": "body", "component": {"Card": {"child": "content"}}},
-      {"id": "content", "component": {"Text": {"text": {"path": "/message"}}}}
+      {
+        "id": "root",
+        "component": {
+          "Column": { "children": { "explicitList": ["header", "body"] } }
+        }
+      },
+      {
+        "id": "header",
+        "component": { "Text": { "text": { "literalString": "Welcome" } } }
+      },
+      { "id": "body", "component": { "Card": { "child": "content" } } },
+      {
+        "id": "content",
+        "component": { "Text": { "text": { "path": "/message" } } }
+      }
     ]
   }
 }
 ```
 
 为什么不用嵌套树:
+
 - 嵌套树要求 LLM 一次性生成完美嵌套, 容错差; 扁平列表对 LLM 友好.
 - 扁平结构可以增量流式发送组件.
 - 任何组件都能按 ID 单独更新, 不必重发整棵树.
@@ -96,9 +141,9 @@ A2UI 用邻接表( adjacency list) 而非嵌套树来表达组件层级: 组件�
 
 ```json
 {
-  "user": {"name": "Alice", "email": "alice@example.com"},
+  "user": { "name": "Alice", "email": "alice@example.com" },
   "cart": {
-    "items": [{"name": "Widget", "price": 9.99, "quantity": 2}],
+    "items": [{ "name": "Widget", "price": 9.99, "quantity": 2 }],
     "total": 19.98
   }
 }
@@ -109,6 +154,7 @@ A2UI 用邻接表( adjacency list) 而非嵌套树来表达组件层级: 组件�
 ### 1.6 用户动作: Function 与 Event
 
 组件通过 action 属性触发两类行为:
+
 - Function: 在 renderer 本地执行的函数, 保证交互的即时响应.
 - Event: 派发给 agent 的事件, 携带上下文数据.
 
@@ -139,6 +185,7 @@ Catalog 的 JSON Schema 结构: 一个对象包含 catalogId( 唯一标识) 、c
 A2UI 与传输层解耦, 任何能送 JSON 的通道都行: A2A 协议、AG-UI、REST/SSE、WebSocket、gRPC、消息队列等.
 
 生态定位上的两个关键对照:
+
 - AG-UI 是传输协议( 连接 agent 后端与前端、实时状态同步) , A2UI 是 UI 格式( 描述渲染什么的有效载荷) . 二者互补: AG-UI 是管道, A2UI 是内容. AG-UI 由 CopilotKit 团队发起, 对 A2UI 有 day-zero 兼容.
 - 对比 OpenAI ChatKit: 设计哲学相近( 基础组件 + 可配置声明式抽象层) , 但 A2UI 是平台无关的, 面向跨 web/移动/桌面自建 agentic 界面, 以及需要跨信任边界渲染的多 agent 系统.
 
@@ -162,6 +209,7 @@ A2UI 与传输层解耦, 任何能送 JSON 的通道都行: A2A 协议、AG-UI�
 也就是说这个包同时覆盖"渲染端"( 把 A2UI 消息画出来) 和"生成端"( 教 LLM 怎么产出 A2UI 消息) 两侧.
 
 关键依赖:
+
 - 协议栈: @a2ui/react ^0.10.2、@a2ui/web_core ^0.10.6、@a2ui/markdown-it ^0.1.1
 - UI 底座: @base-ui/react( 注意是 Base UI 原语而非 Radix) 、class-variance-authority、clsx、tailwind-merge、lucide-react、cmdk、recharts、react-day-picker、embla-carousel-react、react-resizable-panels、input-otp
 - peer: react ^18||^19、zod ^3
@@ -177,17 +225,36 @@ export const SHADCN_CATALOG_ID =
   "https://raw.githubusercontent.com/hangtiancheng/a2ui/main/packages/shadcn/catalog.json";
 
 const components: ReactComponentImplementation[] = [
-  Text, Image, Icon, Video, AudioPlayer, Row, Column, List, Card, Tabs,
-  Divider, Modal, Button, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput,
+  Text,
+  Image,
+  Icon,
+  Video,
+  AudioPlayer,
+  Row,
+  Column,
+  List,
+  Card,
+  Tabs,
+  Divider,
+  Modal,
+  Button,
+  TextField,
+  CheckBox,
+  ChoicePicker,
+  Slider,
+  DateTimeInput,
   ...shadcnExtensionComponents,
 ];
 
 export const shadcnCatalog = new Catalog<ReactComponentImplementation>(
-  SHADCN_CATALOG_ID, components, BASIC_FUNCTIONS,
+  SHADCN_CATALOG_ID,
+  components,
+  BASIC_FUNCTIONS,
 );
 ```
 
 要点:
+
 - Catalog 类来自 @a2ui/web_core/v0_9, 本质是"catalogId + 组件实现表 + 函数表( BASIC_FUNCTIONS) "的注册表.
 - 18 个 basic 组件( src/catalog/components/) 直接复用官方 basic_catalog 的 zod Api schema( ButtonApi、TextApi、TextFieldApi、ListApi 等) , 只替换视觉层为 shadcn 实现.
 - 47 个扩展组件( src/catalog/shadcn/) 按家族分组: display( Alert/Avatar/Badge/Progress/Skeleton/Spinner 等) 、structure( Accordion/Carousel/Table/Resizable 等) 、overlays( AlertDialog/Drawer/Sheet/Tooltip/Popover 等) 、navigation( Breadcrumb/Menubar/Pagination 等) 、forms( Calendar/Combobox/Command/Select/Switch/InputOtp 等) 、chat( Bubble/Message/MessageScroller/Questionnaire/Attachment/Marker) 、data( Chart) . 源码注释明确排除了 sidebar( 属于应用骨架) 、toast( 命令式 API) 、direction( provider 性质) .
@@ -214,14 +281,21 @@ export const Alert = createComponentImplementation(AlertApi, ({ props }) => (...
 basic 组件的渲染示例( button.tsx) 展示了协议 prop 到 shadcn 的映射:
 
 ```tsx
-export const Button = createComponentImplementation(ButtonApi, ({ props, buildChild }) => {
-  const variant = (props.variant && VARIANT_MAP[props.variant]) || "outline"; // primary→default, borderless→ghost
-  return (
-    <UIButton variant={variant} onClick={props.action} disabled={props.isValid === false}>
-      {props.child ? buildChild(props.child) : null}
-    </UIButton>
-  );
-});
+export const Button = createComponentImplementation(
+  ButtonApi,
+  ({ props, buildChild }) => {
+    const variant = (props.variant && VARIANT_MAP[props.variant]) || "outline"; // primary→default, borderless→ghost
+    return (
+      <UIButton
+        variant={variant}
+        onClick={props.action}
+        disabled={props.isValid === false}
+      >
+        {props.child ? buildChild(props.child) : null}
+      </UIButton>
+    );
+  },
+);
 ```
 
 ### 2.3 catalog.json 的生成: 单一事实源
@@ -273,6 +347,7 @@ export function A2uiView({ messages, onAction, onRawAction }: A2uiViewProps) {
 ### 2.5 数据绑定与双向同步
 
 Dynamic 类型( DynamicStringSchema 等) 是三态联合:
+
 - 字面量: "Book Now"
 - 数据绑定: { path: "/title" }( 绝对路径) 或 { path: "name" }( 列表模板内相对 basePath)
 - 函数调用: { call, args, returnType }( 使用 BASIC_FUNCTIONS)
@@ -280,6 +355,7 @@ Dynamic 类型( DynamicStringSchema 等) 是三态联合:
 ActionSchema 的 wire 形态为 { event: { name, context? } }( context 值可再嵌 {path} 绑定) 或 functionCall.
 
 求值由 web_core 的 generic binder 按 zod schema 结构化完成, 规则是:
+
 - DynamicString/Number/Boolean/ValueSchema 标注的 prop 解析为实际值, 并自动生成 setX 回写函数( 写回 {path} 绑定的数据模型) ;
 - ActionSchema 标注的 prop 变成可调用函数;
 - ComponentIdSchema/ChildListSchema 变成 buildChild 能力;
@@ -319,6 +395,7 @@ src/prompt/( ./prompt 导出) 把 A2UI Python agent SDK 的四种推理格式提
 定位: AI 智能 OnCall 运维助手( README 首行 "AI intelligent OnCall assistant") , 核心场景是告警分析、日志查询、Prometheus 运维问答, 并通过 A2UI 让 LLM 直接生成交互式 UI( 告警列表卡片、指标图表、静默表单等) .
 
 技术栈( package.json) :
+
 - 框架: Next.js 16.2.9( App Router) + React 19.2.4 + TypeScript 6; 入口 app/layout.tsx、app/page.tsx( 主聊天界面) 、app/gallery/page.tsx( A2UI 组件画廊)
 - AI SDK: Vercel AI SDK v7( ai ^7.0.43) , streamText/generateText + tools + stopWhen: isStepCount( n) ; provider 为 @ai-sdk/openai 与 @ai-sdk/anthropic, lib/ai/models.ts 按 LLM_PROVIDER 切换, 区分 thinkModel/quickModel
 - A2UI 依赖: @a2ui/web_core ^0.10.6、@a2ui/react ^0.10.2、@a2ui/markdown-it, 以及 "@swifty.js/a2ui-shadcn": "file:../../../a2ui/packages/shadcn" ——本地 file 链接到上文调研的 shadcn 包, 两个仓库由此耦合
@@ -345,12 +422,14 @@ reactStrictMode: false,
 ```tsx
 import { A2uiView } from "@swifty.js/a2ui-shadcn";
 
-{message.a2ui && message.a2ui.length > 0 && (
-  <A2uiView
-    messages={message.a2ui}
-    onRawAction={(action) => onA2uiAction(index, action)}
-  />
-)}
+{
+  message.a2ui && message.a2ui.length > 0 && (
+    <A2uiView
+      messages={message.a2ui}
+      onRawAction={(action) => onA2uiAction(index, action)}
+    />
+  );
+}
 ```
 
 A2uiView 内部( 见 2.4) 用 processedCount ref 记录已处理条数, 只把新增消息交给 processor.processMessages——这个增量处理机制正是支持"原地更新"( action 回传后追加 update 消息) 的基础.
@@ -376,12 +455,14 @@ export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
 ```
 
 要点:
+
 - 采用 "direct-json" 生成模式: LLM 在 markdown 回复之后追加一个 <a2ui-json>[...]</a2ui-json> 标签块( JSON 消息数组) , 与文本共用同一输出通道, 而非独立通道.
 - prompt 内嵌完整的 server-to-client schema + common types + shadcn catalog schema 契约, 外加 3 个由 builder 函数生成的 few-shot 示例( 告警列表、QPS 指标报告、静默表单) . builder 化的好处是: 改 UI 结构只需改 builder, prompt 自动同步.
 - removeStrictValidation 去掉 closed-object 约束, 避免 LLM 因无害的额外字段被过度拒绝.
 - 另有 A2UI_ACTION_SYSTEM_PROMPT: 通过 allowedMessages: ["UpdateComponentsMessage", "UpdateDataModelMessage"] 裁剪 schema, 使 action 场景下 createSurface/deleteSurface 根本无法通过校验.
 
 两条生成管线:
+
 - 非流式 POST /api/chat → lib/ai/pipelines/chat.ts: RAG 检索( lib/redis/retriever.ts) + 历史记忆 → generateText( tools + 25 步上限) → extractA2ui( raw) 从完整输出中切出 <a2ui-json> 块并用 @a2ui/web_core/v0_9 的 A2uiMessageListSchema.safeParse 校验 → 返回 { answer: cleanText, a2ui }.
 - 流式 POST /api/chat_stream → chatStream() async generator, 其中 createA2uiStreamFilter()( lib/ai/a2ui/extract.ts) 是一个有状态流过滤器: 普通文本即时透传( 仅扣留可能是标签前缀的尾部) , <a2ui-json> 块内容静默缓冲直到闭合标签; 完整块经 parseA2uiBlock 校验后以 {type:"a2ui", messages} 事件一次性 yield; SSE 用 event: a2ui + data 发送( 共 message/a2ui/done/error 四种事件) . 注释细节: 部分标签跨 chunk 时扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃.
 
@@ -390,6 +471,7 @@ export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
 ### 3.4 消费侧: 前端如何接收与渲染
 
 hooks/use-chat.ts:
+
 - ChatMessage.a2ui?: unknown[] 挂在助手消息上, 持久化到 localStorage 历史.
 - SSE 解析器处理 event: a2ui: z.array( z.unknown()) .min( 1) .safeParse( JSON.parse( payload)) 后追加到最后一条助手消息的 a2ui 数组.
 - 设计红线( AGENTS.md) : web_core 自带 zod v3, 不得与应用层 zod/v4 混用, 边界一律 unknown[], 渲染时才由 web_core schema 逐条校验.
@@ -419,6 +501,7 @@ POST /api/ai_ops → lib/ai/pipelines/plan-execute-replan: Planner( think 模型
 ### 3.7 具体 A2UI 界面示例
 
 prompt few-shot builder 覆盖三类运维界面:
+
 - buildAlertListExample: Column/Text/List( 模板绑定 children:{componentId, path:"/alerts"} ) /Card/Row/Badge/Button( action ack_alert, context 用相对路径绑定) ——告警卡片列表.
 - buildMetricsReportExample: Chart( variant:"line", series/xKey) + Table( columns/rows 绑定 /rows) ——QPS 指标报告.
 - buildSilenceFormExample: Card + TextField×3( value 绑定数据模型) + Button( action create_silence, context 携带表单值) ——告警静默表单.

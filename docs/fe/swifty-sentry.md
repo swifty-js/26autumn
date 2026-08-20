@@ -785,7 +785,8 @@ function getRollingWindow(
 
 export async function recorder(reporter: IDataReporter): Promise<Cleanup> {
   const [{ record }, pako] = await Promise.all([
-    import("@rrweb/record"), import("pako"),
+    import("@rrweb/record"),
+    import("pako"),
   ]);
   let recordWindow: readonly RecordEvent[] = [];
 
@@ -794,7 +795,8 @@ export async function recorder(reporter: IDataReporter): Promise<Cleanup> {
       const result = recordEventSchema.safeParse(e);
       if (!result.success) return;
       recordWindow = getRollingWindow(
-        [...recordWindow, result.data], result.data.timestamp,
+        [...recordWindow, result.data],
+        result.data.timestamp,
       );
       if (sentry.shouldScreenRecord && recordWindow.length > 0) {
         reporter.send({
