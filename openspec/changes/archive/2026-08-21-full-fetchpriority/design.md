@@ -24,6 +24,7 @@ Non-Goals:
 当前正则替换脆弱且不可扩展 -- 属性顺序变化、新增属性都会导致匹配失败.
 
 方案对比:
+
 - 正则替换: 零依赖, 但每新增一种资源类型就需要新正则, 维护成本线性增长
 - cheerio: 功能完整但体积大 (jQuery 语义), 对构建插件过重
 - node-html-parser: 轻量 DOM 解析, 支持 querySelector, 适合构建时 HTML 转换
@@ -46,12 +47,7 @@ interface PriorityHintsOptions {
 }
 
 type ResourceType =
-  | "script"
-  | "stylesheet"
-  | "font"
-  | "image"
-  | "preload"
-  | "modulepreload";
+  "script" | "stylesheet" | "font" | "image" | "preload" | "modulepreload";
 ```
 
 默认值与当前行为一致: script=high, stylesheet=high, modulepreload=low, font=high. image 默认按位置判断 (当前无图片, 预留逻辑).
@@ -68,6 +64,7 @@ type ResourceType =
 ### 5. 图片处理策略
 
 当前文档无图片. 预留 transformIndexHtml 中的 img 处理逻辑:
+
 - 对前 N 个 img (默认 1) 标注 fetchpriority="high" + loading="eager"
 - 其余标注 fetchpriority="low" + loading="lazy"
 

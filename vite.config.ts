@@ -8,12 +8,7 @@ import { sentryPlugin } from "@lark.js/sentry/vite";
 import { parse } from "node-html-parser";
 
 type ResourceType =
-  | "script"
-  | "stylesheet"
-  | "font"
-  | "image"
-  | "preload"
-  | "modulepreload";
+  "script" | "stylesheet" | "font" | "image" | "preload" | "modulepreload";
 
 interface PriorityHintsOptions {
   priorities?: Partial<Record<ResourceType, "high" | "low" | "auto">>;
@@ -65,7 +60,9 @@ function priorityHintsPlugin(options: PriorityHintsOptions = {}): Plugin {
         if (p) el.setAttribute("fetchpriority", p);
       }
 
-      for (const el of root.querySelectorAll('link[rel="preload"][as="font"]')) {
+      for (const el of root.querySelectorAll(
+        'link[rel="preload"][as="font"]',
+      )) {
         const p = opts.priorities.font;
         if (p) el.setAttribute("fetchpriority", p);
       }

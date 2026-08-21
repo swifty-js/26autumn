@@ -7,7 +7,7 @@
     "base_url": "https://ark.cn-beijing.volces.com/api/v3",
     // 必须是视觉模型 (VLM)
     "model": "doubao-seed-1.6-vision-250715",
-    "max_tokens": 1024
+    "max_tokens": 1024,
   },
   // 切片粒度 (秒)
   "segment_seconds": 60,
@@ -16,5 +16,5 @@
   // 并发处理的切片数
   "concurrency": 2,
   // 代表帧缩放宽度 (px), 高度按比例, 控制 token 成本
-  "frame_width": 768
+  "frame_width": 768,
 }

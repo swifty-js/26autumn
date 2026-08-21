@@ -143,10 +143,10 @@ class LruStore implements Store {
   private caches: [InternalCache, InternalCache][]; // [桶][层], [0]=近期层, [1]=频繁层
   private onEvicted?: (key: string, value: Value) => void; // 淘汰回调
   private cleanupTimer: ReturnType<typeof setInterval> | null; // TTL 过期清理定时器
-  private mask: number;             // 桶选择的位掩码
-  private closed = false;           // 保证 close 幂等
-  private bucketBytes: number[];    // 每个桶当前的存活字节数
-  private bucketMaxBytes: number;   // floor(maxBytes / (mask+1))
+  private mask: number; // 桶选择的位掩码
+  private closed = false; // 保证 close 幂等
+  private bucketBytes: number[]; // 每个桶当前的存活字节数
+  private bucketMaxBytes: number; // floor(maxBytes / (mask+1))
 }
 ```
 
@@ -170,10 +170,10 @@ Q: 底层 InternalCache 为什么用数组而非链表节点?
 ```ts
 class InternalCache {
   private doubleLink: [number, number][]; // 侵入式双向链表 (数组下标, [0] 为哨兵节点)
-  private m: Node[];                      // 固定容量节点池, Node = { k, v, expireAt }
-  private hashMap: Map<string, number>;   // key -> 1-based index
-  private last: number;                   // 已分配的最大槽位 (单调递增直到 cap)
-  private cap: number;                    // 容量上限
+  private m: Node[]; // 固定容量节点池, Node = { k, v, expireAt }
+  private hashMap: Map<string, number>; // key -> 1-based index
+  private last: number; // 已分配的最大槽位 (单调递增直到 cap)
+  private cap: number; // 容量上限
 }
 ```
 
@@ -233,7 +233,7 @@ interface Call<T> {
 
 class SingleFlightGroup {
   private m: Map<string, Call<unknown>> = new Map();
-  async do<T>(key: string, fn: () => Promise<T>): Promise<T>
+  async do<T>(key: string, fn: () => Promise<T>): Promise<T>;
 }
 ```
 
@@ -247,13 +247,13 @@ class SingleFlightGroup {
 
 与 x/sync/singleflight 的差异:
 
-| 维度        | swifty_cache (TS)            | x/sync/singleflight (Go)   |
-| ----------- | ---------------------------- | -------------------------- |
-| 底层结构    | `Map` + 共享 Promise         | `sync.Mutex` + `map` + WG  |
-| 等待机制    | await 同一个 Promise         | `wg.Wait()`                |
-| 错误处理    | reject 传播给所有等待者      | panic 传播给所有等待者     |
-| Forget 方法 | 无 (finally 自动 delete)     | 有                         |
-| 适用场景    | 高并发读缓存                 | 通用                       |
+| 维度        | swifty_cache (TS)        | x/sync/singleflight (Go)  |
+| ----------- | ------------------------ | ------------------------- |
+| 底层结构    | `Map` + 共享 Promise     | `sync.Mutex` + `map` + WG |
+| 等待机制    | await 同一个 Promise     | `wg.Wait()`               |
+| 错误处理    | reject 传播给所有等待者  | panic 传播给所有等待者    |
+| Forget 方法 | 无 (finally 自动 delete) | 有                        |
+| 适用场景    | 高并发读缓存             | 通用                      |
 
 Q: 如果 fn 内部抛异常会怎样?
 
@@ -269,12 +269,12 @@ Q: ConHashMap 的实现细节? 虚拟节点的作用是什么?
 
 ```ts
 class ConHashMap {
-  private config: ConHashConfig;             // 副本数、哈希函数、自动再均衡配置
-  private keys: number[] = [];               // 排序的虚拟节点哈希值
-  private hashMap: Map<number, string>;      // 哈希值 -> 物理节点
+  private config: ConHashConfig; // 副本数、哈希函数、自动再均衡配置
+  private keys: number[] = []; // 排序的虚拟节点哈希值
+  private hashMap: Map<number, string>; // 哈希值 -> 物理节点
   private nodeReplicas: Map<string, number>; // 物理节点 -> 当前副本数
-  private nodeCounts: Map<string, number>;   // 物理节点 -> 命中次数
-  private totalRequests = 0;                 // 总请求次数
+  private nodeCounts: Map<string, number>; // 物理节点 -> 命中次数
+  private totalRequests = 0; // 总请求次数
   private balancerTimer: ReturnType<typeof setInterval> | null; // 自动再均衡定时器 (可选)
 }
 ```
@@ -415,14 +415,14 @@ Q: Node.js 单线程模型下, 这个项目如何处理并发?
 
 TypeScript 实现没有任何互斥锁 (与 Go 版形成鲜明对比), 并发安全由事件循环模型天然保证:
 
-| 关注点       | 做法                                                         |
-| ------------ | ------------------------------------------------------------ |
-| 共享状态     | 同步代码段 (LRU 读写、哈希环查找、计数累加) 在事件循环中原子执行, 无数据竞争 |
-| 让出点       | 唯一的交错发生在 `await` 处; SingleFlight 在 Promise 层面去重, 同 key 并发只加载一次 |
-| 写传播       | `syncToPeers` 用立即执行的 async 闭包 (fire-and-forget), 不阻塞主流程, 失败只记日志 |
-| 取消传播     | Server 把 gRPC call 的 cancelled 转成 AbortSignal 传给 Getter; Client 用 per-call deadline 控制超时 |
-| 后台任务     | TTL 清理 (`setInterval`, 默认 60s) 与自动再均衡 (1s, 默认关闭) 以宏任务形式与请求处理交错 |
-| 关闭幂等     | 各组件用 `closed` 布尔标记防重复清理 (单线程下读改写本身是原子的) |
+| 关注点   | 做法                                                                                                |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| 共享状态 | 同步代码段 (LRU 读写、哈希环查找、计数累加) 在事件循环中原子执行, 无数据竞争                        |
+| 让出点   | 唯一的交错发生在 `await` 处; SingleFlight 在 Promise 层面去重, 同 key 并发只加载一次                |
+| 写传播   | `syncToPeers` 用立即执行的 async 闭包 (fire-and-forget), 不阻塞主流程, 失败只记日志                 |
+| 取消传播 | Server 把 gRPC call 的 cancelled 转成 AbortSignal 传给 Getter; Client 用 per-call deadline 控制超时 |
+| 后台任务 | TTL 清理 (`setInterval`, 默认 60s) 与自动再均衡 (1s, 默认关闭) 以宏任务形式与请求处理交错           |
+| 关闭幂等 | 各组件用 `closed` 布尔标记防重复清理 (单线程下读改写本身是原子的)                                   |
 
 Q: 没有锁, 会不会出现 "读到写了一半的状态"?
 
@@ -437,9 +437,9 @@ Q: ByteView 的设计意图是什么?
 ```ts
 class ByteView implements Value {
   private b: Buffer;
-  len(): number;          // 实现 Value 接口, 供字节预算记账
-  byteSlice(): Buffer;    // 防御性拷贝 (Buffer.from(this.b))
-  toString(): string;     // b.toString()
+  len(): number; // 实现 Value 接口, 供字节预算记账
+  byteSlice(): Buffer; // 防御性拷贝 (Buffer.from(this.b))
+  toString(): string; // b.toString()
 }
 ```
 
@@ -492,16 +492,16 @@ Q: Group.close() 做了什么?
 
 Q: 系统在各种故障场景下的行为是什么?
 
-| 故障场景              | 处理方式                                                          |
-| --------------------- | ----------------------------------------------------------------- |
-| 远端 peer 不可达      | per-call deadline (默认 3s) 到期后, `loadData` catch 并 fallback 到本地 Getter 回源 |
-| etcd 不可用 (注册)    | lease lost 事件触发重注册, 固定 1s 延迟, 服务本身不中断           |
-| etcd 不可用 (发现)    | etcd3 Watcher 自动重连, connected 后 fetchAll 全量 resync; 期间沿用最后一次已知的 peer 列表 |
-| Getter 回源失败       | 包装为 `failed to get data: ...` 抛出, 计入 loaderErrors, 不缓存错误结果 |
-| SingleFlight 内异常   | 共享 Promise reject, 所有等待者收到同一错误; finally 删除 key, 下个请求重新加载 |
-| 节点优雅下线          | abort 信号触发 revoke lease + 删除注册 key, peer 收到 delete 事件移除该节点 |
-| 节点崩溃              | Lease 10s 过期, etcd 自动删除 key, peer 收到 delete 事件          |
-| 写传播失败            | `log.warn` 记录后静默丢弃 (3s deadline), 不影响本地写入的成功返回 |
+| 故障场景            | 处理方式                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| 远端 peer 不可达    | per-call deadline (默认 3s) 到期后, `loadData` catch 并 fallback 到本地 Getter 回源         |
+| etcd 不可用 (注册)  | lease lost 事件触发重注册, 固定 1s 延迟, 服务本身不中断                                     |
+| etcd 不可用 (发现)  | etcd3 Watcher 自动重连, connected 后 fetchAll 全量 resync; 期间沿用最后一次已知的 peer 列表 |
+| Getter 回源失败     | 包装为 `failed to get data: ...` 抛出, 计入 loaderErrors, 不缓存错误结果                    |
+| SingleFlight 内异常 | 共享 Promise reject, 所有等待者收到同一错误; finally 删除 key, 下个请求重新加载             |
+| 节点优雅下线        | abort 信号触发 revoke lease + 删除注册 key, peer 收到 delete 事件移除该节点                 |
+| 节点崩溃            | Lease 10s 过期, etcd 自动删除 key, peer 收到 delete 事件                                    |
+| 写传播失败          | `log.warn` 记录后静默丢弃 (3s deadline), 不影响本地写入的成功返回                           |
 
 Q: 如果 etcd 完全宕机, 缓存还能工作吗?
 
