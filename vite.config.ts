@@ -5,25 +5,99 @@ import { larkDocsPlugin } from "@lark.js/docs/vite";
 import docsConfig from "./lark-docs.config";
 import { fileURLToPath } from "node:url";
 import { sentryPlugin } from "@lark.js/sentry/vite";
+import { parse } from "node-html-parser";
 
-function priorityHintsPlugin(): Plugin {
+type ResourceType =
+  | "script"
+  | "stylesheet"
+  | "font"
+  | "image"
+  | "preload"
+  | "modulepreload";
+
+interface PriorityHintsOptions {
+  priorities?: Partial<Record<ResourceType, "high" | "low" | "auto">>;
+  preconnect?: string[];
+  dnsPrefetch?: string[];
+  firstImageCount?: number;
+}
+
+const DEFAULT_OPTIONS: Required<
+  Pick<PriorityHintsOptions, "priorities" | "firstImageCount">
+> &
+  PriorityHintsOptions = {
+  priorities: {
+    script: "high",
+    stylesheet: "high",
+    font: "high",
+    modulepreload: "low",
+  },
+  preconnect: [],
+  dnsPrefetch: [],
+  firstImageCount: 1,
+};
+
+function priorityHintsPlugin(options: PriorityHintsOptions = {}): Plugin {
+  const opts = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+    priorities: { ...DEFAULT_OPTIONS.priorities, ...options.priorities },
+  };
+
   return {
     name: "priority-hints",
     enforce: "post",
     transformIndexHtml(html) {
-      return html
-        .replace(
-          /<script type="module" crossorigin src="([^"]+)"><\/script>/g,
-          '<script type="module" crossorigin fetchpriority="high" src="$1"></script>',
-        )
-        .replace(
-          /<link rel="stylesheet" crossorigin href="([^"]+)">/g,
-          '<link rel="stylesheet" crossorigin fetchpriority="high" href="$1">',
-        )
-        .replace(
-          /<link rel="modulepreload" crossorigin href="([^"]+)">/g,
-          '<link rel="modulepreload" crossorigin fetchpriority="low" href="$1">',
-        );
+      const root = parse(html);
+
+      for (const el of root.querySelectorAll("script[type=module]")) {
+        const p = opts.priorities.script;
+        if (p) el.setAttribute("fetchpriority", p);
+      }
+
+      for (const el of root.querySelectorAll('link[rel="stylesheet"]')) {
+        const p = opts.priorities.stylesheet;
+        if (p) el.setAttribute("fetchpriority", p);
+      }
+
+      for (const el of root.querySelectorAll('link[rel="modulepreload"]')) {
+        const p = opts.priorities.modulepreload;
+        if (p) el.setAttribute("fetchpriority", p);
+      }
+
+      for (const el of root.querySelectorAll('link[rel="preload"][as="font"]')) {
+        const p = opts.priorities.font;
+        if (p) el.setAttribute("fetchpriority", p);
+      }
+
+      const imgs = root.querySelectorAll("img");
+      imgs.forEach((el, i) => {
+        if (i < opts.firstImageCount) {
+          el.setAttribute("fetchpriority", "high");
+          el.setAttribute("loading", "eager");
+        } else {
+          el.setAttribute("fetchpriority", "low");
+          el.setAttribute("loading", "lazy");
+        }
+      });
+
+      const head = root.querySelector("head");
+      if (head) {
+        for (const origin of opts.preconnect ?? []) {
+          head.insertAdjacentHTML(
+            "afterbegin",
+            `<link rel="preconnect" href="${origin}" crossorigin>`,
+          );
+        }
+        for (const origin of opts.dnsPrefetch ?? []) {
+          head.insertAdjacentHTML(
+            "afterbegin",
+            `<link rel="dns-prefetch" href="${origin}">`,
+          );
+        }
+      }
+
+      return root.toString();
     },
   };
 }
