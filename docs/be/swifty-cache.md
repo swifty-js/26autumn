@@ -134,7 +134,7 @@ Q: 这种写传播方案的一致性保证是什么级别? 有什么局限?
 
 ## 4. 存储引擎: 分桶双层 LRU
 
-Q: lruStore 的分桶双层设计解决了什么问题?
+Q: LruStore 的分桶双层设计解决了什么问题?
 
 对应 `lru.ts` 中的 `LruStore` 结构:
 
@@ -275,7 +275,7 @@ class ConHashMap {
   private nodeReplicas: Map<string, number>; // 物理节点 -> 当前副本数
   private nodeCounts: Map<string, number>;   // 物理节点 -> 命中次数
   private totalRequests = 0;                 // 总请求次数
-  private balancerTimer: ...;                // 自动再均衡定时器 (可选)
+  private balancerTimer: ReturnType<typeof setInterval> | null; // 自动再均衡定时器 (可选)
 }
 ```
 
@@ -464,120 +464,99 @@ Q: 拷贝发生在哪些边界?
 
 ## 13. Group 注册表与生命周期
 
-Q: Group 的全局注册表如何工作? 为什么 NewGroup 重复注册会 panic?
+Q: Group 的全局注册表如何工作? 重复注册会怎样?
 
-```go
-var groupsMu sync.RWMutex
-var groups = make(map[string]*Group)
+```ts
+const groups: Map<string, Group> = new Map();
 ```
 
-- `NewGroup`: 注册到全局 map, 重复名称 panic (防止配置错误导致两个 Group 共享缓存空间)
-- `GetGroup`: 按名称查找, 未找到返回 nil
-- `DestroyGroup`: 从 map 移除并 Close (先解锁再 Close, 避免死锁)
-- `DestroyAllGroups`: 遍历所有 Group 执行销毁
+- `newGroup(name, cacheBytes, getter, ...opts)`: 注册到全局 map; 与 Go 版不同, 重复名称不会 panic, 而是 `log.warn` 提示后直接替换旧实例 (旧实例未被 close, 使用方需自行管理)
+- `getGroup(name)`: 按名称查找, 未找到返回 `undefined` (Server handler 据此返回 gRPC NOT_FOUND)
+- `listGroups()`: 返回所有已注册 Group 名称
+- `destroyGroup(name)`: 先从 map 移除再 `close()`, 返回是否存在
+- `destroyAllGroups`: 快照所有 Group, 清空 map 后逐个 close
 
-Q: Group.Close() 做了什么?
+Q: Group.close() 做了什么?
 
-1. `g.closed.CompareAndSwap(0, 1)` 保证幂等 (closed 是 `atomic.Int32` 字段)
-2. 关闭 `mainCache` (停止 TTL 清理 goroutine)
-3. 从全局注册表 `groups` map 中移除自身
+1. `closed` 布尔标记保证幂等, 重复调用直接返回
+2. 关闭 `mainCache` (清理 TTL 定时器, 释放 store)
+3. 从全局注册表 `groups` 中移除自身
 
-注意: `Group.Close` 不关闭 `peers`. `PeerPicker` 接口虽然定义了 `Close()` (`ClientPicker.Close` 可关闭所有 gRPC 连接与 etcd 客户端), 但目前没有任何调用方, 属于当前实现的一个缺口: Group 销毁后, peer 连接与 etcd Watch 仍在运行.
+注意: `Group.close` 不关闭 `peers`. `PeerPicker` 接口定义了 `close()` (`ClientPicker.close` 会关闭所有 gRPC Client、哈希环的再均衡定时器与 etcd Watcher), 但 Group 并不持有其生命周期: 销毁 Group 后, 若调用方没有单独 close picker, peer 连接与 etcd Watch 仍在运行. 这是当前实现的一个缺口.
+
+另外 `registerPeers` 只允许调用一次, 重复调用会抛错; 而 functional option `withPeers` 走 `_setPeers` 则没有该限制, 两者行为不一致, 也值得留意.
 
 ---
 
-## 14. 实时 Dashboard
-
-Q: Dashboard 的实现方案是什么?
-
-对应 `dashboard.go`:
-
-- 基于 `swifty_http` 框架启动 HTTP 服务
-- WebSocket 端点 `/dashboard/ws`
-- 每 2 秒推送一次 JSON 快照 (所有启用 Dashboard 的 Group 的统计信息和条目列表)
-- 30 秒心跳保活
-- 支持命令交互 (如 delete 指定 key)
-- `sync.Once` 保证全局只启动一次
-
-数据结构:
-
-```go
-type dashboardSnapshot struct {
-    Type   string          `json:"type"`
-    Groups []groupSnapshot `json:"groups"`
-}
-```
-
----
-
-## 15. 容错与降级策略
+## 14. 容错与降级策略
 
 Q: 系统在各种故障场景下的行为是什么?
 
-| 故障场景              | 处理方式                                                 |
-| --------------------- | -------------------------------------------------------- |
-| 远端 peer 不可达      | gRPC 3s 超时后 fallback 到本地 Getter 回源               |
-| etcd 不可用 (注册)    | 指数退避重注册 (1s -> 30s), 服务本身不中断               |
-| etcd 不可用 (发现)    | Watch 断开后 1s 重连, 期间使用最后一次已知的 peer 列表   |
-| Getter 回源失败       | 错误透传给调用方, 不缓存错误结果                         |
-| SingleFlight 内 panic | recover 后返回 error, 不影响其他 key                     |
-| 节点优雅下线          | 主动 Revoke Lease, peer 收到 DELETE 事件移除该节点       |
-| 节点崩溃              | Lease 10s 过期, etcd 自动删除 key, peer 收到 DELETE 事件 |
-| 写传播失败            | 静默丢弃 (3s 超时), 不影响本地写入的成功返回             |
+| 故障场景              | 处理方式                                                          |
+| --------------------- | ----------------------------------------------------------------- |
+| 远端 peer 不可达      | per-call deadline (默认 3s) 到期后, `loadData` catch 并 fallback 到本地 Getter 回源 |
+| etcd 不可用 (注册)    | lease lost 事件触发重注册, 固定 1s 延迟, 服务本身不中断           |
+| etcd 不可用 (发现)    | etcd3 Watcher 自动重连, connected 后 fetchAll 全量 resync; 期间沿用最后一次已知的 peer 列表 |
+| Getter 回源失败       | 包装为 `failed to get data: ...` 抛出, 计入 loaderErrors, 不缓存错误结果 |
+| SingleFlight 内异常   | 共享 Promise reject, 所有等待者收到同一错误; finally 删除 key, 下个请求重新加载 |
+| 节点优雅下线          | abort 信号触发 revoke lease + 删除注册 key, peer 收到 delete 事件移除该节点 |
+| 节点崩溃              | Lease 10s 过期, etcd 自动删除 key, peer 收到 delete 事件          |
+| 写传播失败            | `log.warn` 记录后静默丢弃 (3s deadline), 不影响本地写入的成功返回 |
 
 Q: 如果 etcd 完全宕机, 缓存还能工作吗?
 
-可以. 已建立的 gRPC 连接不依赖 etcd 持续可用. 影响仅限于:
+可以. 已建立的 gRPC 连接是长连接, 不依赖 etcd 持续可用. 影响仅限于:
 
 - 无法发现新加入的节点
-- 无法感知下线节点 (对已下线节点的请求会超时后 fallback)
+- 无法感知下线节点 (对已下线节点的请求会 deadline 到期后 fallback)
 - 新节点无法注册 (但不影响其本地缓存功能)
 
 ---
 
-## 16. 性能优化要点
+## 15. 性能优化要点
 
 Q: 项目中有哪些值得学习的性能优化?
 
-1. 分桶降低锁粒度: 16 桶 x 独立 Mutex, 写并发提升 ~16x
-2. 数组式 LRU: 预分配节点池 + uint16 索引, 零 GC 压力
-3. 粗粒度时钟: 避免每次 TTL 判断调用 `time.Now()`
-4. BKDR Hash + 位掩码: 比 `hash % N` 更快 (位运算 vs 除法指令)
-5. sync.Map 实现 SingleFlight: 读多写少场景下比 Mutex+map 更优
-6. ByteView 延迟拷贝: 只读场景零分配
-7. atomic 计数器: stats 统计无锁累加
-8. gRPC WaitForReady: 避免连接建立期间的请求失败
-9. 双重检查: singleflight 内部再查缓存, 减少冗余回源
+1. 分桶存储: 字节记账与淘汰循环限定在单桶内, 写入触发的淘汰不必扫描全缓存
+2. 数组式 LRU: 构造时预分配节点池, 装满后复用 LRU 尾节点下标, 稳态下零新增分配
+3. BKDR Hash + 位掩码选桶: `hash & mask` 位运算替代取模, 且哈希分布均匀
+4. 共享 Promise 的 SingleFlight: 同 key 并发请求只触发一次回源, 等待方零成本
+5. 双层 LRU 抗扫描污染: 一次性扫描数据止步于 L1, 热数据在 L2 中受保护
+6. ByteView 边界拷贝: 命中读取零拷贝, 仅在 set 入参、回源结果、RPC 出参等边界复制
+7. 单线程无锁计数: stats 用普通字段累加, 无原子操作开销
+8. per-call deadline: 每个 RPC 统一 3s 超时, 避免个别慢节点拖垮回源链路
+9. Watch + 重连 resync: 正常运行只做增量 watch, 全量拉取仅在启动和重连时发生
 
 ---
 
-## 17. 与 groupcache 的对比
+## 16. 与 groupcache 的对比
 
 Q: swifty_cache 相比 Google groupcache 有哪些扩展?
 
-| 维度         | groupcache               | swifty_cache                 |
-| ------------ | ------------------------ | ---------------------------- |
-| 存储引擎     | 单层 LRU + sync.Mutex    | 分桶双层 LRU, 字节预算       |
-| 服务发现     | 静态 peer 列表           | etcd 动态发现 + Watch        |
-| 写操作       | 不支持 (纯 read-through) | 支持 Set/Delete + 异步写传播 |
-| 传输层       | HTTP (可选 gRPC)         | 纯 gRPC                      |
-| TTL          | 无内建 TTL               | 内建 TTL + 后台清理          |
-| 监控         | 无                       | WebSocket 实时 Dashboard     |
-| 时钟         | time.Now()               | 粗粒度时钟                   |
-| SingleFlight | Mutex + map              | sync.Map                     |
-| 健康检查     | 无                       | gRPC Health Service          |
+| 维度         | groupcache               | swifty_cache (TS)              |
+| ------------ | ------------------------ | ------------------------------ |
+| 存储引擎     | 单层 LRU + sync.Mutex    | 分桶双层 LRU, 字节预算淘汰     |
+| 服务发现     | 静态 peer 列表           | etcd 动态发现 + Watch          |
+| 写操作       | 不支持 (纯 read-through) | 支持 set/delete + 异步写传播   |
+| 传输层       | HTTP (可选 gRPC)         | 纯 gRPC (@grpc/grpc-js)        |
+| TTL          | 无内建 TTL               | 内建 TTL + 懒清理 + 定时清理   |
+| 负载均衡     | 静态哈希                 | 可选 auto-rebalance 动态副本数 |
+| 并发模型     | 锁 + goroutine           | 单线程事件循环 + Promise       |
+| SingleFlight | Mutex + map + WaitGroup  | Map + 共享 Promise             |
+| 健康检查     | 无                       | gRPC Health Service            |
 
 ---
 
-## 18. 可能的改进方向
+## 17. 可能的改进方向
 
 Q: 如果让你继续演进这个项目, 会考虑哪些方向?
 
 1. 一致性保证: 引入 Raft 或基于 etcd 的分布式锁实现强一致写
 2. 写传播可靠性: 引入 WAL (Write-Ahead Log) + 重试队列, 避免异步写丢失
 3. 热点探测: 对高频访问 key 自动复制到多个节点, 缓解热点问题
-4. TLS/mTLS: 当前 gRPC 使用 insecure 连接, 生产环境需要加密
+4. 客户端 TLS: Server 侧已支持 TLS 选项, 但 Client 固定 `createInsecure`, 生产环境需要双向 TLS/mTLS
 5. 多副本: 一致性哈希支持 N 副本, 提高可用性
 6. 指标暴露: 集成 Prometheus metrics (命中率、延迟分位数、淘汰速率)
 7. LRU 改进: 考虑 TinyLFU (Caffeine 风格) 替代纯 LRU, 提高命中率
 8. 序列化优化: 对大 value 支持 Snappy/LZ4 压缩存储
+9. 生命周期闭环: Group.close 级联关闭 PeerPicker, 消除连接与 Watch 泄漏的缺口

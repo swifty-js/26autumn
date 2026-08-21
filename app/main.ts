@@ -11,29 +11,12 @@ import {
   getSearchIndex,
 } from "@lark-docs/generated";
 import "./main.css";
-import { init, enablePlugin } from "@lark.js/sentry";
+import { enablePlugin, initLarkSentry } from "@lark.js/sentry";
 import {
   ScreenRecordPlugin,
   PerformancePlugin,
   ExposurePlugin,
 } from "@lark.js/sentry/plugins";
-
-init({
-  dsn: "/26autumn",
-  debug: true,
-  beforePushEventList(eventList) {
-    if (!import.meta.env.DEV) {
-      console.log("@swifty.js/sentry App:", eventList);
-      return false;
-    }
-    return eventList;
-  },
-});
-enablePlugin(
-  new ScreenRecordPlugin(),
-  new PerformancePlugin(),
-  new ExposurePlugin(),
-);
 
 const config: FrameworkConfig = {
   rootId: "app",
@@ -47,3 +30,22 @@ const config: FrameworkConfig = {
 registerThemeViews();
 State.set({ docsConfig, loadContent, getSearchIndex });
 Framework.boot(config);
+
+if (Framework.isBooted()) {
+  initLarkSentry({
+    dsn: "/26autumn",
+    debug: true,
+    beforePushEventList(eventList) {
+      if (!import.meta.env.DEV) {
+        console.log("@swifty.js/sentry App:", eventList);
+        return false;
+      }
+      return eventList;
+    },
+  });
+  enablePlugin(
+    new ScreenRecordPlugin(),
+    new PerformancePlugin(),
+    new ExposurePlugin(),
+  );
+}
