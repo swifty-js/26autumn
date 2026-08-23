@@ -20,7 +20,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@lark.js/docs": "^0.0.19",
+    "@lark.js/docs": "^0.0.21",
     "@lark.js/sentry": "^0.0.16",
     "@mermaid-js/mermaid-cli": "^11.16.0",
     "@tailwindcss/typography": "^0.5.20",
