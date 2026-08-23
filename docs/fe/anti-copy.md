@@ -17,17 +17,18 @@ anti-copy 是一个浏览器端防复制 SDK. 它通过拦截 DOM 事件、注�
 ## 2. 目录结构与模块划分
 
 ```
-src/core/
+src/
 ├── index.ts        入口: createAntiCopy 控制器、Feature 组装、生命周期管理
-├── types.ts        全部公共与内部类型定义
-├── options.ts      配置归一化 resolveOptions 与默认值
-├── utils.ts        共享工具: 元素解析、排除判定、可编辑判定、HTML 转义
-├── clipboard.ts    copy / cut / dragstart 拦截
-├── keyboard.ts     复制、导出、DevTools 快捷键拦截
-├── contextmenu.ts  右键菜单禁用
-├── style.ts        user-select 样式注入与 selectstart 拦截
-├── print.ts        打印内容隐藏与 beforeprint 上报
-└── devtools.ts     DevTools 打开状态启发式检测
+└── core/
+    ├── types.ts        全部公共与内部类型定义
+    ├── options.ts      配置归一化 resolveOptions 与默认值
+    ├── utils.ts        共享工具: 元素解析、排除判定、可编辑判定、HTML 转义
+    ├── clipboard.ts    copy / cut / dragstart 拦截
+    ├── keyboard.ts     复制、导出、DevTools 快捷键拦截
+    ├── contextmenu.ts  右键菜单禁用
+    ├── style.ts        user-select 样式注入与 selectstart 拦截
+    ├── print.ts        打印内容隐藏与 beforeprint 上报
+    └── devtools.ts     DevTools 检测与反制( 尺寸差启发式 + debugger 探针)
 ```
 
 架构上采用「控制器 + 特性模块」模式: `createAntiCopy` 是唯一入口, 每个防护能力是一个实现 `Feature` 接口的独立模块, 由控制器统一装配、启用、停用与销毁.
@@ -64,16 +65,18 @@ selectStyle 的默认值依赖 mode 是一个关键设计: replace 模式需要�
 
 DevtoolsOptions 子配置:
 
-| 选项       | 默认值 | 说明                                                     |
-| ---------- | ------ | -------------------------------------------------------- |
-| intervalMs | 1000   | 轮询间隔毫秒数                                           |
-| threshold  | 170    | 窗口 outer 与 inner 尺寸差超过该值视为 DevTools 停靠打开 |
+| 选项        | 默认值          | 说明                                                                                       |
+| ----------- | --------------- | ------------------------------------------------------------------------------------------ |
+| intervalMs  | 1000            | 慢轮询间隔毫秒数                                                                           |
+| threshold   | 170             | 窗口 outer 与 inner 尺寸差超过该值视为 DevTools 停靠打开                                   |
+| freeze      | true            | 检测到 DevTools 后以 20ms 紧密循环反复执行 debugger 探针, 冻结页面直到 DevTools 关闭       |
+| redirectUrl | "about:blank"   | freeze 被绕过( 用户脚本 hook Function、禁用断点等) 时跳转的目标页; 设为 false 禁用此兜底   |
 
 ### 3.2 resolveOptions 归一化
 
 options.ts 的 `resolveOptions` 将用户配置与默认值合并为 `ResolvedOptions`, 所有特性模块消费的均是归一化后的对象, 不再处理 undefined. 要点:
 
-- devtools 三态归一: `true` 展开为默认参数对象, 对象形式逐项补默认值, 其余( false/undefined) 归一为 `false`.
+- devtools 三态归一: `true` 展开为默认参数对象, 对象形式逐项补默认值( intervalMs=1000、threshold=170、freeze=true、redirectUrl="about:blank") , 其余( false/undefined) 归一为 `false`.
 - `DEFAULT_REPLACE_TEXT` 常量从 index.ts 对外导出.
 
 ### 3.3 违规事件
@@ -232,18 +235,35 @@ selectstart 拦截器作为样式被覆盖时的兜底, 逻辑与 contextmenu �
 - 注入带 `swifty-anti-print` 标记的样式: `@media print { body { display: none !important; } }`. 键盘特性只能拦截 Ctrl/Cmd+P 快捷键, 浏览器菜单仍可打开打印对话框, 媒体查询覆盖这条路径, 使打印/另存为 PDF 输出为空白.
 - 监听 window 的 beforeprint 事件上报 type 为 print 的违规( 无 originalEvent) .
 
-### 6.6 devtools.ts: DevTools 打开检测
+### 6.6 devtools.ts: DevTools 检测与反制
 
-基于窗口 outer 与 inner 尺寸差的启发式检测: 停靠的 DevTools 会压缩 inner 视口, 使差值增大.
+双层防护架构: 检测层融合两种信号, 反制层在检测触发后主动干预.
 
-实现细节:
+检测层( 双通道) :
+
+1. 窗口尺寸差启发式( 针对停靠 DevTools) : outer 与 inner 尺寸差超过 threshold 判定为打开. 环境过滤: outerWidth 小于 800 或 `(pointer: coarse)` 触摸设备直接跳过, 避免窄屏与移动端误报.
+2. debugger 探针计时( 针对独立窗口 DevTools) : 通过 `Function("debugger")` 构造匿名探针( CSP 禁止 indirect eval 时回退为字面量 debugger 语句) , 测量执行耗时. 超过 `PAUSE_THRESHOLD_MS`( 100ms) 即判定调试器附着——debugger 语句仅在调试器激活时才会暂停, 因此耗时突增意味着 DevTools 已打开且断点生效. 此通道能检测到尺寸差启发式无法覆盖的独立窗口( undocked) DevTools.
+
+两个信号取并集: 任一触发即判定为打开.
+
+反制层( freeze + redirect) :
+
+- 慢轮询( intervalMs, 默认 1s) 检测到打开后, 升级为快守卫循环( `GUARD_INTERVAL_MS = 20ms`) .
+- 守卫循环每 tick 重跑探针:
+  - 探针暂停( 耗时 > 100ms) : 冻结生效, 页面在反复 debugger 暂停中停滞, 重置 bypassTicks. 用户关闭 DevTools 后探针不再暂停, 循环降级回慢轮询.
+  - 探针未暂停但尺寸差仍超标: 说明 freeze 被绕过( 用户脚本 hook Function 构造函数、DevTools 设置 "never pause here"、禁用全部断点) , 累加 bypassTicks.
+  - 探针未暂停且尺寸差恢复: DevTools 已关闭, 降级回慢轮询.
+- bypassTicks 达到 `BYPASS_MAX_TICKS`( 25, 约 500ms) 时执行 redirect: 优先导航 `view.top`( 防止 iframe 场景只退一层) , 跨域 top 不可访问时 fallback 到当前 window. redirectUrl 设为 false 可禁用此兜底.
+
+生命周期与上报:
 
 - 配置为 false 或无 defaultView 时返回 noop Feature.
-- attach 启动 setInterval 轮询( 默认 1 秒) 并监听 resize 事件即时响应窗口变化.
-- 每次检查先做环境过滤: outerWidth 小于 800 或 `(pointer: coarse)` 触摸设备直接跳过, 避免窄屏与移动端误报.
-- 横向或纵向尺寸差超过 threshold( 默认 170px) 判定为打开.
+- attach 启动慢轮询并监听 resize 事件即时响应窗口变化.
 - 边沿触发: 仅在关→开的跳变瞬间上报一次 onViolation( type 为 devtools, 无 originalEvent) , 持续打开期间不重复上报.
-- 源码注释明确声明已知局限: 独立窗口的 DevTools 无法检测; 浏览器缩放或异常窗口装饰可能误报; 只作为威慑信号, 绝不执行任何破坏性动作.
+- detach 移除 resize 监听、停止所有定时器、重置内部状态.
+- freeze 关闭时( `freeze: false`) 不创建探针, 退化为纯检测模式( 只上报, 不干预) .
+
+源码注释明确声明: 这是威慑手段( deterrent) , 不是安全边界. 已知局限: 断点被禁用的独立窗口 DevTools 与已关闭不可区分; 浏览器缩放或异常窗口装饰可能触发尺寸误报, 若反制开启则持续误报最终导致 redirect.
 
 ## 7. 各特性行为矩阵
 
@@ -254,7 +274,7 @@ selectstart 拦截器作为样式被覆盖时的兜底, 逻辑与 contextmenu �
 | contextmenu | window   | 捕获 | contextmenu                     | 是                  | 是                       | 否       |
 | style       | window   | 捕获 | selectstart( 仅非 replace 模式) | 是                  | 是                       | 是       |
 | print       | window   | —    | beforeprint                     | —                   | —                        | 是       |
-| devtools    | window   | —    | resize + 定时轮询               | —                   | —                        | 否       |
+| devtools    | window   | —    | resize + 慢轮询 + debugger 探针 + 守卫循环 | —                   | —                        | 否       |
 
 ## 8. 关键设计决策小结
 
@@ -265,10 +285,12 @@ selectstart 拦截器作为样式被覆盖时的兜底, 逻辑与 contextmenu �
 5. 快捷键双通道匹配( e.key 并集 e.code) 覆盖非拉丁布局与重映射布局两类绕过.
 6. 生命周期事务性: enable 失败整体回滚, disable 逐个尽力卸载, 保证任何状态下都不残留无法移除的监听器或样式.
 7. 防御性细节: 跨 realm 鸭子类型判定、无效选择器过滤、HTML 风味同步替换、iOS 长按菜单抑制, 均针对真实绕过路径.
+8. DevTools 反制分层: 探针冻结是首选反制( 代价低、用户关闭 DevTools 即恢复正常) , redirect 是对抗 freeze 绕过的最后手段; 检测双通道( 尺寸差 + debugger 计时) 互补覆盖停靠与独立窗口两种形态.
 
 ## 9. 已知局限
 
 - 客户端防护本质是威慑: 查看源码、禁用 JS、直接请求接口均可获取内容.
-- DevTools 检测为尺寸差启发式, 独立窗口不可检测, 存在误报可能.
+- DevTools 检测为尺寸差启发式与 debugger 探针计时的并集; 断点被禁用的独立窗口 DevTools 与已关闭状态不可区分.
+- 浏览器缩放或异常窗口装饰可能触发尺寸误报; 若反制( freeze/redirect) 开启, 持续误报最终导致页面被 redirect.
 - 浏览器菜单触发的打印由 @media print 规则兜底, 但若页面自身样式以更高优先级覆盖 body 显示则可能失效( 注入规则已使用 !important 缓解) .
 - 过度拦截方向是有意为之: AZERTY 等布局下可能误拦与受保护按键同物理位置的其他组合键.

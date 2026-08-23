@@ -72,7 +72,7 @@ Swifty Agent 是一个 Next.js 16 App Router 全栈应用, 前后端同仓同进
 
 ---
 
-### Q5: 项目的工具系统为什么采用 "schemas → operations → wrapper" 三层分离?
+### Q5: 项目的工具系统为什么采用 "schemas → operations → composition" 三层分离?
 
 答:
 
@@ -87,7 +87,7 @@ Swifty Agent 是一个 Next.js 16 App Router 全栈应用, 前后端同仓同进
 1. 可测试性:operations 是纯函数/纯副作用函数, 单测不需要 mock LLM 或 AI SDK, 直接断言 `queryPrometheusAlerts()` 的返回结构即可.
 2. 复用性:operation 可以同时被工具层和管线直接调用——例如 `retrieveDocs()` 包在 `query_internal_docs` 工具里给 LLM 用( `tools/index.ts:50-55`), 其底层 `retrieve()` 也被 chat 管线直接调用来做 RAG 预检索( `pipelines/chat.ts:86`), 一份实现两个消费方.
 3. 契约集中:LLM 可见的"工具说明书"( 描述文案、参数语义) 全部集中在 schemas, 调 prompt/调工具文案时不会动到业务逻辑.
-4. 可替换性: 若要换 LangChain 或其他 agent 框架, 只需重写 wrapper 层, schema 和 operation 原样保留. 文件头注释( `operations.ts:23`)也写明工具实现对齐源项目( Go 项目) 的 `internal/ai/tools/*`.
+4. 可替换性: 若要换 LangChain 或其他 agent 框架, 只需重写 composition 层( index.ts) , schema 和 operation 原样保留. 文件头注释( `operations.ts:23`)也写明工具实现对齐源项目( Go 项目) 的 `internal/ai/tools/*`.
 
 ---
 

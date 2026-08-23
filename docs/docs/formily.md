@@ -1,5 +1,7 @@
 # Formily 新手入门教程与原理解析
 
+本机器路径: 请克隆 git clone git@github.com:alibaba/formily.git
+
 ## 一、Formily 是什么
 
 Formily 是阿里巴巴开源的一款高性能表单解决方案. 它的核心设计理念是将表单字段的状态进行分布式管理, 每个字段独立渲染、独立更新, 从而避免了传统受控表单中"改一个字段、整棵树重渲染"的性能问题.
@@ -334,7 +336,7 @@ runReactionsFromTargetKey 会从 RawReactionsMap 中查出所有依赖了 target
 
 ### 4.5 autorun 与 Tracker
 
-autorun 是 reactive 最核心的 API. 它的执行流程:
+autorun 是 reactive 最核心的 API. 它的执行流程( 以下为简化版, 省略了重入保护与 try/finally) :
 
 ```ts
 export const autorun = (tracker: Reaction) => {
@@ -358,7 +360,9 @@ export const autorun = (tracker: Reaction) => {
 };
 ```
 
-Tracker 是 autorun 的变体, 专为 React 渲染设计. 它多了一个 scheduler 回调, 用于在依赖变化时触发 React 重渲染:
+注意上面是简化版: 源码用 try/finally 保证 tracker() 抛异常时也能弹出 ReactionStack 并执行 batchEnd, 并用 _boundary 计数做重入保护.
+
+Tracker 是 autorun 的变体, 专为 React 渲染设计. 它多了一个 scheduler 回调, 用于在依赖变化时触发 React 重渲染( 以下同样为简化版) :
 
 ```ts
 export class Tracker {
@@ -379,6 +383,8 @@ export class Tracker {
   };
 }
 ```
+
+Tracker.track 的源码同样以 try/finally 包裹执行过程, 并带 _boundary 重入保护.
 
 ### 4.6 批处理机制( batch)
 
@@ -621,7 +627,7 @@ const form = createForm({
 });
 ```
 
-内部实现( effective.ts) :
+内部实现( packages/core/src/shared/effective.ts) :
 
 1. runEffects 被调用时, 设置 GlobalState.effectStart = true
 2. effects 函数体同步执行, 其中的 onFieldValueChange 等调用 createEffectHook
@@ -870,13 +876,14 @@ const Checkbox = connect(
 
 ### 7.4 Context 体系
 
-Formily React 层使用了 6 个 Context:
+Formily React 层使用了 7 个 Context:
 
 ```ts
 FormContext          -> Form 实例
 FieldContext         -> 当前 Field 实例
 SchemaMarkupContext  -> Markup 模式下的父 Schema
 SchemaContext        -> 当前 Schema
+SchemaExpressionScopeContext -> {{...}} 表达式求值的作用域
 SchemaComponentsContext -> 注册的组件表
 SchemaOptionsContext -> createSchemaField 的选项
 ```
@@ -1358,8 +1365,9 @@ Formily 用路径( Path) 作为字段的唯一标识. 这带来了:
 7. packages/core/src/models/Form.ts -- 理解表单模型
 8. packages/core/src/models/Field.ts -- 理解字段模型
 9. packages/core/src/effects/ -- 理解副作用系统
-10. packages/react/src/components/ReactiveField.tsx -- 理解渲染逻辑
-11. packages/react/src/components/RecursionField.tsx -- 理解 Schema 递归渲染
-12. packages/json-schema/src/transformer.ts -- 理解 x-reactions 的执行
+10. packages/core/src/shared/effective.ts -- 理解 effects 的收集与注册( runEffects / createEffectHook)
+11. packages/react/src/components/ReactiveField.tsx -- 理解渲染逻辑
+12. packages/react/src/components/RecursionField.tsx -- 理解 Schema 递归渲染
+13. packages/json-schema/src/transformer.ts -- 理解 x-reactions 的执行
 
-每个文件都不大( 最大的 Field.ts 约 600 行) , 代码质量很高, 注释适中, 非常适合学习.
+每个文件都不大( 最大的 Form.ts 约 618 行, Field.ts 约 522 行) , 代码质量很高, 注释适中, 非常适合学习.

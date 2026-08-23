@@ -351,7 +351,7 @@ A:
 
 核心接口 5 个方法: `Name/Description/Category/Schema/Execute`( `internal/tools/tool.go:53`) , `Category` 返回 read/write/command 三类, 同时服务于并发批处理和权限矩阵. 一个可选小接口:
 
-- `DeferrableTool.ShouldDefer()`: 延迟工具不进默认 schema 列表, 只在 system-reminder 里列名字, 模型需要时用 `ToolSearch` 按 `select:<name>` 加载 schema( agent.go:250-253) . 仅 MCP 工具实现该接口( `MCPToolWrapper.ShouldDefer() = true`) , 内置工具集固定可控, 隐藏它们只会迫使模型多走一趟 ToolSearch, 故永不延迟.
+- `DeferrableTool.ShouldDefer()`: 延迟工具不进默认 schema 列表, 只在 system-reminder 里列名字, 模型需要时用 `ToolSearch` 按 `select:<name>` 加载 schema( agent.go:250-253) . 仅 MCP 工具实现该接口( `MCPToolWrapper.ShouldDefer()` 默认返回 true, 可通过 `SetDeferLoading(false)` 关闭) , 内置工具集固定可控, 隐藏它们只会迫使模型多走一趟 ToolSearch, 故永不延迟.
 
 延迟加载解决的问题:
 
@@ -827,7 +827,7 @@ Fork 的独特设计:
 
 - 继承父 Agent 的完整 conversation → prompt cache 复用
 - 继承父 Agent 的 tool pool → schema 一致 → cache 命中
-- 关键工程点是 `ParentReplacementState.Clone()`——子代理继承父的工具结果冻结决策但不回写( agent.go:87-91 注释) , 使父子共享的历史前缀字节一致, Prompt Cache 前缀在两边都命中
+- 关键工程点是 `cloneRegistryForFork` ( subagent/agent_tool.go:539) ——子代理获得父 Registry 的完整拷贝 (工具定义、schema 顺序一致) , 但标记 `QuerySource = "agent:builtin:fork"`, 使父子共享的历史前缀字节一致, Prompt Cache 前缀在两边都命中
 - 嵌套 Fork 防护:
   - `QuerySource = "agent:builtin:fork"` 标记检测
   - 该信号存在于 Agent 结构而非对话文本里, 压缩也冲不掉
@@ -1270,7 +1270,7 @@ A:
 
 4. 无第三方测试框架: 纯 `testing` 包( 减少依赖, Go 标准库足够)
 
-5. 67 个测试文件覆盖所有核心模块
+5. 73 个测试文件覆盖所有核心模块
 
 ---
 

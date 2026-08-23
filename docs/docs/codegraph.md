@@ -1,5 +1,7 @@
 # CodeGraph 深度解析: 给 AI 编码 Agent 的本地代码知识图谱
 
+本机器路径: /Users/hangtiancheng/codegraph( 本机已有克隆; 如需重新克隆: git clone git@github.com:colbymchenry/codegraph.git)
+
 ## 一、项目快照( 截至 2026-08-12)
 
 CodeGraph( colbymchenry/codegraph) 是 2026 年 1 月 18 日由独立开发者 Colby McHenry 创建的开源项目, 他在 Medium 个人介绍中自我描述为"15+ 年经验的自学软件工程师". 项目定位是给 AI 编码 agent 做"前置索引"的本地 MCP 服务器: 预先把代码库的符号、调用边、依赖关系构建成一张知识图谱, 让 agent 一次查询拿到精确上下文, 而不是用 grep + Read 逐文件爬. 创建后 4 个月登上 GitHub Trending 前列( 5 月 23 日单日新增 2,434 star) .
@@ -48,10 +50,10 @@ src/ 顶层模块职责( 均经源码核实) :
 | 模块              | 职责                                                                                                                                                                                                                                                                         |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | src/extraction/   | 抽取编排: 文件扫描→解析→入库. 含 wasm 抽取器( tree-sitter.ts, 6790 行) 、28 个语言配置、kernel/ 子目录( Rust 内核路由/加载/解码) 、worker 线程流水线( parse-pool / parse-worker / store-writer / store-worker) 、SFC 抽取器( vue/svelte/astro/razor/liquid/mybatis/dfm/cfml) |
-| src/resolution/   | 引用解析: import-resolver、name-matcher、动态分发合成器( callback-synthesizer 3787 行、c-fnptr-synthesizer、goframe-synthesizer、swift-objc-bridge) 、frameworks/ 框架解析器                                                                                                 |
-| src/db/           | SQLite 层: node:sqlite 适配器、schema.sql、migrations( 当前 schema v9) 、预编译查询( queries.ts, 2809 行) 、WAL checkpoint 阀门( wal-valve.ts)                                                                                                                               |
+| src/resolution/   | 引用解析: import-resolver、name-matcher、动态分发合成器( callback-synthesizer 3792 行、c-fnptr-synthesizer、goframe-synthesizer、swift-objc-bridge) 、frameworks/ 框架解析器                                                                                                 |
+| src/db/           | SQLite 层: node:sqlite 适配器、schema.sql、migrations( 当前 schema v9) 、预编译查询( queries.ts, 2892 行) 、WAL checkpoint 阀门( wal-valve.ts)                                                                                                                               |
 | src/sync/         | 文件监听与增量同步: watcher.ts( 原生 fs.watch) 、watch-policy.ts( WSL2 等禁用策略) 、git-hooks.ts( 钩子兜底) 、worktree.ts( git worktree 错位检测)                                                                                                                           |
-| src/mcp/          | MCP server: tools.ts( 工具定义+Handler, 6906 行) 、Direct/Proxy/Daemon 三种运行模式、查询 worker 池、explore 会话状态/去重/诊断、watchdog                                                                                                                                    |
+| src/mcp/          | MCP server: tools.ts( 工具定义+Handler, 7008 行) 、Direct/Proxy/Daemon 三种运行模式、查询 worker 池、explore 会话状态/去重/诊断、watchdog                                                                                                                                    |
 | src/graph/        | BFS/DFS 图遍历与图查询管理                                                                                                                                                                                                                                                   |
 | src/context/      | ContextBuilder: 混合检索 + 图扩展 + markdown/json 格式化                                                                                                                                                                                                                     |
 | src/search/       | 查询解析( kind:/lang:/path:/name: 字段过滤) 、停用词/词干/驼峰拆词                                                                                                                                                                                                           |
@@ -115,7 +117,7 @@ README 语言表列出 34 种: TypeScript、JavaScript、ArkTS( 鸿蒙) 、Pytho
 2. 12 种长尾语言只有 wasm 实现( objc、pascal、cobol、vbnet、erlang、solidity、terraform、arkts、nix、cfml 家族——多为 vendored/打过补丁的 grammar, 移植风险高, 迁移计划里标注"可能永远留在 TS")
 3. 模板/混合格式走自定义抽取器( svelte/vue/astro 的 script 块委托 TS/JS 抽取器, liquid/razor 用正则, MyBatis mapper 走 XML 抽取器, DFM/FMX 表单有专门处理)
 
-图的节点类型( NodeKind, 22 种, src/types.ts) :
+图的节点类型( NodeKind, 23 种, src/types.ts) :
 
 ```text
 file, module, class, struct, interface, trait, protocol, function, method,
@@ -152,7 +154,7 @@ Schema( src/db/schema.sql 基线 + migrations 到 v9) :
 
 连接配置( src/db/index.ts configureConnection) : busy_timeout=5000 最先设置, journal_mode=WAL、synchronous=NORMAL、cache_size=-64000( 64MB) 、temp_store=MEMORY、mmap_size=256MB. 围绕 WAL 有一整套工程设施: 批量索引期间关闭 wal_autocheckpoint( issue #1231) , 由 WalCheckpointValve 在 worker 线程定时做 PASSIVE checkpoint, 超过硬上限时背压暂停写入; 每次打开连接时 healOversizedWal() 修复被 kill 进程遗留的超大 WAL( 阈值 64MB, issue #1431) ; 批量写入窗口临时 DROP 二级索引、结束后一次性重建, FTS 触发器同样先删后整体 rebuild.
 
-向量检索的结局值得记录: 仓库早期设计过 vectors/ 模块( @xenova/transformers 跑 ONNX、384 维 nomic-embed-text-v1.5 embeddings、sqlite-vss 索引, IMPLEMENTATION_PLAN.md 里有完整设计) , 在 CHANGELOG 记录范围之前就被整体移除, issue #87 里有用户直接问"为什么把整个向量搜索和 embedding 模块删掉? ". 当前代码里只剩命名残留: src/errors.ts 有一个从未使用的 VectorError 类, src/context/index.ts 沿用 "semantic search" 术语但实现是精确符号查找 + FTS5 + 词干扩展 + 图遍历的混合检索. src/mcp/tools.ts 第 3131 行注释明确自证: "deterministic, no embeddings". 作者用实测得出的结论是: 对"找调用链、找定义、找路由"这类 agent 问题, 符号名 + FTS5 + 图遍历已经足够, 向量检索引入的延迟和不确定性反而是负担.
+向量检索的结局值得记录: 仓库早期设计过 vectors/ 模块( @xenova/transformers 跑 ONNX、384 维 nomic-embed-text-v1.5 embeddings、sqlite-vss 索引, IMPLEMENTATION_PLAN.md 里有完整设计) , 在 CHANGELOG 记录范围之前就被整体移除, issue #87 里有用户直接问"为什么把整个向量搜索和 embedding 模块删掉? ". 当前代码里只剩命名残留: src/errors.ts 有一个从未使用的 VectorError 类, src/context/index.ts 沿用 "semantic search" 术语但实现是精确符号查找 + FTS5 + 词干扩展 + 图遍历的混合检索. src/mcp/tools.ts 第 3148 行注释明确自证: "deterministic, no embeddings". 作者用实测得出的结论是: 对"找调用链、找定义、找路由"这类 agent 问题, 符号名 + FTS5 + 图遍历已经足够, 向量检索引入的延迟和不确定性反而是负担.
 
 ### 4.4 引用解析: 三阶段流水线 + 启发式合成边
 
@@ -162,7 +164,7 @@ Schema( src/db/schema.sql 基线 + migrations 到 v9) :
 2. calls → 定义: name-matcher 多策略匹配( qualified-name、exact-name、file-path、链式调用 matchDottedCallChain、回调值引用 matchFunctionRef) ; 对同名定义超过 500 个的"泛在名"拒绝出边, 防止噪声
 3. inheritance: extends/implements 双向边, 随后二遍解析——链式工厂调用靠 conforms 边解析、this.member 引用沿超类型 BFS
 
-最有特色的是动态分发桥接( synthesizers) . callback-synthesizer.ts( 3787 行) 识别的模式包括: 字符串键 EventEmitter( .on/.once 与 .emit/.fire 按事件名对接, fan-out 上限 6) 、React setState→render 重渲染边、JSX 子组件边、Vue 模板组件事件绑定/composable 解构/Nuxt 自动导入、Flutter setState→build、ArkUI( 鸿蒙) state→build 与 Emitter 事件、C++ virtual override、Go interface→struct 与 gRPC stub→impl、Kotlin expect/actual( KMP) 、闭包集合分发( Swift/Kotlin 的 coll.forEach { $0() }) . c-fnptr-synthesizer 处理 C/C++ 函数指针分发, 包括宏构建的命令表( redis、SQLite、Vim 风格的注册表, issue #932/#991) . goframe-synthesizer 处理 GoFrame 反射路由. swift-objc-bridge 处理 Swift-ObjC selector 桥接. 所有合成边一律标记 provenance:'heuristic' 并带 metadata.synthesizedBy 通道名, agent 可以分辨某条边是怎么进入图中的. 这是让 trace 能跨越"事件分发、回调、运行时绑定"这些 grep 永远穿不过的边界的关键.
+最有特色的是动态分发桥接( synthesizers) . callback-synthesizer.ts( 3792 行) 识别的模式包括: 字符串键 EventEmitter( .on/.once 与 .emit/.fire 按事件名对接, fan-out 上限 6) 、React setState→render 重渲染边、JSX 子组件边、Vue 模板组件事件绑定/composable 解构/Nuxt 自动导入、Flutter setState→build、ArkUI( 鸿蒙) state→build 与 Emitter 事件、C++ virtual override、Go interface→struct 与 gRPC stub→impl、Kotlin expect/actual( KMP) 、闭包集合分发( Swift/Kotlin 的 coll.forEach { $0() }) . c-fnptr-synthesizer 处理 C/C++ 函数指针分发, 包括宏构建的命令表( redis、SQLite、Vim 风格的注册表, issue #932/#991) . goframe-synthesizer 处理 GoFrame 反射路由. swift-objc-bridge 处理 Swift-ObjC selector 桥接. 所有合成边一律标记 provenance:'heuristic' 并带 metadata.synthesizedBy 通道名, agent 可以分辨某条边是怎么进入图中的. 这是让 trace 能跨越"事件分发、回调、运行时绑定"这些 grep 永远穿不过的边界的关键.
 
 另有查询期的 dynamic-boundaries 机制( src/mcp/dynamic-boundaries.ts) : explore 的静态路径断开时, 检测并如实播报动态分发点( 计算成员调用、getattr、反射、字符串总线) , 但不猜测合成边.
 
@@ -237,7 +239,7 @@ README 当前数字来自 2026-08-05 用 Claude Opus 4.8 对当前构建的重�
 | Gin        | Go 约 110      | 1 vs 7   | 快 39%                  | -52%  | 持平 |
 | Alamofire  | Swift 约 110   | 4 vs 33  | 2.6 倍快                | -59%  | -57% |
 
-两条诚实声明值得注意. 其一, 成本节省取决于问题的"发现量"而非仓库大小: 需要对照组 28-43 次工具调用才能回答的问题省 57-78%, 对照组 7-14 次就到答案的问题( Django、Gin) 基本持平. 其二, "A note on context": 上述数字测的是吞吐( 处理的 token、调用的工具、花的钱) , 不测答完之后上下文窗口里还留着什么——在这个维度上 CodeGraph 更贵: 多轮会话下 CodeGraph 的响应比 file-reading agent 多残留约 80% 的检索内容( VS Code 场景 67k vs 18k token) . 机制与它快的原因相同: 一次返回致密的逐字载荷, 答完仍驻留在窗口里. 小窗口长会话要为此做预算( 详见 docs/benchmarks/residual-context-occupancy.md) .
+两条诚实声明值得注意. 其一, 成本节省取决于问题的"发现量"而非仓库大小: 需要对照组 28-43 次工具调用才能回答的问题省 57-78%, 对照组 7-14 次就到答案的问题( Django、Gin) 基本持平. 其二, "A note on context": 上述数字测的是吞吐( 处理的 token、调用的工具、花的钱) , 不测答完之后上下文窗口里还留着什么——在这个维度上 CodeGraph 更贵: 多轮会话下 CodeGraph 的响应比 file-reading agent 平均多残留约 80% 的检索内容( 7 仓库平均; VS Code 单仓最悬殊, 67k vs 18k token, 约为其 3.7 倍) . 机制与它快的原因相同: 一次返回致密的逐字载荷, 答完仍驻留在窗口里. 小窗口长会话要为此做预算( 详见 docs/benchmarks/residual-context-occupancy.md) .
 
 规模数据( README "Built for speed" 节) : Linux kernel——70k 文件、2M 符号、6.4M 关系——在 2 核/6GB VPS 上 12 分钟内完成索引( "RAM-first 设计在 1% 前就 OOM") ; Swift 编译器仓库 27k 文件新索引约 100 秒; 机器自适应——worker 池、并行 resolution、分析缓存按真实核数( 容器/cgroup 感知) 、真实可用内存、每项目实测解析成本定规模.
 
@@ -287,7 +289,7 @@ CLI 提供直接嵌入流水线的原语: codegraph affected 基于图反向追�
 - 无集中管控: 没有 RBAC、SSO、集中配置下发、使用量报表, 也没有 SLA. 安全基线需要自行用环境变量( CODEGRAPH_TELEMETRY=0、CODEGRAPH_KERNEL=0 等) 预置
 - 项目风险: 核心由单一作者驱动( 42 位 contributor、发布极快) , bus factor 偏低; MIT 协议下企业可自维护, 但内核线协议、parity 体系的维护门槛不低
 - 能力边界: 反射/DI 容器/框架约定是静态分析的天花板( 覆盖率表如实标注) ; 无类型级语义, 安全级污点分析仍需 CodeQL/SCIP 路线; Objective-C 为部分支持; 默认跳过大于 1MB 的文件
-- 上下文驻留: 多轮会话残留检索内容比 file-reading 多约 80%, 小窗口长会话需要预算
+- 上下文驻留: 多轮会话残留检索内容平均比 file-reading 多约 80%( VS Code 单仓约为其 3.7 倍) , 小窗口长会话需要预算
 - 遥测默认开启: 严格环境需预置关闭
 
 ## 七、场景分析: Sentry JS error 的大模型自动修复闭环
@@ -373,7 +375,7 @@ AGENTS.md 和 skills 都回答不了结构性问题——前两者是静态知�
 - 有图( 2026-08 基准) : token -62%、成本 -44%、工具调用 -88%、文件读取归零、快 53%
 - 月度口径: 3,000 次自动修复尝试, 成本与延迟差异线性放大; 53% 的提速意味着修复 MR 当天产出, 错误暴露窗口从"天"压缩到"小时"
 
-两点口径提醒: 其一, 自动修复是短会话、单轮任务, 恰好是 codegraph 吞吐优势最大化的形态——多轮会话残留上下文多约 80% 的问题在此场景不显著. 其二, 收益密度与 issue 的"发现量"正相关: 栈帧清晰、根因浅的 issue 无图也不贵; 真正昂贵的是跨模块、跨包的深层 issue, 而那也正是人工处理最贵、最值得自动化的一类.
+两点口径提醒: 其一, 自动修复是短会话、单轮任务, 恰好是 codegraph 吞吐优势最大化的形态——多轮会话残留上下文平均多约 80% 的问题在此场景不显著. 其二, 收益密度与 issue 的"发现量"正相关: 栈帧清晰、根因浅的 issue 无图也不贵; 真正昂贵的是跨模块、跨包的深层 issue, 而那也正是人工处理最贵、最值得自动化的一类.
 
 ### 7.7 集成落地建议
 

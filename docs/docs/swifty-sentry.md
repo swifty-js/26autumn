@@ -1,4 +1,5 @@
 # @swifty.js/sentry 技术说明文档
+本机器路径 /Users/hangtiancheng/github/swifty-sentry/sentry
 
 > 仓库: <https://github.com/hangtiancheng/swifty-sentry>( 目录 `sentry/`, npm 包名 `@swifty.js/sentry`)
 >
@@ -24,14 +25,14 @@
 
 ## 1. 项目概览与入口
 
-TypeScript 编写( strict + `exactOptionalPropertyTypes`) , ESM/CJS 双产物( rollup, `preserveModules`) , zod 做运行时校验, vitest + jsdom 测试.
+TypeScript 编写( strict + `exactOptionalPropertyTypes`) , ESM/CJS 双产物( rollup, `preserveModules`) , zod 做运行时校验, vitest + jsdom 测试. 仓库另有 tsup.config.ts 与 `build:tsup` 脚本提供备选构建( package.json:74) .
 
 package.json 定义 6 个公共入口( package.json:32-63 ↔ rollup.config.ts:58-65) :
 
 | 入口        | 源文件               | 内容                                                                             |
 | ----------- | -------------------- | -------------------------------------------------------------------------------- |
 | `.`         | src/index.ts         | `init`/`destroy`/`enablePlugin`、手动上报 API、全部类型                          |
-| `./plugins` | src/plugins/index.ts | `PerformancePlugin`、`ScreenRecordPlugin`、`ExposurePlugin`、`unzipScreenRecord` |
+| `./plugins` | src/plugins/index.ts | `PerformancePlugin`、`ScreenRecordPlugin`、`ExposurePlugin`、`ScreenRecordPluginOptions`、`unzipScreenRecord` |
 | `./react`   | src/react.ts         | `ReactErrorBoundary`                                                             |
 | `./vue`     | src/vue.ts           | `vuePlugin`                                                                      |
 | `./vite`    | src/vite.ts          | dev server 上报接收 + sourcemap 还原插件                                         |
@@ -69,7 +70,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 
 ### 2.3 捕获层: monkey-patch 装饰器
 
-通用原语 `decorateProp(obj, key, decorator)`: 保存旧值、替换实现、返回还原函数( utils/decorate-prop.ts:25-38) . 各捕获点:
+通用原语 `decorateProp(obj, key, decorator)`: 保存旧值、替换实现、返回还原函数( utils/decorate-prop.ts:25-36) . 各捕获点:
 
 | 目标                            | 方式                                                                                                                           | 位置                    |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
@@ -77,14 +78,14 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 | fetch                           | 装饰 `globalThis.fetch`: `res.clone()` 读响应, catch 分支置 `statusCode = 0` 并 rethrow( 不吞业务异常)                         | decorate-http.ts:87-132 |
 | history                         | 装饰 `history.pushState`/`replaceState` + 覆写 `globalThis.onpopstate`( 链式调用旧 handler) , `from !== to` 才发布             | decorate-route.ts:38-88 |
 | click                           | `document.addEventListener("click")`, 经 `throttle(pub, clickThrottleDelay)` 节流( 默认 0, constants/index.ts:68)              | decorates.ts:64-77      |
-| error                           | `addEventListener("error", listener, true)` **捕获阶段**( 这是能捕到资源加载错误的关键) + 装饰 `console.error`( 带防重入标志)  | decorates.ts:79-110     |
-| unhandledrejection / hashchange | 普通 window 监听                                                                                                               | decorates.ts:112-138    |
-| 白屏                            | `pubWhiteScreen` 装配时立即发布一次以启动采样                                                                                  | decorates.ts:140-147    |
+| error                           | `addEventListener("error", listener, true)` **捕获阶段**( 这是能捕到资源加载错误的关键) + 装饰 `console.error`( 带防重入标志)  | decorates.ts:89-121     |
+| unhandledrejection / hashchange | 普通 window 监听                                                                                                               | decorates.ts:123-149    |
+| 白屏                            | `pubWhiteScreen` 装配时立即发布一次以启动采样                                                                                  | decorates.ts:151-158    |
 
 ### 2.4 生命周期与插件注册
 
-- `init(options)`: zod `optionsSchema.parse({...DEFAULT_OPTIONS, ...options})` 严格校验合并, 检查 `disabled` 与空 dsn, 应用 `breadcrumb.capacity = options.maxBreadcrumbs`, 然后 `cleanupSetup = setup()`( sdk-lifecycle.ts:48-70) .
-- `destroy()`: destroyPlugins → cleanupSetup → destroyBatchErrorManager → resetReporter, 全链路可逆( sdk-lifecycle.ts:40-46) .
+- `init(options)`: 重复初始化时守卫直接返回( sdk-lifecycle.ts:50-53) , zod `optionsSchema.parse({...DEFAULT_OPTIONS, ...options})` 严格校验合并, 检查 `disabled` 与空 dsn, 应用 `breadcrumb.capacity = options.maxBreadcrumbs`, 然后 `cleanupSetup = setup()` 并触发 `initIdentity()`( sdk-lifecycle.ts:49-71, initIdentity 在 :70) .
+- `destroy()`: destroyPlugins → cleanupSetup → destroyBatchErrorManager → resetReporter, 全链路可逆( sdk-lifecycle.ts:41-47) .
 - `enablePlugin(...plugins)`: 逐个 `plugin.init()` 并注册进 `Set<SentryPlugin>`( sdk-lifecycle.ts:73-78、plugin-registry.ts:25-36) .
 - 插件契约是抽象类 `SentryPlugin { type: EventType; abstract init(): void; destroy?(): void }`( types/plugin.ts:30-37) ——core 不感知任何插件实现, 插件按需引入、可独立 tree-shake, 这就是 core 与 plugin 解耦的边界.
 
@@ -111,7 +112,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 3. `Error` 实例 → 取 name/message/stack 上报( handle-error.ts:91-101) ;
 4. 其他未知值 → JSON 序列化后按 Unknown Error 上报( handle-error.ts:103-113) .
 
-`console.error` 也被装饰为错误来源( decorates.ts:79-110) . 用户可用 `options.ignoreErrors`( 字符串 `includes` / 正则 `test` 匹配, utils/is-ignored-error.ts:25-34) 过滤噪声.
+`console.error` 也被装饰为错误来源( decorates.ts:98-116) . 用户可用 `options.ignoreErrors`( 字符串 `includes` / 正则 `test` 匹配, utils/is-ignored-error.ts:25-34) 过滤噪声.
 
 ### 4.2 未捕获 Promise 错误
 
@@ -127,7 +128,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 ### 4.4 错误去重( LRU) 与批量合并
 
 - **指纹**: `base64v2("Error-{message}-{filename}-{line}-{column}")`( handle-code-error.ts:103-105) ; `base64v2` 为 TextEncoder → btoa → URL-safe 去 padding( utils/base64.ts:28-36) . line/column 取 `ErrorEvent.lineno/colno`.
-- **LRU 去重**: `sentry.codeErrors` 是容量 1000 的 `BoundedSet`( utils/sentry.ts:106) . `add` 时若已存在先 `map.delete` 再 `map.set`——利用 `Map` 的插入序实现 touch( 访问即移到队尾) ; 超容删除 `map.keys().next().value` 即最旧项( utils/data-structures.ts:140-149) . `repeatCodeError = true` 可关闭去重放行重复错误.
+- **LRU 去重**: `sentry.codeErrors` 是容量 1000 的 `BoundedSet`( utils/sentry.ts:106) . `add` 时若已存在先 `map.delete` 再 `map.set`——利用 `Map` 的插入序实现 touch( 访问即移到队尾) ; 超容删除 `map.keys().next().value` 即最旧项( utils/data-structures.ts:140-149) . `repeatCodeError = true` 可关闭去重放行重复错误. 去重不止代码错误: resource/runtime/unknown 错误同样以各自指纹走 codeErrors 去重( handle-error.ts:84-88、121-125) .
 - **批量合并**: BatchErrorManager 以 2s 防抖窗口聚合( 每次 push 重置 setTimeout, handle-code-error.ts:40-44) , flush 时按 `type-name-message` 分组: 组内 ≥5 条合并为一条 `IBatchErrorData {batchError: true, batchErrorLength, batchErrorLastHappenTime}`, 不足 5 条逐条上报( handle-code-error.ts:54-82) ——防止渲染循环内的同一错误刷爆上报通道.
 
 ## 5. 用户行为追踪
@@ -138,7 +139,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 
 - 属性协议: `swifty-sentry-el`( 圈定埋点容器) 、`swifty-sentry-ev`( 事件 id) 、`swifty-sentry-msg`( 人读文案) ; `view/msg/ev` 为保留键, 其余 `swifty-sentry-*` 属性全部收进 `params`( click-data.ts:25-26, 106-123) .
 - 事件路径用 `event.composedPath()` 过滤 HTMLElement( Shadow DOM 友好; 为空回退 parentElement 链回溯) , 沿路径找**第一个**带上述任一属性的元素为埋点目标( click-data.ts:52-54, 133-145) .
-- 事件 id 取值优先级: `swifty-sentry-ev` → `title` → `swifty-sentry-el` → tagName( click-data.ts:88-102) .
+- 事件 id 取值优先级: `swifty-sentry-ev` → `title` → `swifty-sentry-el` → tagName( click-data.ts:90-104) .
 - `elementPath` 由 `dom2str` 生成: 对齐官方 Sentry `htmlTreeAsString` 策略——就近 5 层、每层 `tag#id.class`、`>` 连接、128 字符预算内整段丢弃不截断半个选择器( utils/dom2str.ts) .
 - 节流由 `clickThrottleDelay` 控制( 默认 0 即不节流, decorates.ts:64-77) .
 
@@ -160,9 +161,9 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 
 src/core/white-screen.ts 的算法( load 后启动) :
 
-1. **调度**: `setInterval(1000ms)`( WHITE_SCREEN_SAMPLE_INTERVAL, constants/index.ts:36) , 每个 tick 内优先用 `requestIdleCallback` 执行采样, 避免阻塞主线程; 采样上限 10 次( MAX_WHITE_SCREEN_SAMPLE_COUNT) , 定时器句柄存 `sentry.whiteScreenTimer`( white-screen.ts:131-154) .
+1. **调度**: `setInterval(1000ms)`( WHITE_SCREEN_SAMPLE_INTERVAL, constants/index.ts:35) , 每个 tick 内优先用 `requestIdleCallback` 执行采样, 避免阻塞主线程; 采样上限 10 次( MAX_WHITE_SCREEN_SAMPLE_COUNT) , 定时器句柄存 `sentry.whiteScreenTimer`( white-screen.ts:131-154) .
 2. **关键点**: 十字形 18 个采样点——横排 `(innerWidth*i/10, innerHeight/2)`、竖排 `(innerWidth/2, innerHeight*i/10)`, i = 1..9; 逐点 `document.elementFromPoint`( white-screen.ts:70-79) .
-3. **空点判定**: 采样点无元素, 或命中"根容器"——`getCssSelectors(elem)` 返回 `[#id, .class 串, tag]` 三元组, 任一命中 `rootCssSelectors`( 默认 `["html","body","#app","#root"]`) 即视为根( white-screen.ts:40-55、utils/get-css-selectors.ts) . `emptyPoints >= 18`( 全部为空) 判定白屏( white-screen.ts:81) .
+3. **空点判定**: 采样点无元素, 或命中"根容器"——`getCssSelectors(elem)` 返回 `[#id, .class 串, tag]` 三元组( 第二元素在 class 选择器后还拼接除 id/class/style 外的 `[attr="value"]` 属性选择器, get-css-selectors.ts:34-39) , 任一命中 `rootCssSelectors`( 默认 `["html","body","#app","#root"]`) 即视为根( white-screen.ts:40-55、utils/get-css-selectors.ts) . `emptyPoints >= 18`( 全部为空) 判定白屏( white-screen.ts:81) .
 4. **两种模式**( white-screen.ts:84-107) :
    - 无骨架屏( `hasSkeleton: false`) : 判白即上报, 否则停止采样;
    - 有骨架屏: 首次采样记录 `initialSelectors`, 后续每次重收 `currentSelectors`, 两集合排序拼接后仍相等( 页面长时间没有从骨架变成真实内容) → 上报白屏; 出现差异 → 判定渲染正常, 停止采样.
@@ -190,11 +191,11 @@ first-screen-paint.ts 的实现:
 
 ### 7.4 资源加载性能
 
-resource-timing.ts: 初始 `getEntriesByType("resource")` 一次性上报 `ResourceList` + `PerformanceObserver` 增量逐条上报 `ResourceTiming`( :96-124) ; `shouldReportResource` 排除 `initiatorType ∈ {fetch, xmlhttprequest, beacon}`( 这些走 HTTP 通道) 及 SDK 自身 dsn 上报( :35, 47-53) ; 缓存命中判定 `fromCache = transferSize === 0 || (transferSize !== 0 && encodedBodySize === 0)`( 内存/磁盘缓存 vs 304 协商缓存, :81-83) . 不支持 resource entry 的环境回退 MutationObserver 监听 IMG/SCRIPT/LINK 的 load/error( resource-element-fallback.ts:81-126) .
+resource-timing.ts: 初始 `getEntriesByType("resource")` 一次性上报 `ResourceList` + `PerformanceObserver` 增量逐条上报 `ResourceTiming`( :96-124) ; `shouldReportResource` 排除 `initiatorType ∈ {fetch, xmlhttprequest, beacon}`( 这些走 HTTP 通道) 及 SDK 自身 dsn 上报( :35, 47-53) ; 缓存命中判定 `fromCache = transferSize === 0 || (transferSize !== 0 && encodedBodySize === 0)`( 内存/磁盘缓存 vs 304 协商缓存, :81-83) . 不支持 resource entry 的环境回退 MutationObserver 监听 IMG/SCRIPT/LINK 的 load/error( resource-element-fallback.ts:81-134) .
 
 ### 7.5 其他
 
-load 后上报 NavigationTiming( navigation-timing.ts:61-104, DNS/TCP/TTFB/DomReady 等分段) 与 `measureUserAgentSpecificMemory` 内存采样( performance/index.ts:123-138) .
+load 后上报 NavigationTiming( navigation-timing.ts:61-104, DNS/TCP/TTFB/DomReady 等分段) ; `measureUserAgentSpecificMemory` 内存采样不等 load, 在插件 init 时即调用( performance/index.ts:55, 实现 :123-138) .
 
 ## 8. 屏幕录制插件: rrweb + gzip 故障现场重放
 
@@ -223,16 +224,16 @@ sendBatch( index.ts:142-150 决策, transports.ts 实现) :
 | 级别                     | 条件                                                       | 实现                                                                                                       | 失败判定                                           |
 | ------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | ① `navigator.sendBeacon` | 批次 JSON ≤ 60KB( TextEncoder 计字节, transports.ts:26-30) | `sendBeacon(dsn, json)`( :32-37)                                                                           | 返回 false( 浏览器排队失败) 则降级                 |
-| ② Image beacon           | `useImageReport: true`( 默认关) 且 ≤ 2KB                   | `img.src = dsn?data=encodeURIComponent(json)`, 经 CallbackQueue 在 `requestIdleCallback` 空闲执行( :59-66) | 乐观成功( GET 打点无法可靠感知失败)                |
-| ③ `fetch keepalive`      | 兜底                                                       | `fetch(dsn, {method: "POST", keepalive: true, headers: {"Content-Type": "application/json"}})`( :39-57)    | `!res.ok` 或异常 → 返回 false 并触发服务端故障处理 |
+| ② Image beacon           | `useImageReport: true`( 默认关) 且 ≤ 2KB                   | `img.src = dsn?data=encodeURIComponent(json)`, 经 CallbackQueue 在 `requestIdleCallback` 空闲执行( :64-71) | 乐观成功( GET 打点无法可靠感知失败)                |
+| ③ `fetch`                | 兜底                                                       | `fetch(dsn, {method: "POST", headers: {"Content-Type": "application/json"}, keepalive})`, body ≤60KB 才启用 keepalive( Chromium 对 keepalive 请求有约 64KB 在途预算, :44-53) ; reportByFetch 整体 :39-62 | `!res.ok` 或异常 → 返回 false 并触发服务端故障处理 |
 
-sendBeacon 与 fetch keepalive 均在页面卸载时仍能完成发送, 保证 beforeunload 场景( PV 停留、最后一批错误) 不丢数据.
+sendBeacon 与带 keepalive 的 fetch( body ≤60KB) 均在页面卸载时仍能完成发送, 保证 beforeunload 场景( PV 停留、最后一批错误) 不丢数据.
 
 ### 9.3 离线缓存与故障自愈
 
-- **离线**: 发送时处于离线, 或发送失败, 批次写入 localStorage( key = `offlineCacheKey`, 默认 `swifty_sentry_offline_cache`; 读写均截断 `maxQueueLength`, offline-cache.ts:27-51) . 回读用 zod `reportDataListSchema.safeParse` 校验, 损坏数据直接清 key 防止反复失败( offline-cache.ts:32) .
+- **离线**: 发送时处于离线, 或发送失败, 批次写入 localStorage( key = `offlineCacheKey`, 默认 `swifty_sentry_offline_cache`; 读写均截断 `maxQueueLength`, offline-cache.ts:27-51) . 回读用 zod `reportDataListSchema.safeParse` 校验, 校验失败仅返回 []( 不清 key, offline-cache.ts:32-33) , 仅 JSON.parse 异常分支才清 key 防止反复失败( offline-cache.ts:36-38) .
 - **网络恢复**: 监听 `window 'online'` 事件, 自动 load 缓存并 flush 上报队列( network-listener.ts:31-43) .
-- **服务端故障**: 响应 5xx 时进入恢复模式——置离线标志, 每 `retryIntervalMilliseconds`( 默认 60s) 向 dsn 发 HEAD 探活, 恢复后自动回灌缓存( server-recovery.ts:33-62) .
+- **服务端故障**: 响应非 OK( 任意 `!res.ok`, 含 4xx) 或 fetch 异常时进入恢复模式——置离线标志, 每 `retryIntervalMilliseconds`( 默认 60s) 向 dsn 发 HEAD 探活, 恢复后自动回灌缓存( transports.ts:55-60、server-recovery.ts:33-62) .
 - `sendLocal()` 公开 API 可手动触发离线缓存冲刷( core/api.ts:109-111) .
 
 ## 10. 框架集成: React 16+ / Vue 3+
@@ -248,7 +249,7 @@ sendBeacon 与 fetch keepalive 均在页面卸载时仍能完成发送, 保证 b
 
 ### 10.2 Vue 3: 插件
 
-`vuePlugin`( src/vue.ts:29-47) 在 `install(app, options)` 中: 保存原 `app.config.errorHandler` → 替换为「先 `reportFrameworkError({type: EventType.Vue, context: {vueInstance, info}})` 上报, 再调用原 handler」→ 最后执行 `init(options)` 完成 SDK 初始化. 不吞用户自己的错误处理逻辑.
+`vuePlugin`( src/vue.ts:29-47) 在 `install(app, options)` 中: 保存原 `app.config.errorHandler` → 替换为「先 `reportFrameworkError({type: EventType.Vue, error: err, context: {vueInstance, info}})` 上报( vue.ts:36-43) , 再调用原 handler」→ 最后执行 `init(options)` 完成 SDK 初始化. 不吞用户自己的错误处理逻辑.
 
 ## 11. 附录: 曝光插件、身份指纹、dev sourcemap 插件
 
@@ -264,8 +265,8 @@ sendBeacon 与 fetch keepalive 均在页面卸载时仍能完成发送, 保证 b
 | ------------------------------ | --------------------------------------------------------------- |
 | 发布订阅架构                   | src/core/bus.ts:27-59                                           |
 | core/plugin 解耦               | types/plugin.ts:30-37 + core/plugin-registry.ts + plugins/*     |
-| 资源加载错误                   | decorates.ts:87( 捕获阶段) + handle-error.ts:62-89              |
-| JSError                        | handle-error.ts:91-113 + console.error 装饰 decorates.ts:79-110 |
+| 资源加载错误                   | decorates.ts:97( 捕获阶段) + handle-error.ts:62-89              |
+| JSError                        | handle-error.ts:91-113 + console.error 装饰 decorates.ts:98-116 |
 | 未捕获 Promise                 | handle-events.ts:37-48                                          |
 | xhr/fetch 请求错误             | decorate-http.ts + transform-http-data.ts:25-48                 |
 | 错误去重 + LRU                 | base64v2 指纹 + BoundedSet(1000)( data-structures.ts:140-149)   |

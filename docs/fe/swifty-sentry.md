@@ -11,7 +11,10 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   Public API Layer                  │
-│  init() / destroy() / traceError() / enablePlugin() │
+│  init() / destroy() / traceError() / enablePlugin()      │
+│  + setUserId / setVisitorId / getIdentity / getBaseInfo  │
+│  + tracePerformance / traceCustomEvent / tracePageView   │
+│  + beforeSendData / afterSendData / reportFrameworkError │
 ├─────────────────────────────────────────────────────┤
 │                   Core Layer                        │
 │  sdk-lifecycle / setup / bus / decorates / handlers │
@@ -20,7 +23,7 @@
 │  DataReporter / transports / offline-cache / batch  │
 ├─────────────────────────────────────────────────────┤
 │                  Plugin Layer                       │
-│  PerformancePlugin / ScreenRecordPlugin / Exposure  │
+│  PerformancePlugin / ScreenRecordPlugin / ExposurePlugin  │
 ├─────────────────────────────────────────────────────┤
 │                  Framework Layer                    │
 │  react.ts / vue.ts / vite.ts / webpack              │
@@ -38,7 +41,7 @@
 | 事件总线     | `core/bus.ts`             | 基于 Map<EventType, Set<Handler>> 的发布订阅 |
 | 猴子补丁调度 | `core/decorates.ts`       | 统一安装/卸载浏览器 API 拦截                 |
 | HTTP 拦截    | `core/decorate-http.ts`   | XHR/Fetch 请求监控                           |
-| 路由拦截     | `core/decorate-route.ts`  | History/Hash 路由变化监听                    |
+| 路由拦截     | `core/decorate-route.ts`  | History 路由变化监听( Hash 模式在 `core/decorates.ts`)  |
 | 数据上报器   | `reporter/index.ts`       | 批量队列、传输选择、离线缓存                 |
 | 插件注册     | `core/plugin-registry.ts` | 插件 Set 管理与生命周期                      |
 | 配置校验     | `core/options-schema.ts`  | Zod schema 运行时校验                        |

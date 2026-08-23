@@ -2,7 +2,7 @@ import { resolve, dirname } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 import { larkDocsPlugin } from "@lark.js/docs/vite";
-import docsConfig from "./lark-docs.config";
+import docsConfig from "./lark-docs.config.js";
 import { fileURLToPath } from "node:url";
 import { sentryPlugin } from "@lark.js/sentry/vite";
 import { parse } from "node-html-parser";

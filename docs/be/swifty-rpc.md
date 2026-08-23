@@ -182,7 +182,7 @@ JSON (Type=1) 和 Protobuf (Type=2) 在各自文件的 `init()` 中注册.
 
 Protobuf 约束: `Marshal`/`Unmarshal` 内部做类型断言 `v.(proto.Message)`, 非 `proto.Message` 的普通 struct 会返回 `"proto codec: not proto.Message"` 错误. 这意味着使用 Protobuf Codec 时, 请求和响应类型必须是 `.proto` 文件生成的结构体.
 
-压缩器同样有注册表 (`map[CompressionType]compressor`), 默认只注册 Gzip, 可通过 `RegisterCompressor` 扩展.
+压缩器同样有注册表 (`map[CompressionType]compressor`), 默认只注册 Gzip. `RegisterCompressor` 函数虽然导出, 但其参数类型 `compressor` 接口未导出 (小写开头), 因此外部包无法实现该接口, 实际上不可扩展.
 
 ---
 
@@ -331,7 +331,7 @@ type ConnectionPool struct {
 特点:
 
 - `maxActive=1`: 每个地址只维护一个 TCP 连接, 所有请求多路复用.
-- 死连接驱逐: Acquire 时发现 `conn.closed==1`, 从切片中 splice 删除, 然后重新拨号.
+- 死连接驱逐: Acquire 时发现 `conn.closed==1`, 从切片中 splice 删除; 若切片仍非空则继续 round-robin 检查下一个连接, 直到切片为空才重新拨号.
 - `maxIdle` 参数被接受但从未使用 (预留接口).
 
 瓶颈:
@@ -1033,7 +1033,7 @@ go func() {
 
 Watch 持续更新:
 
-- PUT 事件: 新实例上线或 Lease 续约 -> 更新缓存.
+- PUT 事件: 新实例上线 (显式 client.Put 注册) -> 更新缓存. 注意: Lease 续约 (KeepAlive) 只刷新 TTL, 不产生 Watch PUT 事件.
 - DELETE 事件: 实例下线或 Lease 过期 -> 删除缓存.
 - Watch 断开: 1s 退避后重建 Watch (期间缓存可能过期).
 

@@ -1,4 +1,6 @@
 # A2UI
+本机器路径: /Users/hangtiancheng/Documents/a2ui (克隆指令: git clone git@github.com:a2ui-project/a2ui.git)
+请浏览文档库: /Users/hangtiancheng/.swifty/docs
 
 ## 背景与动机
 
@@ -35,7 +37,7 @@ A2UI (Agent-to-User Interface) 是 Google 开源的开放标准: 让 Agent "说 
 
 Keywords: 流式传输 JSON、声明式 UI (抽象组件树/邻接表)、数据绑定 (JSON Pointer)、catalog 白名单、传输无关 (A2A / AG-UI / MCP / SSE)
 
-本文以 React 渲染器 (@a2ui/react) + v0.9 协议为主线, 参考实现为 fork/a2ui/samples/client/react/shell (餐厅预订 demo), 并在末尾与 Lit 实现做对比. 在此之上补充两部分实践内容: @swifty.js/a2ui-shadcn 组件库 (用 shadcn/ui 重实现并扩展 catalog 的三合一包) 与 swifty-agent (一个不依赖 CopilotKit 的生产级 A2UI 应用案例).
+本文以 React 渲染器 (@a2ui/react) + v0.9 协议为主线, 参考实现为 ~/Documents/a2ui/samples/client/react/shell (餐厅预订 demo), 并在末尾与 Lit 实现做对比. 在此之上补充两部分实践内容: @swifty.js/a2ui-shadcn 组件库 (用 shadcn/ui 重实现并扩展 catalog 的三合一包) 与 swifty-agent (一个不依赖 CopilotKit 的生产级 A2UI 应用案例).
 
 ## 概念
 
@@ -211,7 +213,7 @@ Server 端解析逻辑见 agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py
 
 ## A2UI 协议详解
 
-A2UI 是 JSON 流式 UI 协议: 服务端 (Agent) 向客户端 (Renderer) 发送 JSON 对象流, 客户端逐条解析并增量构建/更新 UI. 核心设计是 UI 结构 (Components) 与应用数据 (Data Model) 的彻底分离. 以下以 v0.9.1 规范 (specification/v0_9_1/docs/a2ui_protocol.md) 为准.
+A2UI 是 JSON 流式 UI 协议: 服务端 (Agent) 向客户端 (Renderer) 发送 JSON 对象流, 客户端逐条解析并增量构建/更新 UI. 核心设计是 UI 结构 (Components) 与应用数据 (Data Model) 的彻底分离. 以下以 v0.9.1 规范 (specification/v0_9_1/docs/a2ui_protocol.md) 为准. 需要说明: 本文涉及的 @swifty.js/a2ui-shadcn 仓库固定使用 v0.9, 故全文示例均以 v0.9 形态为准.
 
 ### 版本家族
 
@@ -1605,7 +1607,7 @@ POST /api/ai_ops 走 plan-execute-replan: Planner (think 模型结构化输出 s
 - QPS 指标报告: Chart (variant:"line") + Table (rows 绑定 /rows)
 - 告警静默表单: Card + TextField x3 (value 绑定数据模型) + Button (action create_silence, context 携带表单值)
 
-验证手段: /gallery 页面无后端渲染全部 shadcn 扩展组件 (消息顺序 createSurface -> updateDataModel -> updateComponents) ; scripts/a2ui-smoke.ts 检查 prompt 示例、流过滤器分块与校验语义.
+验证手段: /gallery 页面无后端渲染全部 shadcn 扩展组件 (消息顺序 createSurface -> updateDataModel -> updateComponents) .
 
 ### 工程坑位清单
 
@@ -1626,8 +1628,8 @@ A2UI 把"Agent 发 UI"从发代码变成发数据, 用 catalog 契约 + 数据�
 
 | 维度            | v0.8                         | v0.9                                             |
 | :-------------- | :--------------------------- | :----------------------------------------------- |
-| 组件类型字段    | componentType                | component                                        |
-| 组件属性        | 包裹在 params 对象内         | 直接平铺在组件对象上                             |
-| createSurface   | 可携带 dataModel 初始值      | 必须携带 catalogId, 数据由 updateDataModel 下发  |
-| updateDataModel | updates 数组 (op/path/value) | 单条 path + value, upsert 语义                   |
+| 组件类型字段    | 无 componentType 字段; 仍是 component 键, 值为 {类型名: props} 的包裹对象 | component 键直接是类型名字符串 (相当于 componentType) |
+| 组件属性        | 嵌在类型名包裹对象内, 无 params 键 | 按实际 schema 直接平铺在组件对象上               |
+| createSurface   | 不存在; 信封为 beginRendering/surfaceUpdate/dataModelUpdate/deleteSurface | 必须携带 catalogId, 数据由 updateDataModel 下发  |
+| 数据更新        | dataModelUpdate: path + contents (key/value 条目) 数组 | updateDataModel: path + value, upsert 语义       |
 | 设计取向        | 面向 structured output       | prompt-first, schema 嵌入 prompt, 生成后校验修复 |

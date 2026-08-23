@@ -2,7 +2,7 @@
 
 调研日期: 2026-08-20
 调研来源:
-
+本机器路径
 - swifty-mcp 本地知识库中的 A2UI 官方文档( a2ui/ 目录, 含 introduction、concepts、reference、guides、ecosystem)
 - /Users/hangtiancheng/github/a2ui/packages/shadcn( @swifty.js/a2ui-shadcn 包源码)
 - /Users/hangtiancheng/github/swifty-cli/apps/swifty-agent( A2UI 应用源码)
@@ -368,7 +368,7 @@ ActionSchema 的 wire 形态为 { event: { name, context? } }( context 值可再
 1. 组件触发: Button 的 onClick={props.action} → binder 产出 A2uiClientAction( strict schema: {name, surfaceId, sourceComponentId, timestamp, context}) .
 2. MessageProcessor 的 actionHandler → A2uiView: 要么调 onRawAction( action) 交给宿主应用, 要么用 buildQueryFromAction 转成文本: "[a2ui_action] {name}\ncontext: {JSON}".
 3. demo( app/App.tsx) 中 onRawAction 把 { version: "v0.9", action } 交给 A2UIClient.send( src/client.ts) , POST 到相对路径 /a2a.
-4. middleware/a2a.ts( Vite dev 插件) 把裸文本/裸 action JSON 包装成 A2A 信封 {message:{messageId, contextId?, role:"user", parts, kind}}: JSON 事件变 {kind:"data", mimeType:"application/a2ui+json"} part, 文本变 {kind:"text"} part; 附带 X-A2A-Extensions: https://a2ui.org/a2ui-extension/a2ui/v0.9 头, 代理到 A2A_SERVER_URL( 默认 http://localhost:10002, 即 packages/server) .
+4. middleware/a2a.ts( Vite dev 插件) 把裸文本/裸 action JSON 包装成 A2A 信封 {message:{messageId, contextId?, role:"user", parts, kind}}: JSON 事件变 {kind:"data", mimeType:"application/a2ui+json"} part, 文本变 {kind:"text"} part; 附带 X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.9 头, 代理到 A2A_SERVER_URL( 默认 http://localhost:10002, 即 packages/server) .
 5. 响应为 SSE 或一次性 JSON; A2UIClient 解析 parts: status-update 捕获 contextId( 后续用 X-A2A-Context-Id 头回传实现多轮会话) , data part 经 A2uiMessageSchema.safeParse 后成为新的 A2UI 消息, 支持 onChunk 流式增量渲染, 并对重复 createSurface 去重.
 
 ### 2.7 prompt 生成端
@@ -382,7 +382,7 @@ src/prompt/( ./prompt 导出) 把 A2UI Python agent SDK 的四种推理格式提
 - @a2ui/markdown-it: Markdown 渲染实现.
 - monorepo 兄弟包: packages/server( 端口 10002 的 A2A agent 服务; A2UI_MODE=shadcn 时把本包 catalog.json 嵌入 LLM 系统提示词) ; packages/react、packages/lit 是同一示例的另外两个前端实现.
 
-值得注意的两处文档漂移: 根 AGENTS.md 描述早期版本"注册在官方 basic catalog URI 下", 当前代码已改为独立的 SHADCN_CATALOG_ID( GitHub raw URL) , mock 消息与 createSurface 均引用该 id——以代码为准; swifty-agent 侧的 AGENTS.md 也有两处过时描述( 见 3.6) .
+值得注意的两处文档漂移: 根 AGENTS.md 描述早期版本"注册在官方 basic catalog URI 下", 当前代码已改为独立的 SHADCN_CATALOG_ID( GitHub raw URL) , mock 消息与 createSurface 均引用该 id——以代码为准; 根 AGENTS.md 还过时地写着 packages/{client,client-lit,client-shadcn} 与 scripts/build-catalog.ts( 现为 packages/{lit,react,server,shadcn}、packages/shadcn/scripts/catalog.ts) ; swifty-agent 侧的 AGENTS.md 也有两处过时描述( 见 3.6) .
 
 ---
 
@@ -464,7 +464,7 @@ export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
 两条生成管线:
 
 - 非流式 POST /api/chat → lib/ai/pipelines/chat.ts: RAG 检索( lib/redis/retriever.ts) + 历史记忆 → generateText( tools + 25 步上限) → extractA2ui( raw) 从完整输出中切出 <a2ui-json> 块并用 @a2ui/web_core/v0_9 的 A2uiMessageListSchema.safeParse 校验 → 返回 { answer: cleanText, a2ui }.
-- 流式 POST /api/chat_stream → chatStream() async generator, 其中 createA2uiStreamFilter()( lib/ai/a2ui/extract.ts) 是一个有状态流过滤器: 普通文本即时透传( 仅扣留可能是标签前缀的尾部) , <a2ui-json> 块内容静默缓冲直到闭合标签; 完整块经 parseA2uiBlock 校验后以 {type:"a2ui", messages} 事件一次性 yield; SSE 用 event: a2ui + data 发送( 共 message/a2ui/done/error 四种事件) . 注释细节: 部分标签跨 chunk 时扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃.
+- 流式 POST /api/chat_stream → chatStream() async generator, 其中 createA2uiStreamFilter()( lib/ai/a2ui/extract.ts) 是一个有状态流过滤器: 普通文本即时透传( 仅扣留可能是标签前缀的尾部) , <a2ui-json> 块内容静默缓冲直到闭合标签; 完整块经 parseA2uiBlock 校验后以 {type:"a2ui", messages} 事件一次性 yield; SSE 用 event: a2ui + data 发送( 共 connected/message/a2ui/done/error 五种事件, connected 在流开始时最先发送) . 注释细节: 部分标签跨 chunk 时扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃.
 
 纠错重试: 块校验失败时调用 correctA2uiBlock( lib/ai/a2ui/correct.ts) ——关闭工具的一次重试, 把错误信息回灌给模型要求只输出修正块; 仍失败则降级为 notice( "> Failed to render the interactive view..." ) , 绝不伪造 UI 数据.
 
@@ -496,7 +496,7 @@ POST /api/ai_ops → lib/ai/pipelines/plan-execute-replan: Planner( think 模型
 
 文档要点: README.md 逐字列出各条管线的 prompt 并给出架构图; AGENTS.md 的 "A2UI integration (v0.9)" 一节记录关键约定( 单 <a2ui-json> 块、safeParse 校验、zod v3/v4 红线、纠错只重试一次且失败诚实降级、Memory 保存带标签的原始文本) . 注意 AGENTS.md 有两处已过时: 它称 action 序列化为 [UI_ACTION] 走聊天通道、renderer 在 components/a2ui-view.tsx——现行代码已改为 onRawAction → /api/a2ui_action 带外链路, renderer 来自 @swifty.js/a2ui-shadcn 包.
 
-验证手段: /gallery 页面无后端渲染全部 shadcn 扩展组件( Alert/Avatar/Badge/Table/Accordion/Drawer/Sheet/Popover/Calendar/Combobox/Command/Chart 等, 消息顺序 createSurface → updateDataModel → updateComponents) ; scripts/a2ui-smoke.ts 检查 prompt 示例、流过滤器分块与校验语义.
+验证手段: /gallery 页面无后端渲染全部 shadcn 扩展组件( Alert/Avatar/Badge/Table/Accordion/Drawer/Sheet/Popover/Calendar/Combobox/Command/Chart 等, 消息顺序 createSurface → updateDataModel → updateComponents) .
 
 ### 3.7 具体 A2UI 界面示例
 

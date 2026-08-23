@@ -338,14 +338,14 @@ ALTER TABLE events DELETE WHERE user_id = 12345;
 
 同样一条 `SELECT count(*) FROM orders WHERE status = 'paid' GROUP BY region` (1 亿行, 20 列):
 
-| 环节     | MySQL (InnoDB)                     | ClickHouse                        |
-| -------- | ---------------------------------- | --------------------------------- |
-| I/O      | 读所有 20 列 (行存, 即使只需 3 列) | 只读 status + region 两列         |
-| 压缩     | 页级压缩, 压缩率约 2x              | 列级 LZ4/ZSTD, 压缩率 5~10x       |
-| 执行模型 | 逐行 Volcano, 每行一次虚函数调用   | 向量化, 8192 行一批 SIMD 处理     |
-| 并行度   | 单线程执行 (8.0 前)                | 多核并行, 每个 part 一个线程      |
-| 索引     | B+ 树定位行, 回表读数据            | 稀疏索引定位 granule, 顺序扫描    |
-| 聚合     | 逐行累加                           | 列数据连续, cache 友好, SIMD 加速 |
+| 环节     | MySQL (InnoDB)                                  | ClickHouse                        |
+| -------- | ----------------------------------------------- | --------------------------------- |
+| I/O      | 读所有 20 列 (行存, 即使只需 3 列)              | 只读 status + region 两列         |
+| 压缩     | 页级压缩, 压缩率约 2x                           | 列级 LZ4/ZSTD, 压缩率 5~10x       |
+| 执行模型 | 逐行 Volcano, 每行一次虚函数调用                | 向量化, 8192 行一批 SIMD 处理     |
+| 并行度   | 单线程执行 (per query, 即使 8.0 也以单线程为主) | 多核并行, 每个 part 一个线程      |
+| 索引     | B+ 树定位行, 回表读数据                         | 稀疏索引定位 granule, 顺序扫描    |
+| 聚合     | 逐行累加                                        | 列数据连续, cache 友好, SIMD 加速 |
 
 综合效果: 典型 OLAP 聚合查询 ClickHouse 比 MySQL 快 100~1000 倍.
 
@@ -825,24 +825,19 @@ SELECT * FROM events_kafka;
 ```text
 数据源 (MySQL/日志/API)
         │
-        ▼
    Kafka (原始层, ODS)
    topic: raw_events, raw_orders, ...
         │
-        ▼
    Flink / ClickHouse 物化视图 (清洗 + 转换)
         │
-        ▼
    Kafka (明细层, DWD) 或直接写入 ClickHouse
    topic: dwd_events, dwd_orders, ...
         │
-        ▼
    ClickHouse (汇总层, DWS / 应用层, ADS)
    - 明细表: MergeTree, 保留全量明细
    - 聚合表: AggregatingMergeTree / SummingMergeTree, 预计算指标
    - 物化视图: 实时增量聚合
         │
-        ▼
    BI 报表 / API 服务 / 实时大屏
 ```
 
@@ -951,7 +946,6 @@ ALTER TABLE events ADD PROJECTION proj_by_type (
 ```text
 App SDK / 服务端埋点
         │
-        ▼
 Kafka (ODS, 3 副本, 按 user_id 分 64 个 partition)
   topic: user_events_raw
   保留: 7 天 (支持回溯重放)
@@ -965,13 +959,11 @@ Kafka (ODS, 3 副本, 按 user_id 分 64 个 partition)
         │      - 物化视图 -> events_detail (MergeTree, 按天分区)
         │      - 物化视图 -> events_hourly (SummingMergeTree, 小时级聚合)
         │
-        ▼
 ClickHouse 集群 (3 分片 x 2 副本)
   - events_detail: 明细查询, 保留 90 天 (TTL)
   - events_hourly: 实时看板, 保留 1 年
   - events_daily: 日报/趋势, 永久保留
         │
-        ▼
 Grafana / 自研 BI / API Gateway
 ```
 
