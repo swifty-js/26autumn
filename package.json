@@ -20,8 +20,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@lark.js/docs": "^0.0.21",
-    "@lark.js/sentry": "^0.0.16",
+    "@lark.js/docs": "latest",
     "@mermaid-js/mermaid-cli": "^11.16.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
@@ -37,9 +36,8 @@
     "tailwindcss": "^4.3.3",
     "vite": "^7.3.6"
   },
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@10.33.1",
   "dependencies": {
-    "@swifty.js/anti-copy": "^0.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }

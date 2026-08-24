@@ -4,7 +4,6 @@ logs/
 
 .astro/
 .swifty-docs/
-.lark-docs/
 
 # npm/yarn/pnpm 调试日志
 npm-debug.log*

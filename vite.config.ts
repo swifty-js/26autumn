@@ -1,10 +1,9 @@
 import { resolve, dirname } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
-import { larkDocsPlugin } from "@lark.js/docs/vite";
-import docsConfig from "./lark-docs.config.js";
+import { swiftyDocsPlugin, docsGuardPlugin, sentryPlugin } from "@lark.js/docs/vite";
+import docsConfig from "./docs.config.js";
 import { fileURLToPath } from "node:url";
-import { sentryPlugin } from "@lark.js/sentry/vite";
 import { parse } from "node-html-parser";
 
 type ResourceType =
@@ -103,16 +102,17 @@ export default defineConfig({
   base: "/26autumn/",
   root: "app",
   plugins: [
-    larkDocsPlugin({ config: docsConfig }),
+    ...swiftyDocsPlugin({ config: docsConfig }),
+    docsGuardPlugin(),
     sentryPlugin({ dsn: "/26autumn" }),
     tailwindcss(),
     priorityHintsPlugin(),
   ],
   resolve: {
     alias: {
-      "@lark-docs/generated": resolve(
+      "@swifty-docs/generated": resolve(
         dirname(fileURLToPath(new URL(import.meta.url))),
-        ".lark-docs/generated",
+        ".swifty-docs/generated",
       ),
     },
   },

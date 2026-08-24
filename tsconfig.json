@@ -12,8 +12,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "paths": {
-      "@lark-docs/generated": ["./.lark-docs/generated/index.js"]
+      "@swifty-docs/generated": ["./.swifty-docs/generated/index.js"]
     }
   },
-  "include": ["app", "lark-docs.config.ts", "vite.config.ts"]
+  "include": ["app", "docs.config.ts", "vite.config.ts"]
 }
