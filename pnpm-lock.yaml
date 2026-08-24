@@ -16,8 +16,8 @@ importers:
         version: 19.2.8(react@19.2.8)
     devDependencies:
       '@lark.js/docs':
-        specifier: latest
-        version: 0.0.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))
+        specifier: ^0.0.24
+        version: 0.0.24(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))
       '@mermaid-js/mermaid-cli':
         specifier: ^11.16.0
         version: 11.16.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.18)(puppeteer@25.3.0)(tailwindcss@4.3.3)
@@ -27,9 +27,6 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))
-      '@types/adm-zip':
-        specifier: ^0.5.8
-        version: 0.5.8
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -423,8 +420,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lark.js/docs@0.0.23':
-    resolution: {integrity: sha512-3lmKPTQBtC9ze+pnyQnq8kFJG7DZ3RQ+ATGe++LSAaPm3l30K5V+XerNNrOcb3fY/YmTMVWEIVtUedudY09WYw==}
+  '@lark.js/docs@0.0.24':
+    resolution: {integrity: sha512-5E8SFsVN+f/Uc1d7+qRatCEseKuZTrbe9AtW71HHKATXPPdG5msDa6oDxK8ZupYrGiOvYhNnUj9p2dLKiFYC2A==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -1243,9 +1240,6 @@ packages:
 
   '@tanstack/virtual-core@3.17.6':
     resolution: {integrity: sha512-h0/Ebo18CkOrChlQIhNtQkM5ySUnh/GumQ/D1st3hG2HWUPEF+ILUc2k29UtivCi/9G7w7G3/f7Xyd5cCFbKBw==}
-
-  '@types/adm-zip@0.5.8':
-    resolution: {integrity: sha512-RVVH7QvZYbN+ihqZ4kX/dMiowf6o+Jk1fNwiSdx0NahBJLU787zkULhGhJM8mf/obmLGmgdMM0bXsQTmyfbR7Q==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -2940,7 +2934,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lark.js/docs@0.0.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))':
+  '@lark.js/docs@0.0.24(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))':
     dependencies:
       '@swifty.js/anti-copy': 0.0.6(@swifty.js/docs@0.0.12(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)))(react@19.2.8)
       '@swifty.js/docs': 0.0.12(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0))
@@ -3493,10 +3487,6 @@ snapshots:
       react-dom: 19.2.8(react@19.2.8)
 
   '@tanstack/virtual-core@3.17.6': {}
-
-  '@types/adm-zip@0.5.8':
-    dependencies:
-      '@types/node': 24.13.3
 
   '@types/babel__core@7.20.5':
     dependencies:
