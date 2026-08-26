@@ -458,11 +458,11 @@ function BadComponent({ flag }) {
 
 1. 性能: 链表按序访问是 O(1), 引入 key 查找变为 O(n)
 2. API 设计: 无需用户手动命名, 减少心智负担
-3. 编译器约束: ESLint 规则 `react-hooks/rules-of-hooks` 在编译期即可检测违规
+3. 静态检查: ESLint 规则 `react-hooks/rules-of-hooks` 在编码/静态检查阶段即可检测违规
 
-React Compiler( React Forget) 的展望:
+React Compiler 现状:
 
-React 团队正在开发的编译器将自动记忆化组件, 未来可能放宽部分限制, 但底层链表结构在可预见的版本中不会改变.
+React Compiler 已于 2025 年 10 月发布 1.0 并可用于生产, 以独立的 Babel 插件形式启用, 兼容 React 17+. 它在编译期自动插入记忆化( 等效于自动 memo/useMemo/useCallback) , 但 "Hooks 必须无条件调用" 的规则并未放宽——编译器同样依赖调用顺序稳定这一前提, 底层链表结构没有改变.
 
 ---
 
@@ -641,7 +641,7 @@ const results = useMemo(() => searchItems(deferredQuery), [deferredQuery]);
 
 Suspense 在并发模式下获得完整能力:
 
-- 已显示内容不会被 fallback 闪烁替换( 保持旧 UI 直到新内容就绪)
+- 已显示内容不会被 fallback 闪烁替换( 保持旧 UI 直到新内容就绪) , 前提是该更新被 transition 包裹; 紧急更新( 如初始挂载、非 transition 的 setState) 仍会立即显示 fallback
 - 配合 `useTransition` 可避免加载态闪烁
 
 ---
@@ -714,7 +714,7 @@ const derived = useMemo(() => computeFrom(props), [props]);
 
 ### Strict Mode 下的双重调用
 
-React 18 开发模式下, `useEffect` 会执行 mount → unmount → mount 序列:
+React 18+ 开发模式( 需启用 StrictMode) 下, `useEffect` 会执行 mount → unmount → mount 序列:
 
 ```
 第一次 mount: 执行 effect

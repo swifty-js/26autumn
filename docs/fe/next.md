@@ -12,7 +12,7 @@ Render 阶段( 协调/Reconciliation) :
 
 1. 触发更新( setState、props 变化、Context 变化、父组件重渲染)
 2. React 调用组件函数, 生成新的 React Element 树( Virtual DOM)
-3. 将新树与旧树进行 Diff( Fiber 协调) , 计算出最小变更集( Effect List)
+3. 将新树与旧树进行 Diff( Fiber 协调) , 计算出最小变更集( React 18 起通过 Fiber 节点的 flags/subtreeFlags 标记副作用, 不再维护单独的 Effect List 链表)
 
 Commit 阶段( 提交) :
 
@@ -362,8 +362,8 @@ Client Components( 'use client')
 ```
 请求到达
   -> 服务器执行 Server Components
-  -> 生成 RSC Payload( 包含 HTML + 序列化的 React 树)
-  -> 对于 Client Components: 生成 HTML( 用于首屏) + 记录组件引用
+  -> 生成 RSC Payload( 序列化的 React 树)
+  -> 同时渲染出首屏 HTML( Client Components 在 HTML 中渲染为真实 DOM, 在 Payload 中记录为模块引用)
   -> 发送 HTML + RSC Payload 到客户端
   -> 客户端下载 Client Component 的 JS
   -> 水合 Client Components( 绑定事件、恢复状态)
