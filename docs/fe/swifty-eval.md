@@ -62,21 +62,21 @@ src/
 
 各模块职责与关键文件:
 
-| 模块     | 文件                             | 职责                                                       |
-| -------- | -------------------------------- | ---------------------------------------------------------- |
-| CLI      | src/main.ts                      | parseArgs 解析参数, 校验任务文件存在, 汇总输出平均分        |
-| 配置     | src/config.ts                    | YAML 解析 + zod schema 校验 + 默认值填充                   |
-| 任务解析 | src/parser/task-parser.ts        | 用 LLM 把 Markdown 任务书抽取为结构化 TaskInstruction      |
-| 用户画像 | src/simulator/profiles.ts        | 6 种内置画像及数值化行为倾向                               |
-| 用户模拟 | src/simulator/user-simulator.ts  | 画像 prompt 组装 + 历史窗口管理                            |
-| 对话引擎 | src/engine/dialogue-engine.ts    | 多轮循环、占位符替换、挂断/拒绝/关键词三重终止检测          |
-| 状态机   | src/engine/state-machine.ts      | 7 状态有限状态机, 记录转移历史与步骤完成度                 |
-| 评测基类 | src/evaluator/base-evaluator.ts  | 多采样、截尾均值、JSON 判决解析                            |
-| 评测维度 | src/evaluator/*.ts               | 8 个维度评测器, 约束合规为规则+LLM 混合                    |
-| 调度     | src/evaluator/registry.ts        | 有界并发执行全部维度, 单维度崩溃降级为 0 分                |
-| 聚合     | src/evaluator/scorer.ts          | 按权威顺序聚合、加权总分、生成改进建议                     |
-| 报告     | src/report/*.ts(x)               | Markdown 表格报告 + React SSR 自包含 HTML (雷达图)         |
-| LLM 层   | src/llm/llm-client.ts            | 消息组装 + 限流指数退避重试                                |
+| 模块     | 文件                            | 职责                                                  |
+| -------- | ------------------------------- | ----------------------------------------------------- |
+| CLI      | src/main.ts                     | parseArgs 解析参数, 校验任务文件存在, 汇总输出平均分  |
+| 配置     | src/config.ts                   | YAML 解析 + zod schema 校验 + 默认值填充              |
+| 任务解析 | src/parser/task-parser.ts       | 用 LLM 把 Markdown 任务书抽取为结构化 TaskInstruction |
+| 用户画像 | src/simulator/profiles.ts       | 6 种内置画像及数值化行为倾向                          |
+| 用户模拟 | src/simulator/user-simulator.ts | 画像 prompt 组装 + 历史窗口管理                       |
+| 对话引擎 | src/engine/dialogue-engine.ts   | 多轮循环、占位符替换、挂断/拒绝/关键词三重终止检测    |
+| 状态机   | src/engine/state-machine.ts     | 7 状态有限状态机, 记录转移历史与步骤完成度            |
+| 评测基类 | src/evaluator/base-evaluator.ts | 多采样、截尾均值、JSON 判决解析                       |
+| 评测维度 | src/evaluator/*.ts              | 8 个维度评测器, 约束合规为规则+LLM 混合               |
+| 调度     | src/evaluator/registry.ts       | 有界并发执行全部维度, 单维度崩溃降级为 0 分           |
+| 聚合     | src/evaluator/scorer.ts         | 按权威顺序聚合、加权总分、生成改进建议                |
+| 报告     | src/report/*.ts(x)              | Markdown 表格报告 + React SSR 自包含 HTML (雷达图)    |
+| LLM 层   | src/llm/llm-client.ts           | 消息组装 + 限流指数退避重试                           |
 
 依赖极简: 运行时仅 `openai`、`zod`、`js-yaml`、`dotenv`、`react`/`react-dom` (HTML 报告 SSR 用) 6 个直接依赖 (package.json), 无 CLI 框架 (用 Node 内置 `parseArgs`, src/main.ts:26-33).
 
@@ -113,14 +113,14 @@ src/
 
 内置画像定义在 src/simulator/profiles.ts:10-95, 每个画像含 `refusalProbability` 与 `questionProbability` 两个数值倾向:
 
-| 画像               | 拒绝倾向 | 提问倾向 | 特征                                   |
-| ------------------ | -------- | -------- | -------------------------------------- |
-| Cooperative User   | 0.05     | 0.2      | 积极配合、回答简洁                     |
-| Adversarial User   | 0.6      | 0.5      | 质疑请求、频繁拒绝、编借口拖延         |
-| Neutral User       | 0.2      | 0.3      | 冷静有距离感、只跟进感兴趣的事         |
-| Suspicious User    | 0.15     | 0.7      | 频繁提问、要求反复确认                 |
-| Busy User          | 0.25     | 0.1      | 催促、要求简短 (每次只回 1 句)         |
-| Unpredictable User | 0.3      | 0.4      | 态度随对话与心情随机切换               |
+| 画像               | 拒绝倾向 | 提问倾向 | 特征                           |
+| ------------------ | -------- | -------- | ------------------------------ |
+| Cooperative User   | 0.05     | 0.2      | 积极配合、回答简洁             |
+| Adversarial User   | 0.6      | 0.5      | 质疑请求、频繁拒绝、编借口拖延 |
+| Neutral User       | 0.2      | 0.3      | 冷静有距离感、只跟进感兴趣的事 |
+| Suspicious User    | 0.15     | 0.7      | 频繁提问、要求反复确认         |
+| Busy User          | 0.25     | 0.1      | 催促、要求简短 (每次只回 1 句) |
+| Unpredictable User | 0.3      | 0.4      | 态度随对话与心情随机切换       |
 
 所有画像共享同一段"接电话者"后缀提示 (不知道来电目的, 只根据对方说的反应) 和挂断指令 (src/simulator/profiles.ts:3-7): 模拟用户若决定结束对话, 需在回复末尾追加 `[HANGUP]` 标记.
 
@@ -208,16 +208,16 @@ end            -> (终态)
 
 权威顺序定义在 DIMENSION_KEYS (src/models/evaluation.ts:4-13), 默认权重 (src/models/evaluation.ts:17-27):
 
-| 维度                  | 权重 | 评测内容 (各自 prompt 的 criteria)            |
-| --------------------- | ---- | --------------------------------------------- |
-| flowCompletion        | 0.30 | 必选步骤是否全部完成、顺序是否正确、执行质量  |
-| constraintCompliance  | 0.20 | 字数上限 / 禁用短语 / 语气三合一 (见 Q11)    |
-| faqAccuracy           | 0.15 | FAQ 回答是否正确、有无误导信息                |
-| naturalness           | 0.07 | 是否像真人电话而非机械模板                    |
-| intentUnderstanding   | 0.07 | 每轮是否正确理解用户意图、有无答非所问        |
-| errorRecovery         | 0.07 | 能否发现用户偏离流程并自然地引导回来          |
-| coherence             | 0.07 | 多轮一致性: 不自相矛盾、不遗忘早期信息        |
-| infoCompleteness      | 0.07 | 应传达的关键信息是否全部传达、有无遗漏        |
+| 维度                 | 权重 | 评测内容 (各自 prompt 的 criteria)           |
+| -------------------- | ---- | -------------------------------------------- |
+| flowCompletion       | 0.30 | 必选步骤是否全部完成、顺序是否正确、执行质量 |
+| constraintCompliance | 0.20 | 字数上限 / 禁用短语 / 语气三合一 (见 Q11)    |
+| faqAccuracy          | 0.15 | FAQ 回答是否正确、有无误导信息               |
+| naturalness          | 0.07 | 是否像真人电话而非机械模板                   |
+| intentUnderstanding  | 0.07 | 每轮是否正确理解用户意图、有无答非所问       |
+| errorRecovery        | 0.07 | 能否发现用户偏离流程并自然地引导回来         |
+| coherence            | 0.07 | 多轮一致性: 不自相矛盾、不遗忘早期信息       |
+| infoCompleteness     | 0.07 | 应传达的关键信息是否全部传达、有无遗漏       |
 
 权重必须合计为 1.0, 容差 1e-6, 由 zod refine 强制 (WEIGHT_SUM_TOLERANCE, src/config.ts:16, 33-50), 配错直接启动失败.
 
@@ -293,11 +293,11 @@ src/evaluator/registry.ts:13-54:
 
 三层职责分离 (src/llm/):
 
-| 层           | 文件                         | 职责                                                          |
-| ------------ | ---------------------------- | ------------------------------------------------------------- |
-| 接口        | src/llm/chat-model.ts        | 22 行的最小传输接口: complete(ChatRequest) -> string         |
-| OpenAI 适配 | src/llm/openai-chat-model.ts | 调 openai SDK, 错误翻译, 空响应检测, apiKey 回退             |
-| 高层客户端  | src/llm/llm-client.ts        | 消息组装 (system + history + user), 限流重试, 参数默认值     |
+| 层          | 文件                         | 职责                                                     |
+| ----------- | ---------------------------- | -------------------------------------------------------- |
+| 接口        | src/llm/chat-model.ts        | 22 行的最小传输接口: complete(ChatRequest) -> string     |
+| OpenAI 适配 | src/llm/openai-chat-model.ts | 调 openai SDK, 错误翻译, 空响应检测, apiKey 回退         |
+| 高层客户端  | src/llm/llm-client.ts        | 消息组装 (system + history + user), 限流重试, 参数默认值 |
 
 好处: 换供应商只需新写一个 ChatModel 实现; 测试注入假传输层即可全链路离线跑 (LLMClientOptions.chatModel / sleep 均可注入, src/llm/llm-client.ts:12-15); 重试策略与协议适配互不污染.
 
@@ -409,20 +409,20 @@ config.yaml (camelCase 键) -> `load` (js-yaml) -> zod schema 链式校验 (src/
 
 关键 schema 与默认值:
 
-| 配置项                       | 默认                        | 约束                              |
-| ---------------------------- | --------------------------- | --------------------------------- |
-| llm.model                    | 必填                        | min(1)                            |
-| llm.temperature              | 0.7                         | [0, 2]                            |
-| llm.maxTokens                | 4096                        | 正整数                            |
-| evaluatorLlm                 | 可选                        | 缺省回退整个 llm 节; 温度默认 0.3 |
-| evaluation.evalCount         | 3                           | >= 1 整数                         |
-| evaluation.maxWorkers        | 4                           | >= 1 整数                         |
-| evaluation.maxDialogueRounds | 30                          | >= 1 整数                         |
-| evaluation.minDialogueRounds | 4                           | >= 0 整数                         |
-| evaluation.weights           | 内置权重表                  | 8 维合计 = 1.0 (容差 1e-6)        |
-| output.markdownPath          | output/evaluation_report.md | min(1)                            |
-| output.htmlPath              | output/evaluation_report.html | min(1)                          |
-| language                     | en                          | enum ["zh", "en"]                 |
+| 配置项                       | 默认                          | 约束                              |
+| ---------------------------- | ----------------------------- | --------------------------------- |
+| llm.model                    | 必填                          | min(1)                            |
+| llm.temperature              | 0.7                           | [0, 2]                            |
+| llm.maxTokens                | 4096                          | 正整数                            |
+| evaluatorLlm                 | 可选                          | 缺省回退整个 llm 节; 温度默认 0.3 |
+| evaluation.evalCount         | 3                             | >= 1 整数                         |
+| evaluation.maxWorkers        | 4                             | >= 1 整数                         |
+| evaluation.maxDialogueRounds | 30                            | >= 1 整数                         |
+| evaluation.minDialogueRounds | 4                             | >= 0 整数                         |
+| evaluation.weights           | 内置权重表                    | 8 维合计 = 1.0 (容差 1e-6)        |
+| output.markdownPath          | output/evaluation_report.md   | min(1)                            |
+| output.htmlPath              | output/evaluation_report.html | min(1)                            |
+| language                     | en                            | enum ["zh", "en"]                 |
 
 zod v4 特性 `prefault` 用于 evaluation/output 整节缺省 (src/config.ts:68-69); dotenv 在 CLI 入口最先 import, 兼容 .env 里的 OPENAI_API_KEY (src/main.ts:2).
 
@@ -469,19 +469,19 @@ zod v4 特性 `prefault` 用于 evaluation/output 整节缺省 (src/config.ts:68
 
 README.md Migration notes 逐条列出的修复, 均可在代码中指认对应实现:
 
-| Python 原版缺陷                      | TS 版修复与代码位置                                            |
-| ------------------------------------ | -------------------------------------------------------------- |
-| HTML 报告只渲染第一个画像的得分      | generateBatch 全量渲染, 每画像独立得分卡/维度表/雷达图 (src/report/html-generator.ts:19-26) |
-| 裁判调用失败静默计 0 分毒化均值      | 失败样本剔除, 失败原因浮出到 evidence (src/evaluator/base-evaluator.ts:84-110) |
-| Markdown 围栏 JSON 解析失败          | extractJsonObject 候选级联 (src/utils/json.ts:26-61)           |
-| 达到轮数上限时多生成一条被丢弃的回复 | 循环结构保证最后一轮 user 回复后即检查终止 (src/engine/dialogue-engine.ts:114-145) |
-| 拒绝检测用被测模型自审               | refusalJudge 独立注入裁判客户端 (src/engine/dialogue-engine.ts:62-66; src/pipeline/run-evaluation.ts:57) |
-| 报告维度顺序不确定 (按完成顺序)      | Scorer 按 DIMENSION_KEYS 权威顺序聚合 (src/evaluator/scorer.ts:34-52) |
-| 画像概率字段是死配置                 | 百分比注入模拟器 prompt (src/simulator/user-simulator.ts:13-18) |
-| 仅支持 ${rider_name} 占位符          | resolvePlaceholders 通用 ${name} + placeholders 注入 (src/engine/dialogue-engine.ts:31-39) |
-| 库代码里 sys.exit()                  | 类型化错误上抛, CLI 边界统一处理 (src/main.ts:82-85)           |
+| Python 原版缺陷                      | TS 版修复与代码位置                                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| HTML 报告只渲染第一个画像的得分      | generateBatch 全量渲染, 每画像独立得分卡/维度表/雷达图 (src/report/html-generator.ts:19-26)                                       |
+| 裁判调用失败静默计 0 分毒化均值      | 失败样本剔除, 失败原因浮出到 evidence (src/evaluator/base-evaluator.ts:84-110)                                                    |
+| Markdown 围栏 JSON 解析失败          | extractJsonObject 候选级联 (src/utils/json.ts:26-61)                                                                              |
+| 达到轮数上限时多生成一条被丢弃的回复 | 循环结构保证最后一轮 user 回复后即检查终止 (src/engine/dialogue-engine.ts:114-145)                                                |
+| 拒绝检测用被测模型自审               | refusalJudge 独立注入裁判客户端 (src/engine/dialogue-engine.ts:62-66; src/pipeline/run-evaluation.ts:57)                          |
+| 报告维度顺序不确定 (按完成顺序)      | Scorer 按 DIMENSION_KEYS 权威顺序聚合 (src/evaluator/scorer.ts:34-52)                                                             |
+| 画像概率字段是死配置                 | 百分比注入模拟器 prompt (src/simulator/user-simulator.ts:13-18)                                                                   |
+| 仅支持 ${rider_name} 占位符          | resolvePlaceholders 通用 ${name} + placeholders 注入 (src/engine/dialogue-engine.ts:31-39)                                        |
+| 库代码里 sys.exit()                  | 类型化错误上抛, CLI 边界统一处理 (src/main.ts:82-85)                                                                              |
 | 报告插值未转义 (XSS/表格破坏)        | escapeHtml + escapeMarkdownTableCell (src/report/common.ts:18-29); Chart.js CDN 版本锁定 + SRI (src/report/html-report.tsx:15-19) |
-| 输出目录只为 Markdown 创建           | 两个报告路径都 mkdir recursive (src/pipeline/generate-reports.ts:36-39) |
+| 输出目录只为 Markdown 创建           | 两个报告路径都 mkdir recursive (src/pipeline/generate-reports.ts:36-39)                                                           |
 
 回答思路提示: 这道题考察的是"迁移不是翻译" —— 每条修复都是先定位原版的行为缺陷, 再用 TS 的类型系统 (zod 边界校验)、错误类型体系与依赖注入固化下来.
 
@@ -490,15 +490,15 @@ README.md Migration notes 逐条列出的修复, 均可在代码中指认对应�
 ## 附: 快速事实卡
 
 | 事实          | 值                                                                  |
-| ------------- | -------------------------------------------------------------------- |
-| 包名          | @swifty.js/eval (private, 未发布)                                    |
-| 入口          | 库 src/index.ts; CLI src/main.ts (dist/main.js)                      |
-| 画像数        | 6 (src/simulator/profiles.ts:10-95)                                  |
-| 评测维度      | 8 (src/models/evaluation.ts:4-13)                                    |
-| 默认权重大头  | flowCompletion 0.30 / constraintCompliance 0.20 / faqAccuracy 0.15   |
-| 默认采样/并发 | evalCount 3 / maxWorkers 4 (src/config.ts:53-54)                     |
-| 对话轮上限    | 30, 拒绝检测激活门槛 minRounds 4 (src/config.ts:55-56)               |
-| 重试          | 仅限流错误, 最多 5 次, 指数退避 1s 起 (src/llm/llm-client.ts:29-30)  |
-| 测试          | 14 文件 99 用例, vitest 全绿                                         |
-| 报告          | Markdown + React SSR HTML (Chart.js 4.5.0 雷达图, SRI 锁定)          |
-| 示例任务      | data/communicate.md (骑手合同通知外呼), data/communicate2.md         |
+| ------------- | ------------------------------------------------------------------- |
+| 包名          | @swifty.js/eval (private, 未发布)                                   |
+| 入口          | 库 src/index.ts; CLI src/main.ts (dist/main.js)                     |
+| 画像数        | 6 (src/simulator/profiles.ts:10-95)                                 |
+| 评测维度      | 8 (src/models/evaluation.ts:4-13)                                   |
+| 默认权重大头  | flowCompletion 0.30 / constraintCompliance 0.20 / faqAccuracy 0.15  |
+| 默认采样/并发 | evalCount 3 / maxWorkers 4 (src/config.ts:53-54)                    |
+| 对话轮上限    | 30, 拒绝检测激活门槛 minRounds 4 (src/config.ts:55-56)              |
+| 重试          | 仅限流错误, 最多 5 次, 指数退避 1s 起 (src/llm/llm-client.ts:29-30) |
+| 测试          | 14 文件 99 用例, vitest 全绿                                        |
+| 报告          | Markdown + React SSR HTML (Chart.js 4.5.0 雷达图, SRI 锁定)         |
+| 示例任务      | data/communicate.md (骑手合同通知外呼), data/communicate2.md        |

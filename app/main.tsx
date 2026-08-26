@@ -1,4 +1,4 @@
-import { bootstrap, LoadContentFn } from "@lark.js/docs";
+import { bootstrap, type LoadContentFn } from "@lark.js/docs";
 import {
   ScreenRecordPlugin,
   PerformancePlugin,
@@ -17,6 +17,7 @@ bootstrap({
   loadContent: loadContent as LoadContentFn,
   getSearchIndex,
   onContentUpdate,
+  antiCopy: false,
   sentry: {
     options: {
       dsn: "/26autumn",

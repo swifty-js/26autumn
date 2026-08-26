@@ -1163,7 +1163,7 @@ export function getDeclarativeClickData(
 }
 ```
 
-其中 `dom2str()`( utils/dom2str.ts, 思路对齐 Sentry 的 htmlTreeAsString) : 从被点击元素向上最多遍历 5 层( MAX_TRAVERSE_HEIGHT = 5) , 每层生成 `tag#id.class` 形式的选择器并用 ` > ` 连接( 如 `body > div#app > button.btn.primary`) ; 累计长度达到 128 字符( MAX_OUTPUT_LENGTH) 后丢弃整层选择器而非截断半个, 被点击元素本身始终保留.
+其中 `dom2str()`( utils/dom2str.ts, 思路对齐 Sentry 的 htmlTreeAsString) : 从被点击元素向上最多遍历 5 层( MAX_TRAVERSE_HEIGHT = 5) , 每层生成 `tag#id.class` 形式的选择器并用 `>` 连接( 如 `body > div#app > button.btn.primary`) ; 累计长度达到 128 字符( MAX_OUTPUT_LENGTH) 后丢弃整层选择器而非截断半个, 被点击元素本身始终保留.
 
 事件监听安装( decorates.ts) :
 

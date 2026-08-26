@@ -103,16 +103,16 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 
 `src/prompt/builder.ts` 实现了 PromptBuilder 模式: 系统提示词不是一个巨字符串, 而是一组带优先级的"段落( Section) ", 按优先级排序后拼接( `buildSystemPrompt()`, builder.ts:97-107, 共 8 个段落) :
 
-| 优先级 | 段落               | 内容                                                             |
-| ------ | ------------------ | ---------------------------------------------------------------- |
-| 0      | Identity           | "You are Swifty..." 身份定义、安全禁令( 防命令注入/XSS/SQL 注入) |
-| 10     | System             | 系统级行为准则                                                   |
-| 20     | DoingTasks         | 任务执行规范                                                     |
-| 30     | ExecutingActions   | 危险操作确认策略                                                 |
-| 40     | UsingTools         | 工具使用规范                                                     |
-| 50     | ToneStyle          | 语气与风格                                                       |
-| 60     | OutputEfficiency   | 输出长度约束                                                     |
-| 70     | Environment        | 运行时环境( workDir、OS、shell、git 分支、模型、日期)            |
+| 优先级 | 段落             | 内容                                                             |
+| ------ | ---------------- | ---------------------------------------------------------------- |
+| 0      | Identity         | "You are Swifty..." 身份定义、安全禁令( 防命令注入/XSS/SQL 注入) |
+| 10     | System           | 系统级行为准则                                                   |
+| 20     | DoingTasks       | 任务执行规范                                                     |
+| 30     | ExecutingActions | 危险操作确认策略                                                 |
+| 40     | UsingTools       | 工具使用规范                                                     |
+| 50     | ToneStyle        | 语气与风格                                                       |
+| 60     | OutputEfficiency | 输出长度约束                                                     |
+| 70     | Environment      | 运行时环境( workDir、OS、shell、git 分支、模型、日期)            |
 
 注意: 技能清单、项目指令( SWIFTY.md/AGENTS.md) 与长期记忆不再是系统提示词段落, 而是通过 `conversation.injectLongTermMemory()`( conversation.ts:133) 以 system-reminder 形式注入对话 —— 技能清单是项目级内容, 放进系统提示词会破坏跨项目的 prompt cache 前缀.
 
@@ -1377,12 +1377,12 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 
 关键差异( 对比 TUI/print) :
 
-| 维度         | teammate                       | TUI        | print    |
-| ------------ | ------------------------------ | ---------- | -------- |
-| 对话生命周期 | 跨任务延续( 同一 Conversation) | 跨任务延续 | 一次性   |
-| 输入来源     | 文件邮箱                       | 键盘       | CLI 参数 |
-| 输出去向     | stdout + 邮箱通知              | Ink 渲染   | stdout   |
-| 权限         | acceptEdits( 无人确认写操作)   | 四模式可切 | bypass   |
+| 维度         | teammate                                                                            | TUI        | print    |
+| ------------ | ----------------------------------------------------------------------------------- | ---------- | -------- |
+| 对话生命周期 | 跨任务延续( 同一 Conversation)                                                      | 跨任务延续 | 一次性   |
+| 输入来源     | 文件邮箱                                                                            | 键盘       | CLI 参数 |
+| 输出去向     | stdout + 邮箱通知                                                                   | Ink 渲染   | stdout   |
+| 权限         | acceptEdits( 无人确认写操作)                                                        | 四模式可切 | bypass   |
 | 上下文管理   | 压缩可用( RecoveryState 默认实例) , 压缩后仅重注入技能清单, 不注入项目指令/长期记忆 | 完整       | 完整     |
 
 teammate 的本质是"Agent 即服务( 进程) ": lead 通过写邮箱下发任务, teammate 执行后回写结果 —— 文件邮箱既是消息队列也是 RPC 通道. 注意它刻意不做"接到新消息就打断当前任务": 轮询只在 idle 时发生, 运行中的任务不可抢占, 语义简单可靠.
@@ -1449,19 +1449,19 @@ SPA fallback: 请求路径找不到文件时回退到 `index.html`( server.ts:80
 
 对比三种非 TUI 模式的依赖注入清单:
 
-| 依赖           | TUI (app.tsx) | remote      | print  | teammate                                                      |
-| -------------- | ------------- | ----------- | ------ | ------------------------------------------------------------- |
-| 核心读写工具   | 有            | 有          | 有     | 有                                                            |
-| ToolSearch     | 有            | 有          | 有     | 有                                                            |
-| Task/TaskStore | 有            | 有          | 无     | 有                                                            |
-| Worktree 工具  | 有            | 有          | 无     | 有                                                            |
-| 技能系统       | 有            | 有          | 无     | 有                                                            |
-| Hook 引擎      | 有            | 有          | 无     | 无                                                            |
-| MCP            | 有            | 有          | 有     | 有                                                            |
-| 记忆系统       | 有            | 有          | 无     | 无                                                            |
+| 依赖           | TUI (app.tsx) | remote      | print                                                          | teammate                                                      |
+| -------------- | ------------- | ----------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| 核心读写工具   | 有            | 有          | 有                                                             | 有                                                            |
+| ToolSearch     | 有            | 有          | 有                                                             | 有                                                            |
+| Task/TaskStore | 有            | 有          | 无                                                             | 有                                                            |
+| Worktree 工具  | 有            | 有          | 无                                                             | 有                                                            |
+| 技能系统       | 有            | 有          | 无                                                             | 有                                                            |
+| Hook 引擎      | 有            | 有          | 无                                                             | 无                                                            |
+| MCP            | 有            | 有          | 有                                                             | 有                                                            |
+| 记忆系统       | 有            | 有          | 无                                                             | 无                                                            |
 | 团队系统       | 有            | 有          | 有( TeamCreate/SendMessage/TeamDelete/TaskStop + Agent 子代理) | 有( 仅 SendMessage/Task 工具, 无 Agent/TeamCreate/TeamDelete) |
-| 权限模式       | 四模式可切    | acceptEdits | bypass | acceptEdits                                                   |
-| 会话持久化     | 有            | 有          | 无     | 无                                                            |
+| 权限模式       | 四模式可切    | acceptEdits | bypass                                                         | acceptEdits                                                   |
+| 会话持久化     | 有            | 有          | 无                                                             | 无                                                            |
 
 规律: 越"无人值守"的模式, 组装越精简, 但精简的对象不同.
 

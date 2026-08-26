@@ -79,7 +79,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 | fetch                           | 装饰 `globalThis.fetch`: `res.clone()` 读响应, catch 分支置 `statusCode = 0` 并 rethrow( 不吞业务异常)                         | decorate-http.ts:87-132 |
 | history                         | 装饰 `history.pushState`/`replaceState` + 覆写 `globalThis.onpopstate`( 链式调用旧 handler) , `from !== to` 才发布             | decorate-route.ts:38-88 |
 | click                           | `document.addEventListener("click")`, 经 `throttle(pub, clickThrottleDelay)` 节流( 默认 0, constants/index.ts:68)              | decorates.ts:64-77      |
-| error                           | `addEventListener("error", listener, true)` 捕获阶段( 这是能捕到资源加载错误的关键) + 装饰 `console.error`( 带防重入标志)  | decorates.ts:89-121     |
+| error                           | `addEventListener("error", listener, true)` 捕获阶段( 这是能捕到资源加载错误的关键) + 装饰 `console.error`( 带防重入标志)      | decorates.ts:89-121     |
 | unhandledrejection / hashchange | 普通 window 监听                                                                                                               | decorates.ts:123-149    |
 | 白屏                            | `pubWhiteScreen` 装配时立即发布一次以启动采样                                                                                  | decorates.ts:151-158    |
 

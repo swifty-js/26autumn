@@ -45,13 +45,13 @@ Swifty Agent 是一个 Next.js 16 App Router 全栈应用, 前后端同仓同进
 
 两条管线对应两类任务复杂度, 是刻意的双轨设计:
 
-| 维度     | Chat 管线( ReAct)                                                                                  | Plan-Execute-Replan 管线                                                                                    |
-| -------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 入口     | `/api/chat`、`/api/chat_stream`                                                                    | `/api/ai_ops`                                                                                               |
-| 模型     | `quickModel` 单模型                                                                                | `thinkModel`( 规划) + `quickModel`( 执行)                                                                   |
+| 维度     | Chat 管线( ReAct)                                                                                       | Plan-Execute-Replan 管线                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 入口     | `/api/chat`、`/api/chat_stream`                                                                         | `/api/ai_ops`                                                                                               |
+| 模型     | `quickModel` 单模型                                                                                     | `thinkModel`( 规划) + `quickModel`( 执行)                                                                   |
 | 控制流   | LLM 自主决定何时调工具、何时收尾, `stopWhen: isStepCount(25)` 兜底( `lib/ai/pipelines/chat.ts:125,182`) | 显式的 Planner → Executor → Replanner 循环, 最多 20 轮( `lib/ai/pipelines/plan-execute-replan/index.ts:42`) |
-| 适用任务 | 开放问答、单点查询, 目标边界模糊                                                                   | 有明确 SOP 的多步骤运维任务( 查告警 → 查文档 → 查日志 → 出报告)                                             |
-| 可观测性 | 只产出文本流                                                                                       | 产出结构化事件流( plan_created/step_start/step_done/replan/done/error)                                      |
+| 适用任务 | 开放问答、单点查询, 目标边界模糊                                                                        | 有明确 SOP 的多步骤运维任务( 查告警 → 查文档 → 查日志 → 出报告)                                             |
+| 可观测性 | 只产出文本流                                                                                            | 产出结构化事件流( plan_created/step_start/step_done/replan/done/error)                                      |
 
 选型的本质判断是:当任务有确定性 SOP 时, 把"流程控制权"从 LLM 手里收回一部分, 用代码约束执行骨架, 只把局部决策留给模型. ReAct 灵活但轨迹不可控, 25 步内可能跑偏或提前收尾; Plan-Execute-Replan 用 think 模型先显式产出计划, 执行后由 replanner 校验目标达成度, 对 OnCall 这种"漏掉一个告警就是事故"的场景, 可控性和覆盖率比灵活性重要. 反之闲聊/问答场景, 规划开销( 两次 think 模型调用) 纯属浪费, ReAct 性价比更高.
 
@@ -115,7 +115,7 @@ Swifty Agent 是一个 Next.js 16 App Router 全栈应用, 前后端同仓同进
 
 | API                                | 返回                                       | 本项目用途                                                                                                | 选用依据                                                                  |
 | ---------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `generateText`                     | 完整文本( Promise)                         | 非流式 chat(`chat.ts:117`)、plan 步骤执行( `executor.ts:39`)                                               | 不需要逐字输出时最简单; 配合 `tools + stopWhen` 自动完成多轮 tool-calling |
+| `generateText`                     | 完整文本( Promise)                         | 非流式 chat(`chat.ts:117`)、plan 步骤执行( `executor.ts:39`)                                              | 不需要逐字输出时最简单; 配合 `tools + stopWhen` 自动完成多轮 tool-calling |
 | `streamText`                       | 文本流( `textStream` AsyncIterable)        | SSE 流式 chat(`chat.ts:174`)                                                                              | 边生成边推送, 降低首 token 感知延迟; 服务端把 chunk 转成 SSE 事件         |
 | `generateText` + `Output.object()` | 按 zod schema 校验的结构化对象( `.output`) | Planner 产出步骤数组、Replanner 产出 `{done, remaining, summary}`(`plan-execute-replan/index.ts:138,161`) | 编排循环的控制信号必须是机器可解析的, 不能依赖自由文本                    |
 

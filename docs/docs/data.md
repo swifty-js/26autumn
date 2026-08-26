@@ -2424,7 +2424,7 @@ swr-demo 按 boot.ts 的同构思路接入了等价的手写监控, 核心文件
 
 | boot.ts                          | swr-demo                         | 说明                                                                                                                 |
 | -------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| window.PERF_QUEUE                 | PERF_QUEUE 数组                  | 队列化上报, demo 中打印到控制台                                                                                      |
+| window.PERF_QUEUE                | PERF_QUEUE 数组                  | 队列化上报, demo 中打印到控制台                                                                                      |
 | longTaskObserver                 | observeLongTasks                 | PerformanceObserver 观察 longtask, 50ms 阈值上报                                                                     |
 | performance.mark boot-start/end  | swr-boot-start/end               | main.tsx 入口打起点, 每轮 run 会 resetBootMarks 后在 run 内重打, measure 实际以 run 内的起点为准; SWR 数据就绪打终点 |
 | performanceMeasure 封装          | 同名函数                         | measure 加 try/catch, 取最后一条同名条目                                                                             |

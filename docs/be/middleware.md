@@ -657,30 +657,31 @@ scrape_config (job)
 
 常见 SD 机制:
 
-| 机制          | 来源                              | 典型 __meta_ 标签                      |
-| ------------- | --------------------------------- | -------------------------------------- |
-| static       | 配置文件写死                      | 无                                     |
+| 机制          | 来源                              | 典型 __meta_ 标签                        |
+| ------------- | --------------------------------- | ---------------------------------------- |
+| static        | 配置文件写死                      | 无                                       |
 | kubernetes_sd | kube-apiserver (Pod/Service/Node) | kubernetes_pod_name, pod_label_*, pod_ip |
-| consul_sd    | Consul catalog                    | consul_address, consul_tags            |
-| etcd_sd      | etcd keys                         | etcd_key                               |
-| dns_sd       | SRV/A 记录                        | dns_name                               |
-| file_sd      | JSON/YAML 文件 (可热更新)         | 自定义 labels                          |
+| consul_sd     | Consul catalog                    | consul_address, consul_tags              |
+| etcd_sd       | etcd keys                         | etcd_key                                 |
+| dns_sd        | SRV/A 记录                        | dns_name                                 |
+| file_sd       | JSON/YAML 文件 (可热更新)         | 自定义 labels                            |
 
 Relabeling 是 SD 的核心配套, 发生在抓取前:
 
 ```yaml
 relabel_configs:
-  - action: keep                          # 只保留带注解的 Pod
+  - action: keep # 只保留带注解的 Pod
     source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
     regex: "true"
-  - action: replace                       # 用 Pod 注解覆盖抓取端口
-    source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+  - action: replace # 用 Pod 注解覆盖抓取端口
+    source_labels:
+      [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
     regex: ([^:]+)(?::\d+)?;(\d+)
     replacement: $1:$2
     target_label: __address__
-  - action: labelmap                      # 把 meta 标签映射成业务标签
+  - action: labelmap # 把 meta 标签映射成业务标签
     regex: __meta_kubernetes_pod_label_(.+)
-  - action: drop                          # 丢弃指标 (在 metric_relabel_configs 中)
+  - action: drop # 丢弃指标 (在 metric_relabel_configs 中)
 ```
 
 与 Spring Cloud/Consul 这类"注册中心推送"的区别: Prometheus 是拉模型, SD 只是回答"该去哪里抓", 服务本身不感知监控; target 消失( Pod 删除) 后 instance 自动从 target 列表移除, up 指标随之消失, `absent(up{job=...})` 可用于"目标整个不见了"的告警.

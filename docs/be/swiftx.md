@@ -534,16 +534,16 @@ A:
 
 各层详解:
 
-| 层  | 机制                                                                                                                                                    | 示例                                                                                                             |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| L0  | Plan 模式下允许写 plan file                                                                                                                             | `Write(.swiftx/plans/<slug>.md)`                                                                                 |
-| L1  | 64 个安全命令前缀白名单( 且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符)                                                                          | `git status`, `ls`, `cat`, `go version`                                                                          |
-| L2  | 正则黑名单( 不可绕过, 注释明确"黑名单是硬防线, 沙箱开着也要查")                                                                                         | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                |
-| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认( 但显式 deny/ask 规则仍生效, 复合命令拆分逐段检查)                                                           | 沙箱限制了实际破坏范围                                                                                           |
-| L3  | 文件操作限制在项目根 + /tmp, 且 `.swiftx/config.yaml`、`.swiftx/permissions.local.yaml`、`.swiftx/skills` 是 denyWrite 保护路径, 任何权限模式下都拒写           | 拒绝写 `~/.ssh/authorized_keys`, 防止 Agent 改写自己的权限配置实现提权                                           |
-| L4  | user/project/local 三个 YAML 合并为一个规则集求值, 匹配规则中取最严效果: deny > ask > allow, 单层 allow 无法覆盖另一层的 deny, `ToolName(pattern)` 语法 | 自研 glob 里 `*` 匹配含 `/` 的任意字符( 标准 filepath.Match 的 `*` 不跨 `/`, 会让带路径的命令 allow-always 失效) |
-| L4b | Permission Mode 矩阵                                                                                                                                    | default 读放行写/命令询问; acceptEdits 写也放行; bypass 全放行                                                   |
-| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件, 下一轮求值即生效( agent.go:723 调用, 方法定义 permissions.go:368)    |
+| 层  | 机制                                                                                                                                                    | 示例                                                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| L0  | Plan 模式下允许写 plan file                                                                                                                             | `Write(.swiftx/plans/<slug>.md)`                                                                                                            |
+| L1  | 64 个安全命令前缀白名单( 且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符)                                                                          | `git status`, `ls`, `cat`, `go version`                                                                                                     |
+| L2  | 正则黑名单( 不可绕过, 注释明确"黑名单是硬防线, 沙箱开着也要查")                                                                                         | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                                           |
+| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认( 但显式 deny/ask 规则仍生效, 复合命令拆分逐段检查)                                                           | 沙箱限制了实际破坏范围                                                                                                                      |
+| L3  | 文件操作限制在项目根 + /tmp, 且 `.swiftx/config.yaml`、`.swiftx/permissions.local.yaml`、`.swiftx/skills` 是 denyWrite 保护路径, 任何权限模式下都拒写   | 拒绝写 `~/.ssh/authorized_keys`, 防止 Agent 改写自己的权限配置实现提权                                                                      |
+| L4  | user/project/local 三个 YAML 合并为一个规则集求值, 匹配规则中取最严效果: deny > ask > allow, 单层 allow 无法覆盖另一层的 deny, `ToolName(pattern)` 语法 | 自研 glob 里 `*` 匹配含 `/` 的任意字符( 标准 filepath.Match 的 `*` 不跨 `/`, 会让带路径的命令 allow-always 失效)                            |
+| L4b | Permission Mode 矩阵                                                                                                                                    | default 读放行写/命令询问; acceptEdits 写也放行; bypass 全放行                                                                              |
+| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件, 下一轮求值即生效( agent.go:723 调用, 方法定义 permissions.go:368) |
 
 防绕过设计:
 

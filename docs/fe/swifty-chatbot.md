@@ -10,15 +10,15 @@
 
 swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用前后端分离架构:
 
-| 层级     | 技术选型                                                     |
-| -------- | ------------------------------------------------------------ |
-| 前端     | React 19 + TypeScript 5.9 + Vite 8                           |
-| 状态管理 | Jotai (客户端状态) + TanStack React Query v5 (服务端状态)    |
-| UI       | Base UI (@base-ui/react) + Tailwind CSS 4 + shadcn/ui 模式   |
-| 后端     | Koa 3 + @koa/router                                          |
-| LLM      | LangChain (ChatOpenAI) 对接 OpenAI 兼容端点, 默认模型 qwen3    |
-| 数据库   | MySQL (Knex 查询构建器)                                      |
-| 缓存     | Redis (ioredis) + LRU 降级                                   |
+| 层级     | 技术选型                                                               |
+| -------- | ---------------------------------------------------------------------- |
+| 前端     | React 19 + TypeScript 5.9 + Vite 8                                     |
+| 状态管理 | Jotai (客户端状态) + TanStack React Query v5 (服务端状态)              |
+| UI       | Base UI (@base-ui/react) + Tailwind CSS 4 + shadcn/ui 模式             |
+| 后端     | Koa 3 + @koa/router                                                    |
+| LLM      | LangChain (ChatOpenAI) 对接 OpenAI 兼容端点, 默认模型 qwen3            |
+| 数据库   | MySQL (Knex 查询构建器)                                                |
+| 缓存     | Redis (ioredis) + LRU 降级                                             |
 | RAG      | LangChain MemoryVectorStore + OpenAIEmbeddings (默认 nomic-embed-text) |
 
 项目结构为 monorepo, 包含 `client/` 和 `server/` 两个 package. 后端采用 Router -> Controller -> Service -> DAO -> DB 的经典分层架构. AI 能力通过工厂模式封装, 支持普通对话和 RAG 增强两种模型类型.
@@ -175,7 +175,9 @@ const loginSchema = z.object({
 const form = useForm({
   defaultValues: { username: "", password: "" },
   validators: { onChange: loginSchema },
-  onSubmit: ({ value }) => { /* loginMutation.mutate(value) */ },
+  onSubmit: ({ value }) => {
+    /* loginMutation.mutate(value) */
+  },
 });
 ```
 
