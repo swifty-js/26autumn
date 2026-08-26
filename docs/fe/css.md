@@ -1,6 +1,6 @@
 # CSS 技术笔记
 
-本文档收录 55 道 CSS 高频知识点, 覆盖选择器、布局、工程化、渲染原理、性能优化、响应式、动画、跨端与现代 CSS 新特性等方向, 解答兼顾原理深度与工程实践, 适合中高级前端学习参考.
+本文档收录 55 道 CSS 高频知识点, 覆盖选择器、布局、工程化、渲染原理、性能优化、响应式、动画、跨端与现代 CSS 新特性等方向, 解答兼顾原理深度与工程实践, 适合深入学习参考.
 
 ## CSS 基础与选择器
 
@@ -534,7 +534,7 @@ A:
 
 双飞翼布局: 同样三栏左浮动、中间栏 `width: 100%`, 但中间栏内部再套一层 div 用 `margin: 0 200px` 避让, 不需要父 padding 和相对定位, 结构多一层但定位更简单.
 
-对比总结: 现代项目直接用 flex/grid; 浮动与绝对定位方案主要考察对文档流、浮动负 margin 的理解; 圣杯/双飞翼考察中间栏优先加载 (SEO 时代诉求) 与负 margin 机制.
+对比总结: 现代项目直接用 flex/grid; 浮动与绝对定位方案主要涉及对文档流、浮动负 margin 的理解; 圣杯/双飞翼涉及中间栏优先加载 (SEO 时代诉求) 与负 margin 机制.
 
 ### 11. 什么是 margin 塌陷与 margin 合并? 如何解决?
 
@@ -570,14 +570,14 @@ A:
 
 sticky 工作机制: 元素在阈值内表现为 `relative`, 随正常流滚动; 一旦滚动到设定阈值 (如 `top: 0`), 就"粘"住表现为 `fixed`, 直到父容器滚出视口. 它始终被限制在其最近的滚动祖先与父容器范围内.
 
-sticky 常见失效原因 (高频追问):
+sticky 常见失效原因 (常见疑问):
 
 1. 父级 (任意祖先) 设置了 `overflow: hidden` / `scroll` / `auto`, 且该父级不是实际滚动容器, 粘性参考的滚动盒被改变
 2. 父元素高度与子元素一样高 (如父级 `height: 100%` 或 flex 拉伸), 没有可粘滞的活动空间
 3. 未设置阈值属性 (至少给一个 `top`/`bottom`/`left`/`right`)
 4. 表格相关元素上支持不全 (旧浏览器)
 
-`fixed` 的坑 (高频追问): 当祖先元素存在 `transform`、`filter`、`perspective`、`backdrop-filter`、`will-change: transform` 时, 该祖先会成为 fixed 元素的包含块, fixed 不再相对视口, 弹窗/悬浮按钮"跑飞"多半是这个原因.
+`fixed` 的坑 (常见疑问): 当祖先元素存在 `transform`、`filter`、`perspective`、`backdrop-filter`、`will-change: transform` 时, 该祖先会成为 fixed 元素的包含块, fixed 不再相对视口, 弹窗/悬浮按钮"跑飞"多半是这个原因.
 
 ### 13. z-index 为什么会失效? 什么是层叠上下文?
 
@@ -924,7 +924,7 @@ A:
 }
 ```
 
-追问"如何画带边框的三角形": border 法做不到, 常用双层叠加 (两个伪元素三角形错位 1px, 底色三角形稍大露边) 或方法四的旋转正方形方案.
+延伸: 如何画带边框的三角形": border 法做不到, 常用双层叠加 (两个伪元素三角形错位 1px, 底色三角形稍大露边) 或方法四的旋转正方形方案.
 
 ### 18. 移动端 1px 问题是什么? 如何实现 0.5px 边框?
 
@@ -1285,7 +1285,7 @@ SCSS 是 CSS 预处理器 Sass 的主流语法 (缩进语法叫 Sass, 花括号�
 }
 ```
 
-mixin 与 extend 的核心区别 (高频追问): mixin 是"复制声明"到每个调用处, 支持参数, 产物体积可能膨胀; extend 是"合并选择器"到同一组声明, 产物更精简但不能传参, 且会改变选择器位置, 可能引入意外的层叠顺序. 带参复用选 mixin, 纯静态公共样式选占位选择器.
+mixin 与 extend 的核心区别 (常见疑问): mixin 是"复制声明"到每个调用处, 支持参数, 产物体积可能膨胀; extend 是"合并选择器"到同一组声明, 产物更精简但不能传参, 且会改变选择器位置, 可能引入意外的层叠顺序. 带参复用选 mixin, 纯静态公共样式选占位选择器.
 
 5. 运算与函数: `+ - * /`(除法推荐 `math.div($a, $b)`)、内置函数 (`lighten()`、`darken()`、`map-get()`、`if()`...)、`@function` 自定义函数 (有返回值, 与 mixin 区分)
 
@@ -1310,7 +1310,7 @@ A:
 
 PostCSS 是一个用 JS 插件生态转换 CSS 的工具平台. 工作流: 把 CSS 源码解析成 AST (抽象语法树) → 插件遍历修改 AST → 重新序列化为 CSS. 它本身不做任何事, 一切能力来自插件.
 
-与预处理器 (SCSS/Less) 的本质区别 (高频追问): 预处理器是"另一门语言 → CSS"的编译器, 处理的是源码; PostCSS 是"CSS → CSS"的转换器, 处理的是产物. 二者在构建链中串联而非互斥: 先 SCSS 编译, 再 PostCSS 转换.
+与预处理器 (SCSS/Less) 的本质区别 (常见疑问): 预处理器是"另一门语言 → CSS"的编译器, 处理的是源码; PostCSS 是"CSS → CSS"的转换器, 处理的是产物. 二者在构建链中串联而非互斥: 先 SCSS 编译, 再 PostCSS 转换.
 
 代表插件与用途:
 
@@ -1723,7 +1723,7 @@ A:
 
 关系: 重排必然引发重绘和合成, 重绘必然引发合成; 重排是开销最大的操作, 且会向上向下传染 (父级尺寸变化导致整棵子树重排).
 
-强制同步布局 (layout thrashing, 高频追问): 读取 `offsetWidth`、`offsetTop`、`getBoundingClientRect()`、`scrollTop` 等几何值时, 若队列中有未应用的重排, 浏览器被迫立即同步执行重排以返回正确值; 在循环中"写样式 → 读几何 → 再写样式"会造成每轮都同步重排, 是典型性能杀手.
+强制同步布局 (layout thrashing, 常见疑问): 读取 `offsetWidth`、`offsetTop`、`getBoundingClientRect()`、`scrollTop` 等几何值时, 若队列中有未应用的重排, 浏览器被迫立即同步执行重排以返回正确值; 在循环中"写样式 → 读几何 → 再写样式"会造成每轮都同步重排, 是典型性能杀手.
 
 优化手段:
 
@@ -1782,7 +1782,7 @@ A:
 }
 ```
 
-注意事项 (高频追问):
+注意事项 (常见疑问):
 
 1. 内存代价: 每个合成层都是一份独立纹理, 过度提升 (尤其隐式合成引发的"层爆炸") 会暴涨 GPU 内存, 低端设备反而掉帧卡顿
 2. `will-change` 是"预告"不是"许愿": 应在动画前短期添加、结束后移除, 长期挂在大量元素上等于白白占内存
@@ -1807,7 +1807,7 @@ A:
 
 预加载扫描器 (preload scanner): 主解析器被脚本阻塞时, 扫描器向前预读 HTML, 提前发起 CSS/JS/字体/图片请求, 是浏览器的重要优化, 也说明为什么资源要写在 HTML 里而不是 JS 动态插入.
 
-`async` 与 `defer` 区别 (常一并考察): `async` 下载完立即执行 (执行时阻塞解析, 顺序不保证); `defer` 下载并行、延迟到 DOM 解析完成后按顺序执行; `type="module"` 默认 defer 行为.
+`async` 与 `defer` 区别 (常一并讨论): `async` 下载完立即执行 (执行时阻塞解析, 顺序不保证); `defer` 下载并行、延迟到 DOM 解析完成后按顺序执行; `type="module"` 默认 defer 行为.
 
 ### 36. CSS 选择器是从左往右还是从右往左匹配的? 为什么?
 
@@ -2160,7 +2160,7 @@ body {
 - 图片适配: `<picture>` 的 `<source media="(prefers-color-scheme: dark)">` 可以换暗色版图片; 普通图片可用 `filter: brightness(.9)` 微调
 - 阴影在暗色下几乎不可见, 应改用更亮的描边或发光
 
-手动切换 + 系统跟随的完整方案 (高频工程题):
+手动切换 + 系统跟随的完整方案 (常见工程问题):
 
 ```css
 :root,
@@ -2539,7 +2539,7 @@ A:
 - 触发方式: `transition` 是被动的, 需要属性值变化 (hover、class 切换、JS 改样式) 才发生, 从 A 到 B 走一遍; `animation` 是主动的, 绑定即按 `@keyframes` 自动运行
 - 关键帧: `transition` 只有起点和终点; `animation` 支持任意多个关键帧 (`0% {} 50% {} 100% {}`), 可描述复杂过程
 - 循环与方向: `animation` 支持 `iteration-count: infinite`、`direction: alternate`、`play-state`; `transition` 一次性的, 想循环只能 JS 切换
-- 填充模式: `animation-fill-mode: forwards/backwards/both` 控制动画前后元素定格在哪一帧, 是常见考点 (不加 forwards 动画结束会跳回初始状态)
+- 填充模式: `animation-fill-mode: forwards/backwards/both` 控制动画前后元素定格在哪一帧, 是常见要点 (不加 forwards 动画结束会跳回初始状态)
 - 步进: `animation-timing-function: steps(n)` 可做逐帧动画 (雪碧图帧动画、打字机效果)
 
 ```css
@@ -2556,7 +2556,7 @@ A:
 }
 ```
 
-两个高频"失效"追问:
+两个高频"失效"问题:
 
 1. transition 对 `display: none ↔ block` 无效: 因为元素进出渲染树没有可插值的中间状态. 现代解法: `transition-behavior: allow-discrete` + `@starting-style` 定义入场前样式, 或改用 opacity/visibility
 2. `height: auto` 无法过渡: auto 不是可插值数值. 方案: JS 测 scrollHeight 赋值、grid 的 `grid-template-rows: 0fr → 1fr` 技巧、或新特性 `interpolate-size: allow-keywords` / `calc-size()`
@@ -2647,7 +2647,7 @@ Vue 单文件组件 `<style scoped>` 的隔离是编译期转换, 分两步:
 
 于是样式只能命中带该 hash 属性的元素, 实现组件级隔离.
 
-关键细节与追问点:
+关键细节与延伸:
 
 - 子组件的根节点同时带有父组件的 data-v 属性 (有意设计), 所以父组件的 scoped 样式可以影响子组件的根节点, 便于布局调整
 - 深度选择器: 需要影响子组件内部时, 用 `:deep(.child-class)` (旧写法 `::v-deep`、`/deep/`、`>>>` 已废弃/不推荐), 编译后等价于 `[data-v-xxx] .child-class`, 让属性选择器"停"在父级边界

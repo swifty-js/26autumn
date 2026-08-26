@@ -35,6 +35,13 @@ const DEFAULT_OPTIONS: Required<
   firstImageCount: 1,
 };
 
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
 function priorityHintsPlugin(options: PriorityHintsOptions = {}): Plugin {
   const opts = {
     ...DEFAULT_OPTIONS,
@@ -46,54 +53,76 @@ function priorityHintsPlugin(options: PriorityHintsOptions = {}): Plugin {
     name: "priority-hints",
     enforce: "post",
     transformIndexHtml(html) {
-      const root = parse(html);
+      // { comment: true } keeps HTML comments; node-html-parser drops them by default
+      const root = parse(html, { comment: true });
 
-      for (const el of root.querySelectorAll("script[type=module]")) {
-        const p = opts.priorities.script;
-        if (p) el.setAttribute("fetchpriority", p);
-      }
+      const applyPriority = (selector: string, priority?: string) => {
+        if (!priority) return;
+        for (const el of root.querySelectorAll(selector)) {
+          el.setAttribute("fetchpriority", priority);
+        }
+      };
 
-      for (const el of root.querySelectorAll('link[rel="stylesheet"]')) {
-        const p = opts.priorities.stylesheet;
-        if (p) el.setAttribute("fetchpriority", p);
-      }
+      applyPriority("script[type=module]", opts.priorities.script);
+      applyPriority('link[rel="stylesheet"]', opts.priorities.stylesheet);
+      applyPriority('link[rel="modulepreload"]', opts.priorities.modulepreload);
+      applyPriority('link[rel="preload"][as="font"]', opts.priorities.font);
+      applyPriority(
+        'link[rel="preload"]:not([as="font"])',
+        opts.priorities.preload,
+      );
 
-      for (const el of root.querySelectorAll('link[rel="modulepreload"]')) {
-        const p = opts.priorities.modulepreload;
-        if (p) el.setAttribute("fetchpriority", p);
-      }
-
-      for (const el of root.querySelectorAll(
-        'link[rel="preload"][as="font"]',
-      )) {
-        const p = opts.priorities.font;
-        if (p) el.setAttribute("fetchpriority", p);
-      }
-
-      const imgs = root.querySelectorAll("img");
-      imgs.forEach((el, i) => {
-        if (i < opts.firstImageCount) {
-          el.setAttribute("fetchpriority", "high");
-          el.setAttribute("loading", "eager");
-        } else {
-          el.setAttribute("fetchpriority", "low");
-          el.setAttribute("loading", "lazy");
+      root.querySelectorAll("img").forEach((el, i) => {
+        const aboveFold = i < opts.firstImageCount;
+        // only fill in missing attributes so hand-written hints are preserved
+        if (!el.hasAttribute("fetchpriority")) {
+          el.setAttribute(
+            "fetchpriority",
+            aboveFold ? (opts.priorities.image ?? "high") : "low",
+          );
+        }
+        if (!el.hasAttribute("loading")) {
+          el.setAttribute("loading", aboveFold ? "eager" : "lazy");
         }
       });
 
       const head = root.querySelector("head");
       if (head) {
+        const preconnectHrefs = new Set(
+          head
+            .querySelectorAll('link[rel="preconnect"]')
+            .map((el) => el.getAttribute("href"))
+            .filter((href): href is string => href !== undefined),
+        );
+        const dnsPrefetchHrefs = new Set(
+          head
+            .querySelectorAll('link[rel="dns-prefetch"]')
+            .map((el) => el.getAttribute("href"))
+            .filter((href): href is string => href !== undefined),
+        );
+        const hints: string[] = [];
         for (const origin of opts.preconnect ?? []) {
-          head.insertAdjacentHTML(
-            "afterbegin",
-            `<link rel="preconnect" href="${origin}" crossorigin>`,
+          if (preconnectHrefs.has(origin)) continue;
+          preconnectHrefs.add(origin);
+          // preconnect subsumes dns-prefetch for the same origin
+          dnsPrefetchHrefs.add(origin);
+          hints.push(
+            `<link rel="preconnect" href="${escapeAttr(origin)}" crossorigin>`,
           );
         }
         for (const origin of opts.dnsPrefetch ?? []) {
-          head.insertAdjacentHTML(
-            "afterbegin",
-            `<link rel="dns-prefetch" href="${origin}">`,
-          );
+          if (dnsPrefetchHrefs.has(origin)) continue;
+          dnsPrefetchHrefs.add(origin);
+          hints.push(`<link rel="dns-prefetch" href="${escapeAttr(origin)}">`);
+        }
+        if (hints.length > 0) {
+          // insert after <meta charset> so the charset declaration stays first
+          const charset = head.querySelector("meta[charset]");
+          if (charset) {
+            charset.insertAdjacentHTML("afterend", hints.join(""));
+          } else {
+            head.insertAdjacentHTML("afterbegin", hints.join(""));
+          }
         }
       }
 

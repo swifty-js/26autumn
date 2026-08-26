@@ -1,6 +1,6 @@
 # 前端技术笔记: JavaScript、DOM、BOM、浏览器与网络
 
-本文档以问答形式梳理 JavaScript 语言、DOM/BOM、浏览器原理与网络的核心知识点, 题目由浅入深, 解答力求准确、专业, 并覆盖常见的追问方向.
+本文档以问答形式梳理 JavaScript 语言、DOM/BOM、浏览器原理与网络的核心知识点, 内容由浅入深, 解答力求准确、专业, 并覆盖常见的延伸方向.
 
 ## 第一部分 JavaScript 语言核心
 
@@ -48,7 +48,7 @@ NaN == NaN    // false, NaN 不等于任何值包括自身
 [1,2] == '1,2' // true: 数组 toString 为 '1,2'
 ```
 
-补充: Object.is 与 === 几乎一致, 区别只有两处: Object.is(NaN, NaN) 为 true, Object.is(+0, -0) 为 false. 还常追问为什么应避免 ==: 转换规则难以记忆、容易引入隐蔽 bug, 团队规范通常要求默认使用 ===.
+补充: Object.is 与 === 几乎一致, 区别只有两处: Object.is(NaN, NaN) 为 true, Object.is(+0, -0) 为 false. 还常延伸讨论为什么应避免 ==: 转换规则难以记忆、容易引入隐蔽 bug, 团队规范通常要求默认使用 ===.
 
 ### Q3. 原型与原型链是什么
 
@@ -73,7 +73,7 @@ Child.prototype = Object.create(Parent.prototype);
 Child.prototype.constructor = Child;
 ```
 
-常见追问: Object.create(null) 创建的对象没有原型, 适合作为纯字典使用, 避免 `__proto__`、constructor 等键名冲突( 这也是原型链污染攻击的防御手段之一) ; 运行期通过 `__proto__` 或 Object.setPrototypeOf 修改原型会导致引擎去优化( 隐藏类失效) , 应优先在创建时用 Object.create 或 class 确定原型.
+常见延伸: Object.create(null) 创建的对象没有原型, 适合作为纯字典使用, 避免 `__proto__`、constructor 等键名冲突( 这也是原型链污染攻击的防御手段之一) ; 运行期通过 `__proto__` 或 Object.setPrototypeOf 修改原型会导致引擎去优化( 隐藏类失效) , 应优先在创建时用 Object.create 或 class 确定原型.
 
 ### Q4. new 操作符做了什么
 
@@ -95,7 +95,7 @@ function myNew(Fn, ...args) {
 }
 ```
 
-深入追问点:
+深入延伸:
 
 - 箭头函数没有 prototype、没有 [[Construct]] 内部方法, 不能作为构造函数, new 时会抛 TypeError.
 - new.target 可以在函数内部判断是否通过 new 调用: 普通调用时为 undefined, new 调用时为构造函数本身. ES class 的构造器依赖它做校验.
@@ -163,7 +163,7 @@ Function.prototype.myBind = function (ctx, ...preset) {
 };
 ```
 
-追问点:
+延伸:
 
 - 硬绑定之后再 bind 一次, this 不会变, bind 的结果不可覆盖.
 - apply 与 call 性能在现代引擎中差别不大, 历史上 apply 传数组略慢的说法已不成立.
@@ -282,7 +282,7 @@ function throttle(fn, interval) {
 }
 ```
 
-追问点: leading/trailing 双触发的完整版实现( lodash 支持) ; 与时间戳版相比定时器版能保证最后一次也会执行; 动画场景可用 requestAnimationFrame 做“帧级节流”, 天然与渲染帧对齐; React 中注意防抖函数需用 useRef/useMemo 固定, 否则每次渲染生成新实例导致失效.
+延伸: leading/trailing 双触发的完整版实现( lodash 支持) ; 与时间戳版相比定时器版能保证最后一次也会执行; 动画场景可用 requestAnimationFrame 做“帧级节流”, 天然与渲染帧对齐; React 中注意防抖函数需用 useRef/useMemo 固定, 否则每次渲染生成新实例导致失效.
 
 ### Q13. class 与原型继承的关系
 
@@ -539,7 +539,7 @@ promise2
 setTimeout
 ```
 
-推理过程: 同步代码依次输出 script start、async1 start、async2( await 处暂停, 后续进入微任务队列) 、promise1( executor 同步) 、script end. 同步结束后清空微任务队列: 先 async1 end( 先注册的 await 续体) , 再 promise2. 最后进入下一个宏任务 setTimeout. 核心考点: executor 同步、await 切分、微任务清空优先于宏任务.
+推理过程: 同步代码依次输出 script start、async1 start、async2( await 处暂停, 后续进入微任务队列) 、promise1( executor 同步) 、script end. 同步结束后清空微任务队列: 先 async1 end( 先注册的 await 续体) , 再 promise2. 最后进入下一个宏任务 setTimeout. 核心要点: executor 同步、await 切分、微任务清空优先于宏任务.
 
 ### Q23. requestAnimationFrame 与 requestIdleCallback
 
@@ -603,7 +603,7 @@ A: 完整签名: target.addEventListener(type, listener, options), 第三个参�
 
 - 同一 target 上 type、listener、capture 三者完全相同的重复注册会被忽略( once/passive 差异不影响去重判定) .
 - removeEventListener 需要 capture 标志匹配才能成功移除, once/passive/signal 不参与匹配.
-- 这是标准考点, 也是判断是否跟进现代 DOM API 的标准( once/passive/signal 三件套) .
+- 这是标准要点, 也是判断是否跟进现代 DOM API 的标准( once/passive/signal 三件套) .
 
 ### Q27. 事件委托的原理与优缺点
 
@@ -1135,7 +1135,7 @@ A: 完整链路( 以 HTTPS 站点为例) :
 7. 渲染流水线: 流式解析 HTML 构建 DOM、解析 CSS 构建 CSSOM、执行 JS、布局、绘制、合成( 细节见 Q43) , 期间边下载边渲染.
 8. 后续: DOMContentLoaded → 懒加载/异步数据请求 → load 事件 → 用户交互, 空闲时执行 prefetch 等低优先级任务.
 
-答题技巧: 按“导航阶段( 1-4) → 请求响应( 5-6) → 解析渲染( 7-8) ”三段展开, 并把缓存、CDN、HTTP/2 多路复用、渲染流水线作为可深挖的追问点主动点出.
+回答思路: 按“导航阶段( 1-4) → 请求响应( 5-6) → 解析渲染( 7-8) ”三段展开, 并把缓存、CDN、HTTP/2 多路复用、渲染流水线作为可深挖的延伸主动点出.
 
 ### Q55. TCP 三次握手与四次挥手
 
@@ -1177,7 +1177,7 @@ TLS 1.3 的改进:
 - 0-RTT 会话恢复: 用 PSK 在早期数据中直接发送加密的应用数据, 但有重放风险, 只适合幂等请求.
 - 移除 RSA 密钥交换, 强制前向安全性( PFS) ; 精简加密套件.
 
-常见追问: 对称加密快用于数据、非对称加密用于认证与密钥协商的分工; 中间人为何无法伪造证书( CA 私钥签名 + 浏览器内置根证书) ; SNI 明文与 ECH 加密扩展.
+常见延伸: 对称加密快用于数据、非对称加密用于认证与密钥协商的分工; 中间人为何无法伪造证书( CA 私钥签名 + 浏览器内置根证书) ; SNI 明文与 ECH 加密扩展.
 
 ### Q57. HTTP/1.1 的队头阻塞问题
 
@@ -1200,7 +1200,7 @@ A: HTTP/2 在保留 HTTP 语义( 方法、状态码、头部) 的前提下重写
 2. 多路复用: 一个 TCP 连接上多个 stream 的帧交错传输、独立优先级, 请求/响应并行, 彻底解决 HTTP 层队头阻塞; 浏览器对同一源只需一个连接.
 3. HPACK 头部压缩: 静态表( 常见头名值) + 动态表( 连接内增量维护) + Huffman 编码, 显著压缩重复的头部( Cookie、UA 等) .
 4. 流优先级: 依赖树 + 权重, 客户端可提示资源加载顺序( 实际各服务器支持程度不一, RFC 9218 又引入了新的优先级方案) .
-5. 服务器推送( Server Push) : 服务端主动推送关联资源. 实践表明收益不稳定、缓存协调复杂, Chrome 已于 106 版本移除支持, 属于“考点级的历史知识”.
+5. 服务器推送( Server Push) : 服务端主动推送关联资源. 实践表明收益不稳定、缓存协调复杂, Chrome 已于 106 版本移除支持, 属于“了解即可的历史知识”.
 6. 流控制: 基于 WINDOW_UPDATE 的按流流量控制.
 
 部署事实: 浏览器只支持基于 TLS 的 h2( 通过 ALPN 协商) , 所以启用 H2 必须先上 HTTPS. 遗留短板: 单个 TCP 丢包会阻塞所有流( 传输层队头阻塞) , 这是 HTTP/3 的动机.
@@ -1414,7 +1414,7 @@ A: Google 定义的用户体验量化指标, 也是搜索排名信号:
 - INP( Interaction to Next Paint, 交互到下一次绘制) : 2024 年 3 月起正式取代 FID. 衡量一次交互( 点击、键盘、触摸) 从输入到绘制下一帧的完整耗时( 输入延迟 + 处理时长 + 呈现延迟) , 取页面生命周期内的高分位值, 目标 ≤ 200ms. 比 FID 更严格: FID 只看首次交互的输入延迟. 优化方向: 拆分长任务( scheduler.yield/postTask) 、减少主线程 JS、事件回调瘦身、延后非关键工作、避免巨型 DOM.
 - CLS( Cumulative Layout Shift, 累积布局偏移) : 衡量非预期布局抖动, 目标 ≤ 0.1. 来源: 无尺寸图片/视频、动态注入的广告与横幅、字体替换( FOUT) 、异步内容插入. 对策: 媒体元素写死宽高或 aspect-ratio、为嵌入位预留空间、font-display 配合 size-adjust 字体描述符、新内容插入到用户视线下方或响应用户操作.
 
-辅助指标: TTFB( 后端与 CDN 链路) 、FCP、TBT( 实验室环境近似 INP) . 采集方式: 真实用户监控用 web-vitals 库( 基于 PerformanceObserver) 上报; 实验室用 Lighthouse/WebPageTest; CrUX 与 Search Console 提供群体数据. 答题时强调“用 RUM 数据定位最差 75 分位, 再对症下药”.
+辅助指标: TTFB( 后端与 CDN 链路) 、FCP、TBT( 实验室环境近似 INP) . 采集方式: 真实用户监控用 web-vitals 库( 基于 PerformanceObserver) 上报; 实验室用 Lighthouse/WebPageTest; CrUX 与 Search Console 提供群体数据. 实践中强调“用 RUM 数据定位最差 75 分位, 再对症下药”.
 
 ### Q72. 长列表渲染优化
 
@@ -1497,7 +1497,7 @@ HMR( 热模块替换) 原理:
 3. 找到边界则执行新模块代码并调用 accept 回调完成局部替换( React 通过 react-refresh 保留组件 state, Vue 的 SFC 天然按组件为边界) ; 找不到边界则冒泡到入口, 退化为整页刷新.
 4. vite 的更新粒度是原生 ESM 模块, 通过给 import URL 加时间戳强制浏览器重新拉取, 并沿 importers 链失效相关模块.
 
-追问点: esbuild 为什么快( Go 编写、并行、AST 一次遍历、不做类型检查) ; Rust 工具链( Rspack、Rolldown、Turbopack、oxc) 正在以兼容 API 重写这一层; babel/tsc 在链路中被降级为"只做语法降级/只做类型检查".
+延伸: esbuild 为什么快( Go 编写、并行、AST 一次遍历、不做类型检查) ; Rust 工具链( Rspack、Rolldown、Turbopack、oxc) 正在以兼容 API 重写这一层; babel/tsc 在链路中被降级为"只做语法降级/只做类型检查".
 
 ### Q76. SSR 同构与 Hydration 的原理与常见问题
 
@@ -1869,11 +1869,11 @@ class CircuitBreaker {
    - 上报到监控系统, 配置告警规则.
    - 提供运营面板查看各服务的熔断/降级状态.
 
-## 第十二部分 手写算法题
+## 第十二部分 算法实现
 
-本部分基于 src/js 目录下 33 个源码文件逐文件编排, 每题含源码解读、考点深挖、进阶追问.
+本部分基于 src/js 目录下 33 个源码文件逐文件编排, 每题含源码解读、深入解析、进阶延伸.
 
-| #   | 题目                                | 对应文件             | 核心考点                       |
+| #   | 题目                                | 对应文件             | 核心要点                       |
 | --- | ----------------------------------- | -------------------- | ------------------------------ |
 | 1   | 手写 call / apply / bind            | apply-call-bind.js   | this 绑定、Symbol、new.target  |
 | 2   | 循环闭包输出与修复                  | closure.js           | 闭包、IIFE、let 块级作用域     |
@@ -1913,7 +1913,7 @@ class CircuitBreaker {
 
 源码解读: 用 Symbol() 生成唯一键把函数挂到上下文对象上再调用, 从而改变 this; bind2 返回的 Bound 函数通过 new.target 判断是否被 new 调用——若是则改为构造 fn 的实例.
 
-考点深挖:
+深入解析:
 
 - 为什么用 Symbol() 而不是固定字符串键? ——避免与 ctx 已有属性冲突, 且 delete ctx[prop] 后不留痕迹.
 - ctx 为 null/undefined 时原生行为是绑定到全局对象( 非严格模式) 或保持 undefined( 严格模式) , 如何兼容? 传入原始值( 如数字) 时原生会装箱为包装对象.
@@ -1936,13 +1936,13 @@ Function.prototype.bind2 = function (ctx, ...args) {
 };
 ```
 
-进阶追问: bind 链式调用 fn.bind(a).bind(b) 的 this 是什么? ( 永远是最先绑定的 a) ; 如何让 Bound 函数继承原函数的 prototype( Bound.prototype = Object.create(fn.prototype)) ; 软绑定( softBind) 是什么场景?
+进阶延伸: bind 链式调用 fn.bind(a).bind(b) 的 this 是什么? ( 永远是最先绑定的 a) ; 如何让 Bound 函数继承原函数的 prototype( Bound.prototype = Object.create(fn.prototype)) ; 软绑定( softBind) 是什么场景?
 
 ### 题目 2| 循环闭包输出与修复
 
 源码解读: 第一个循环中 5 个 setTimeout 回调共享同一个 var i, 宏任务执行时循环已结束, 输出 6 6 6 6 6; 第二个循环用 IIFE 把每轮的 j 捕获进独立函数作用域, 输出 1 2 3 4 5.
 
-考点深挖:
+深入解析:
 
 - var 声明提升 + 函数作用域 -> 所有回调闭包引用同一词法环境记录( Environment Record) .
 - 四种修复的本质差异:
@@ -1956,7 +1956,7 @@ Function.prototype.bind2 = function (ctx, ...args) {
 
 源码解读: curry 内部维护 aggregatedArgs 数组, 每次调用把参数推入并返回自身; 以空参调用作为求值信号, 触发 fn.apply(this, aggregatedArgs).
 
-考点深挖:
+深入解析:
 
 - 两种柯里化范式: 固定元数( 依赖 fn.length) 与可变参数( 依赖终止信号或隐式转换) .
 - 隐式转换版本的关键: 给返回函数挂载 valueOf, 返回聚合结果; 注意 === 不会触发转换, 只有 == 或数学运算/String() 才会.
@@ -1986,7 +1986,7 @@ function curry(fn) {
 - throttle2( 定时器版) : timer 存在期间直接丢弃调用( leading, 无 trailing 补偿) .
 - throttle3: 维护 nextCallTime, 用 Math.max(0, nextCallTime - now) 计算延迟, 每次调用都会重排定时器, 保证最后一次调用一定在节流窗口结束时执行( trailing 语义) .
 
-考点深挖:
+深入解析:
 
 - 时间戳版 vs 定时器版的经典缺陷对比: 前者边界时刻停止触发会丢尾, 后者首次触发有延迟.
 - 高阶 API: cancel( 清 timer + 重置状态) 、flush( 有挂起调用则立即执行并返回结果) .
@@ -1996,7 +1996,7 @@ function curry(fn) {
 
 源码解读: 文件演示了 TS 实验性装饰器的四种形态——类装饰器( target 是构造函数) 、属性装饰器( target 是原型, 无 descriptor) 、方法装饰器( 多一个 PropertyDescriptor) 、参数装饰器( 多一个 paramIndex) .
 
-考点深挖:
+深入解析:
 
 - 旧版( experimentalDecorators) 求值顺序: 实例成员先于静态成员, 每个成员先应用参数装饰器、再应用方法/访问器/属性装饰器( 按声明顺序) , 随后是构造函数的参数装饰器, 类装饰器最后. 装饰器表达式自上而下求值, 调用自下而上( 洋葱模型) .
 - 属性装饰器拿不到 PropertyDescriptor( 因为实例属性不在原型上) , 所以无法拦截赋值.
@@ -2007,7 +2007,7 @@ function curry(fn) {
 
 源码解读: deepClone 用 WeakMap 记录"原对象 -> 克隆对象"映射解决循环引用; 特判 Date( new Date(obj)) 与 RegExp( 拷贝 source/flags/lastIndex) ; 用 for...in + hasOwnProperty 只拷贝自身可枚举属性.
 
-考点深挖:
+深入解析:
 
 - 用 WeakMap 而非 Map: 键弱引用, 拷贝结束后原对象可被 GC, 且天然支持对象键.
 - 必须在递归之前 seen.set(obj, clone), 否则循环引用死循环.
@@ -2018,7 +2018,7 @@ function curry(fn) {
 
 源码解读: extendsImpl 用 Object.create(Parent.prototype) 创造干净的中间对象作为 Child.prototype( 避免 new Parent() 带来的多余实例属性) , 修正 constructor 指针, 并用 Object.setPrototypeOf(Child, Parent) 继承静态成员.
 
-考点深挖:
+深入解析:
 
 - 六种继承演进: 原型链继承 -> 构造函数继承 -> 组合继承 -> 原型式 -> 寄生式 -> 寄生组合式( 只调一次父构造函数、原型链干净) .
 - Object.setPrototypeOf(Child, Parent) 对应 ES6 class extends 中 Child.proto === Parent 这一双重原型链.
@@ -2028,7 +2028,7 @@ function curry(fn) {
 
 源码解读: flat2 基于 reduce + concat + 原生 flat(depth-1) 递归降维; flat3 用显式 DFS 收集到结果数组.
 
-考点深挖:
+深入解析:
 
 - 原生 flat 对空位的处理: [1, , 2].flat() -> [1, 2], 空位被丢弃.
 - for...of/for 循环会把 hole 读成 undefined, 必须用 i in arr 或 hasOwnProperty 判空位.
@@ -2056,7 +2056,7 @@ function flat(arr, depth = 1) {
 
 源码解读: instanceofV2 沿 Object.getPrototypeOf 一路向上找 right.prototype; 找到返回 true, 到达 null 返回 false.
 
-考点深挖:
+深入解析:
 
 - 规范算法( OrdinaryHasInstance) : 若 right 有 [Symbol.hasInstance] 方法, 调用它; 若 right 不可调用抛 TypeError; bound 函数则对目标函数递归 instanceof.
 - 跨 realm( iframe) 问题: 不同全局环境的 Array 不相等, [] instanceof Array 跨窗口为 false——所以大型库用 Array.isArray.
@@ -2066,7 +2066,7 @@ function flat(arr, depth = 1) {
 
 源码解读: 方式一给 obj 挂生成器方法 [Symbol.iterator], for...of 自动消费 yield 的值; 方式二用 Object.defineProperty 定义不可枚举、不可写、不可配置的迭代器属性.
 
-考点深挖:
+深入解析:
 
 - 迭代协议三件套: 可迭代协议( [Symbol.iterator](<>) 返回迭代器) 、迭代器协议( next() 返回 {value, done}) 、生成器是两者的语法糖.
 - for...of 只找 Symbol.iterator, 与 for...in( 枚举字符串键、含原型链) 完全正交.
@@ -2076,7 +2076,7 @@ function flat(arr, depth = 1) {
 
 源码解读: map2 用 new Array(len) 预分配 + i in this 跳过空位; reduce2 处理 initialValue 缺省; 末尾 bootstrap 用 reduce((p, t) => p.then(t), Promise.resolve(val)) 把异步任务数组串成顺序链.
 
-考点深挖:
+深入解析:
 
 - 原生 map 保留稀疏性: [1, , 2].map(x => x\*2) 结果仍有空位; reduce 版本把空位写成 undefined 实值——这是经典的易错点.
 - reduce 无初始值时, 首个存在的元素为累加器, 从第二个元素开始迭代; 空数组无初始值抛 TypeError.
@@ -2084,7 +2084,7 @@ function flat(arr, depth = 1) {
 
 ### 题目 12| 类字段初始化顺序
 
-源码解读( 米哈游知识点) : new Child() 的执行序列:
+源码解读: new Child() 的执行序列:
 
 1. super() 进入 Parent: 先初始化 Parent 的实例字段;
 2. 执行 Parent 构造体;
@@ -2092,7 +2092,7 @@ function flat(arr, depth = 1) {
 4. super() 返回后, 初始化 Child 自己的实例字段——覆盖第 3 步赋的值;
 5. 执行 Child 构造体.
 
-考点深挖:
+深入解析:
 
 - 字段初始化时机( [[Define]] 语义) : 基类在构造体开头初始化; 派生类在 super() 返回后立即初始化——所以派生类字段必然覆盖父类构造期间对同名属性的写入.
 - 父类构造函数中调用 this.run() 触发动态派发到子类方法, 此时子类字段尚未初始化——这是 Java/C# 中都存在的"构造器调用虚方法"反模式.
@@ -2114,7 +2114,7 @@ function newV2(Ctor, ...args) {
 }
 ```
 
-考点深挖:
+深入解析:
 
 - new 的完整语义( Construct 内部方法) : 创建 [[Prototype]] 为 F.prototype 的对象 -> 以 new.target = F 调用 -> 返回值若是 Object( 含函数) 则取之, 否则取新建对象.
 - F.prototype 为 null 时, 实例原型回退到 Object.prototype; 箭头函数没有 prototype 也没有 [[Construct]], new 抛 TypeError.
@@ -2123,7 +2123,7 @@ function newV2(Ctor, ...args) {
 
 源码解读: PromiseV2 实现状态机( pending/resolved/rejected) + 双回调队列 + then 返回新 Promise 的链式; 处理回调返回值是 Promise 时的"解包".
 
-考点深挖( 对照源码找偏差) :
+深入解析( 对照源码找偏差) :
 
 - 异步执行缺失: 规范 2.2.4 要求 onFulfilled/onRejected 必须在执行栈仅含平台代码时调用.
 - thenable 解包不完整: 只判断 instanceof PromiseV2, 而规范要求对任何含 then 方法的对象递归解包, 且 then 的 getter 抛错要 reject、多次调用要忽略( called 标志) .
@@ -2167,7 +2167,7 @@ const resolvePromise = (p2, x, resolve, reject) => {
 
 源码解读: useSetTimeout 在 rAF 回调里比对 Date.now() - startTime >= timeout, 到点执行并 cancelAnimationFrame 自清理; useSetInterval 到点后重置 startTime = currentTime 并循环.
 
-考点深挖:
+深入解析:
 
 - rAF 与垂直同步( VSYNC) 对齐( 通常 60Hz 约 16.7ms) , 后台标签页 rAF 完全暂停, 而 setTimeout 被节流到 >=1s.
 - 源码 setInterval2 的漂移: startTime = currentTime 把回调执行耗时计入下一周期, 长期运行会累积漂移; 修正方案是 startTime += interval( 按计划网格对齐) .
@@ -2177,7 +2177,7 @@ const resolvePromise = (p2, x, resolve, reject) => {
 
 源码解读: 以 frameDuration = 1000/60 为帧长, 用"上一次帧回调计划时刻"算 nextCallDelay 对齐帧边界; 所有本帧注册的回调先入队 taskQueues, 到点后克隆队列统一执行( 本帧内新注册的回调进入下一帧) ; cancelAnimationFrame 打 cancelled 标记惰性删除.
 
-考点深挖:
+深入解析:
 
 - "克隆队列 + 清空原队列"是规范行为: 防止回调里递归注册导致同帧无限循环.
 - 首帧延迟计算: latestCallTimestamp 记录的是计划触发时刻而非真实触发时刻, 保证连续调用的帧间隔均匀.
@@ -2187,7 +2187,7 @@ const resolvePromise = (p2, x, resolve, reject) => {
 
 源码解读: areDeeplyEqual 分三种情况: 非对象用 ===; 双数组按索引递归; 双对象比较键集合( 排序后逐键递归) ; 一数组一对象直接 false.
 
-考点深挖:
+深入解析:
 
 - 键排序使得比较与键的插入顺序无关——这是 JSON 对象键无序语义的正确处理.
 - 通用版循环引用防护: 用 WeakMap<o1, o2> 记忆已比对的对象对.
@@ -2197,7 +2197,7 @@ const resolvePromise = (p2, x, resolve, reject) => {
 
 源码解读: 与题目 3 的"空参触发"不同, 这里用 fn.length( 形参个数) 作为聚合目标: 累计参数达到 argsCnt 即执行.
 
-考点深挖:
+深入解析:
 
 - fn.length 统计第一个默认值参数或剩余参数之前的形参数: function f(a, b=1, ...rest){} 的 length 是 1.
 - 源码用 aggregatedArgs.length === argsCnt: 严格相等意味着一次传超量参数永不触发——应改为 >= 更健壮.
@@ -2206,7 +2206,7 @@ const resolvePromise = (p2, x, resolve, reject) => {
 
 源码解读: 字符串加双引号; 非对象原始值 String(obj); 数组递归 map+join; 对象用 Object.entries 拼 "key": value.
 
-考点深挖:
+深入解析:
 
 - 原生序列化规则: 顶层 undefined/function/Symbol -> 返回 undefined( 不是字符串) ; Date 走 toJSON( toISOString) ; BigInt 抛 TypeError.
 - 循环引用检测: 递归栈上维护 Set, 进入对象 add、离开 delete.
@@ -2238,7 +2238,7 @@ async function promisePool(funcs, n) {
 }
 ```
 
-考点深挖:
+深入解析:
 
 - 方案 2/3 的精髓: 利用单线程同步段的不可分割性——iter.next()/idx++ 在 await 之间不会被其他 worker 抢占, 无需锁.
 - 这就是 p-limit / 前端图片批量上传 / 接口并发限制的标准模型.
@@ -2247,7 +2247,7 @@ async function promisePool(funcs, n) {
 
 源码解读: 维护 nextCallTime, 每次调用按 max(0, nextCallTime - now) 延迟执行, 执行后把 nextCallTime 推到 now + t; 因为每次都 clearTimeout 重排, 最后一次调用一定执行( trailing) , 且执行间隔不小于 t.
 
-考点深挖:
+深入解析:
 
 - 首次调用 nextCallTime = 0 -> delay 为 0 立即执行, 天然带 leading.
 - 与 debounce 的本质区别: debounce 每次重置完整 delay; 本节流以 nextCallTime 为锚, 窗口不随新调用无限后移.
@@ -2267,7 +2267,7 @@ function createInfiniteObject(path = []) {
 }
 ```
 
-考点深挖:
+深入解析:
 
 - get(target, p, receiver) 中 p 是 string | symbol; 注意 Symbol.toPrimitive / Symbol.toStringTag / then 等特殊键会被语言内部访问.
 - Proxy 不可 polyfill( 需要引擎级拦截) , 这是它改写响应式系统设计( Vue3) 的原因.
@@ -2276,7 +2276,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: ImmutableHelper.produce(recipe) 是 Immer 核心机制的精简实现: createDraft 用 Proxy 包装对象, get 时懒创建子草稿、set 时写时复制( 首次修改浅拷贝 base, 之后写入 copy) ; finalize 递归收尾: 子草稿有变化则回填到父 copy, 整棵子树无修改则返回 state.base 保持引用不变.
 
-考点深挖:
+深入解析:
 
 - 结构共享( structural sharing) : 引用相等性 = 变化检测信号, 这是 React/Redux 纯函数状态更新的基石.
 - 写时复制时机: 第一次 set 才浅拷贝 base.
@@ -2286,7 +2286,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: makeImmutable 返回深层代理: get 拦截把对象值递归 proxify; set 一律抛错; 数组的 7 个变更方法( pop/push/shift/unshift/splice/sort/reverse) 被替换为带 apply 陷阱的 Proxy, 调用即抛错.
 
-考点深挖:
+深入解析:
 
 - 三类写入面都要封死: set( 对象属性) 、set 中数组分支( 下标写入) 、变更方法( push 等不经过 set 陷阱的对外 API) .
 - Object.freeze 是浅冻结且静默失败( 严格模式才抛错) ——深冻结需要递归 + freeze, 与本题的代理式"只读视图"是两种路线.
@@ -2295,7 +2295,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: objDiff 递归对比两个对象共有键: 叶子值不等返回 [oldVal, newVal], 数组与对象类型不匹配整体返回 [obj1, obj2]; 只在 obj2 中存在的键被忽略.
 
-考点深挖:
+深入解析:
 
 - 源码的键处理约定: 只比较共有键( 新增/删除键被忽略) , 这与"深比较"语义不同.
 - 这就是 React 状态 diff、JSON Patch( RFC 6902) 、协作编辑 OT/CRDT 的入门模型.
@@ -2304,7 +2304,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: deepMerge(obj1, obj2): 任一非对象或"一数组一对象"时取 obj2; 否则对两对象键的并集递归合并, 数组对数组按下标合并.
 
-考点深挖:
+深入解析:
 
 - new Set([...keys1, ...keys2]) 求并集保持插入序; key in obj 区分"键不存在"与"键存在值为 undefined".
 - 与 Object.assign / 展开运算符( 浅合并, 后者覆盖前者整支替换) 的本质差异.
@@ -2314,7 +2314,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: getValue(key) 把 [resolve, key] 推入队列并触发 consume; consume 在非节流窗口且队列非空时执行 batchQuery——把当前队列整体取出, 调用批量接口 queryMultiple(keys), 再按下标把结果分发给各 Promise.
 
-考点深挖:
+深入解析:
 
 - "队列快照"技巧: const queries = this.queries; this.queries = []——先换引用再异步处理, 期间新进的 key 进入下一轮.
 - 这就是 GraphQL DataLoader 的核心思想( DataLoader 用微任务/帧合并 + 缓存) .
@@ -2323,7 +2323,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: cycleGenerator(arr, startIndex) 无限循环: yield arr[idx] 的返回值是下次 next(v) 传入的 v, 步进 idx = ((idx + v) % len + len) % len——双重取模兼容负数步进.
 
-考点深挖:
+深入解析:
 
 - 生成器的双向通信: yield expr 整体是表达式, 求值结果是下一次 next(arg) 的实参; 第一次 next(arg) 的实参被丢弃( 生成器体尚未执行到任何 yield) .
 - 负数取模修正: -1 % 5 === -1( JS 取余保留被除数符号) , (x % n + n) % n 归一到 [0, n).
@@ -2333,7 +2333,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: nextDay 以当前日期新建 Date, setDate(getDate() + 1) 依赖 Date 的自动进位( 1 月 32 日 -> 2 月 1 日) , 再手工拼 YYYY-MM-DD.
 
-考点深挖:
+深入解析:
 
 - setDate 溢出进位是规范行为( MakeDay) , 比手写"每月天数表 + 闰年"可靠得多.
 - 月份 getMonth() 从 0 起——补零前 +1, 经典踩坑点.
@@ -2344,7 +2344,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: promisify(fn) 把"回调在前"( fn(callback, ...args), callback(data, err)) 的函数包装为返回 Promise 的版本: err 非空 reject, 否则 resolve data.
 
-考点深挖:
+深入解析:
 
 - 两种回调约定差异: LC 风格 (data, err) vs Node 风格 error-first (err, data)——分支条件相反.
 - util.promisify 的行为: 依赖被转换函数的 this, 包装函数内要 fn.call(this, ...); 还支持 fn[util.promisify.custom] 自定义符号.
@@ -2357,7 +2357,7 @@ function createInfiniteObject(path = []) {
 1. functions.map((fn, i) => { fn[i](<>); ... })——回调形参 fn 就是函数本身, fn[i] 是 undefined, 调用立即抛 TypeError;
 2. map 回调没有 return 那个 Promise, 得到的 promises 数组全是 undefined, Promise.all([undefined...]) 立即 resolve.
 
-考点深挖:
+深入解析:
 
 - 四类静态方法的语义差异是必考口述: all( 快速失败) 、allSettled( 永不 reject) 、race( 第一个 settled 者胜出) 、any( 第一个 fulfilled 胜出, 全败抛 AggregateError) .
 - 计数器法 vs Promise.all(map) 法: 前者手动 resolve 一次, 注意空数组边界.
@@ -2366,7 +2366,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: delayAll(functions, ms) 返回新函数数组: 每个新函数调用时先 setTimeout(ms), 再执行原函数并把结果通过 resolve(fn()) 交给外层 Promise——利用了 Promise 对 thenable 的自动解包.
 
-考点深挖:
+深入解析:
 
 - resolve(fn()) 的解包语义: fn() 返回 Promise 时, 外层 Promise 吸收其状态.
 - 延迟在"调用时"开始而非"创建时"——高阶函数返回的是惰性包装.
@@ -2376,7 +2376,7 @@ function createInfiniteObject(path = []) {
 
 源码解读: jsonToMatrix 把 JSON 对象数组展平成表: DFS 遍历每个对象, 叶子值记录到"路径 -> 值"( 数组下标也并入路径) ; 收集全部路径去重、字典序排序作为列头; 每个对象一行, 缺列补 "".
 
-考点深挖:
+深入解析:
 
 - 字典序排序的坑: "a.10" < "a.2"( 按字符比较) , 正确做法是 localeCompare 的 numeric: true 选项.
 - 空对象/空数组没有叶子 -> 该对象贡献零列; 整行全 "".
@@ -2446,7 +2446,7 @@ A: 隐藏类( Hidden Class / Map / Shape) :
 
 要点: 写"JIT 友好"代码 = 形状稳定 + 类型稳定 + 热点函数小而纯.
 
-### Q91. ES 新特性高频考点
+### Q91. ES 新特性核心要点
 
 A: 尾调用优化( PTC, ES6 规范) : 严格模式下 return f(...) 复用当前栈帧——理论上递归阶乘可 O(1) 栈. 现实: 只有 Safari/JSC 实现, V8 曾实现后移除——要记住"规范有、引擎没普及, 别依赖".
 

@@ -4,7 +4,7 @@ protected: true
 
 > 本机器路径 `$HOME/github/swifty-cli/apps/swifty`
 
-# Swifty CLI — 技术笔记 文档
+# Swifty CLI — 技术笔记
 
 > 本文档围绕 `apps/swifty`( 一个运行在终端中的 Coding Agent, 类似 Claude Code) 的实现细节设计深度问答.
 > 所有回答均基于真实源码( `apps/swifty/src/`) , 回答中标注了关键文件与机制, 可作为系统学习材料.
@@ -1860,7 +1860,7 @@ function createStreamThrottle(render: (text: string) => void, interval = 50) {
 }
 ```
 
-考点: ① 合帧( `??=` 窗口内只调度一次) ; ② 渲染读累积变量而非回调参数( 避免陈旧值) ; ③ 尾部不丢( `flush`) ; ④ 状态重置. 进阶追问: 如果要"立即渲染首帧再节流"( leading edge) 怎么改? —— `onDelta` 中 `timer === null` 时先同步 render 再启动计时.
+要点: ① 合帧( `??=` 窗口内只调度一次) ; ② 渲染读累积变量而非回调参数( 避免陈旧值) ; ③ 尾部不丢( `flush`) ; ④ 状态重置. 进阶延伸: 如果要"立即渲染首帧再节流"( leading edge) 怎么改? —— `onDelta` 中 `timer === null` 时先同步 render 再启动计时.
 
 ---
 
@@ -1888,7 +1888,7 @@ function partition(calls: string[], category: (n: string) => string): Batch[] {
 }
 ```
 
-考点: 一次遍历 O(n); "合并入尾批还是开新批"的判定条件只有两个( 当前是 read 且尾批是并行批) ; 顺序保持是硬性约束( 写操作因果序) . 追问: 如何执行? —— 并行批 `Promise.all`, 串行批逐个 await; 如何加超时? —— 每个调用包 `Promise.race([execute, timeout])`; 如何在保持并行的情况下让结果按调用顺序返回? —— `Promise.all` 本身就保序映射.
+要点: 一次遍历 O(n); "合并入尾批还是开新批"的判定条件只有两个( 当前是 read 且尾批是并行批) ; 顺序保持是硬性约束( 写操作因果序) . 延伸: 如何执行? —— 并行批 `Promise.all`, 串行批逐个 await; 如何加超时? —— 每个调用包 `Promise.race([execute, timeout])`; 如何在保持并行的情况下让结果按调用顺序返回? —— `Promise.all` 本身就保序映射.
 
 ---
 
@@ -1920,7 +1920,7 @@ function computeKeepStartIndex(
 }
 ```
 
-考点: 双向约束( 下限时停、上限时停) 的顺序 —— 必须先检查上限再加, 否则可能刚好超限; `keepTokens > 0` 守卫保证至少保留一条( 即使单条就超 40K) . 追问( Swifty 实际实现) : 如果切点把"assistant 的 tool_use"与"user 的 tool_result"切开了怎么办? —— 从 tool_result 收集 toolUseId 集合, 向前扫描找到含匹配 tool_use 的 assistant 消息, 把 start 提前到它( `backUpPastToolUse()`) .
+要点: 双向约束( 下限时停、上限时停) 的顺序 —— 必须先检查上限再加, 否则可能刚好超限; `keepTokens > 0` 守卫保证至少保留一条( 即使单条就超 40K) . 延伸( Swifty 实际实现) : 如果切点把"assistant 的 tool_use"与"user 的 tool_result"切开了怎么办? —— 从 tool_result 收集 toolUseId 集合, 向前扫描找到含匹配 tool_use 的 assistant 消息, 把 start 提前到它( `backUpPastToolUse()`) .
 
 ---
 
@@ -1952,7 +1952,7 @@ function createIncrementalMarkdown(parse: (src: string) => string) {
 }
 ```
 
-考点: ① 缓存键是前缀长度而非内容( 流式文本只增不改, 前缀单调增长, 可以用长度比较) ; ② 边界选 `\n\n` 利用块级语法分隔性; ③ 总复杂度 O(n) 而非 O(n²). 追问: 文本可能被修改( 非纯追加) 怎么办? —— 比较 `full.startsWith(cachedSrc)`, 不成立则缓存失效全量重解析.
+要点: ① 缓存键是前缀长度而非内容( 流式文本只增不改, 前缀单调增长, 可以用长度比较) ; ② 边界选 `\n\n` 利用块级语法分隔性; ③ 总复杂度 O(n) 而非 O(n²). 延伸: 文本可能被修改( 非纯追加) 怎么办? —— 比较 `full.startsWith(cachedSrc)`, 不成立则缓存失效全量重解析.
 
 ---
 
@@ -2013,7 +2013,7 @@ function withLock<T>(lockPath: string, fn: () => T): T {
 }
 ```
 
-考点: ① `wx` 的 O_EXCL 原子性( 创建即抢锁, 无 TOCTOU) ; ② stale 机制防持锁进程崩溃死锁; ③ 指数退避 + 上限( Swifty 实现为带 jitter 的指数退避, 5ms 起、80ms 封顶, 见 file-mailbox.ts:73-77) ; ④ 超时抛错而非静默丢消息( 邮箱丢消息不可接受) ; ⑤ `finally` 中释放, 且释放失败可容忍( 锁可能已被强取) ; ⑥ 同步等待用 `Atomics.wait` 而非 `setTimeout`( 调用方是同步 API `receiveSync`) . 追问: 为什么不用 `flock`? —— 可移植性( macOS/Linux/Windows 语义不一) , 锁文件是纯 POSIX 语义.
+要点: ① `wx` 的 O_EXCL 原子性( 创建即抢锁, 无 TOCTOU) ; ② stale 机制防持锁进程崩溃死锁; ③ 指数退避 + 上限( Swifty 实现为带 jitter 的指数退避, 5ms 起、80ms 封顶, 见 file-mailbox.ts:73-77) ; ④ 超时抛错而非静默丢消息( 邮箱丢消息不可接受) ; ⑤ `finally` 中释放, 且释放失败可容忍( 锁可能已被强取) ; ⑥ 同步等待用 `Atomics.wait` 而非 `setTimeout`( 调用方是同步 API `receiveSync`) . 延伸: 为什么不用 `flock`? —— 可移植性( macOS/Linux/Windows 语义不一) , 锁文件是纯 POSIX 语义.
 
 ---
 
@@ -2055,7 +2055,7 @@ class PendingDialog<C> {
 }
 ```
 
-考点: ① resolve/reject 句柄外提( Promise 的"手动档"用法) ; ② 重入防护( 同时只允许一个 pending 对话框 —— Swifty 的 remote 用 Map<id, resolver> 支持并发多请求) ; ③ 取消路径必须 reject 而非悬挂( 否则 `await` 永不返回, 生成器泄漏) ; ④ 与 AbortController 的联动追问: 业务方取消时应同时 dismiss 对话框.
+要点: ① resolve/reject 句柄外提( Promise 的"手动档"用法) ; ② 重入防护( 同时只允许一个 pending 对话框 —— Swifty 的 remote 用 Map<id, resolver> 支持并发多请求) ; ③ 取消路径必须 reject 而非悬挂( 否则 `await` 永不返回, 生成器泄漏) ; ④ 与 AbortController 的联动延伸: 业务方取消时应同时 dismiss 对话框.
 
 ---
 
@@ -2098,7 +2098,7 @@ function reducer(state: State, action: Action, questions: Q[]): State {
 }
 ```
 
-考点: ① 把"提交页"建模为索引空间的一部分( `questions.length`) , 导航逻辑统一; ② 边界钳制( clamp) ; ③ answers 用问题文本作 key 而非下标( 问题顺序变化时健壮 —— Swifty 实际如此) . 追问: 为什么这里 useReducer 优于多个 useState? —— 状态间有不变式( current 不能越界、跳转要校验) , reducer 把合法迁移收敛到一处, 且 action 语义化( 可日志、可回放) ; 单问题免提交页这类派生逻辑放在组件层( `hideSubmit` 计算) 而非 state 里 —— state 存最小事实, 派生值现算.
+要点: ① 把"提交页"建模为索引空间的一部分( `questions.length`) , 导航逻辑统一; ② 边界钳制( clamp) ; ③ answers 用问题文本作 key 而非下标( 问题顺序变化时健壮 —— Swifty 实际如此) . 延伸: 为什么这里 useReducer 优于多个 useState? —— 状态间有不变式( current 不能越界、跳转要校验) , reducer 把合法迁移收敛到一处, 且 action 语义化( 可日志、可回放) ; 单问题免提交页这类派生逻辑放在组件层( `hideSubmit` 计算) 而非 state 里 —— state 存最小事实, 派生值现算.
 
 ---
 
@@ -2137,7 +2137,7 @@ class TokenEstimator {
 }
 ```
 
-考点: ① 锚点语义 = "那一刻的全量真实值 + 那一刻的快照位置", 二者缺一不可; ② 增量估算的窗口是 `slice(anchorCount)`; ③ `Math.min` 防御历史被外力截断后的下标越界; ④ 失效时机( 压缩/历史重写后必须 clear, 否则基线对应的是不存在的旧历史) . 追问: 为什么不用每条消息单独校准? —— API 只给整请求总量, 无法归因到单条消息, 所以只能"总量锚点 + 增量估算".
+要点: ① 锚点语义 = "那一刻的全量真实值 + 那一刻的快照位置", 二者缺一不可; ② 增量估算的窗口是 `slice(anchorCount)`; ③ `Math.min` 防御历史被外力截断后的下标越界; ④ 失效时机( 压缩/历史重写后必须 clear, 否则基线对应的是不存在的旧历史) . 延伸: 为什么不用每条消息单独校准? —— API 只给整请求总量, 无法归因到单条消息, 所以只能"总量锚点 + 增量估算".
 
 ---
 
@@ -2457,10 +2457,10 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 本文档覆盖 Swifty 的十八大主题、104 组问答( Q1–Q104) . 使用建议:
 
-- 讲故事线: 架构( Q1-6) → 循环( Q7-13) → 协议( Q14-19) → 安全( Q25-29) → 渲染( Q30-38) → 内存治理( Q39-44) → 生态( Q50-54) → 工程化( Q55-58) → 运行模式( Q59-64) → 命令与基础设施( Q65-78) → 手写题( Q79-86) → 设计题( Q87-93) → 开放题( Q94-100) → 补充子系统( Q101-104) , 由主干到枝叶;
-- 被追问时的锚点: 每个回答都给了文件路径与常量( `agent.ts:650`、`CHARS_PER_TOKEN=3.5`、`MAX_TOKENS_CEILING=64000` …) , 细节是最好的信任背书;
+- 讲故事线: 架构( Q1-6) → 循环( Q7-13) → 协议( Q14-19) → 安全( Q25-29) → 渲染( Q30-38) → 内存治理( Q39-44) → 生态( Q50-54) → 工程化( Q55-58) → 运行模式( Q59-64) → 命令与基础设施( Q65-78) → 编程实现( Q79-86) → 设计题( Q87-93) → 开放题( Q94-100) → 补充子系统( Q101-104) , 由主干到枝叶;
+- 被深入询问时的锚点: 每个回答都给了文件路径与常量( `agent.ts:650`、`CHARS_PER_TOKEN=3.5`、`MAX_TOKENS_CEILING=64000` …) , 细节是最好的信任背书;
 - 开放题模板: 现状局限 → 方案 → 权衡( Q29、Q38、Q58、Q99 示范) ;
-- 手写题( Q79–Q86) 均可现场白板: 节流、分批、压缩边界、增量渲染、文件锁、Promise 桥、reducer、token 估算;
+- 编程实现( Q79–Q86) 均可现场白板: 节流、分批、压缩边界、增量渲染、文件锁、Promise 桥、reducer、token 估算;
 - 设计题( Q87–Q93) 每题给了方案骨架与评分点, 训练"架构迁移"能力.
 
 源码即事实: `apps/swifty/src/` 下所有引用均可直接查证.

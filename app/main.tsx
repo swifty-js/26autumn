@@ -21,7 +21,7 @@ bootstrap({
   loadContent: loadContent as LoadContentFn,
   getSearchIndex,
   onContentUpdate,
-  antiCopy: import.meta.env.DEV
+  antiCopy: import.meta.env.PROD
     ? ({
         devtools: true,
       } satisfies SwiftyDocsAntiCopyProps)
