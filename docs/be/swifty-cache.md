@@ -1,7 +1,3 @@
----
-protected: true
----
-
 # swifty-cache 分布式缓存 -- 技术笔记
 
 > 本机器路径: `$HOME/github/swifty.js/packages/cache`
