@@ -645,7 +645,45 @@ absent(up{job="svc"})                                  # 存活检测
 
 ### Q35: Prometheus 的服务发现机制是如何工作的?
 
-支持 static、kubernetes_sd、consul_sd、etcd_sd、dns_sd、file_sd. 通过 Relabeling 过滤、重写地址、添加标签.
+抓取目标不写死在配置里, 而是 SD 机制动态生成 target 列表, 每个 scrape_interval 重新评估:
+
+```
+scrape_config (job)
+  -> SD 机制 生成候选项 (每个带 __meta_* 标签)
+  -> relabel_configs 过滤/重写 (丢弃不满足条件的候选项)
+  -> 最终 target (__address__ = host:port)
+  -> 抓取后 metric_relabel_configs 再过滤指标
+```
+
+常见 SD 机制:
+
+| 机制          | 来源                              | 典型 __meta_ 标签                      |
+| ------------- | --------------------------------- | -------------------------------------- |
+| static       | 配置文件写死                      | 无                                     |
+| kubernetes_sd | kube-apiserver (Pod/Service/Node) | kubernetes_pod_name, pod_label_*, pod_ip |
+| consul_sd    | Consul catalog                    | consul_address, consul_tags            |
+| etcd_sd      | etcd keys                         | etcd_key                               |
+| dns_sd       | SRV/A 记录                        | dns_name                               |
+| file_sd      | JSON/YAML 文件 (可热更新)         | 自定义 labels                          |
+
+Relabeling 是 SD 的核心配套, 发生在抓取前:
+
+```yaml
+relabel_configs:
+  - action: keep                          # 只保留带注解的 Pod
+    source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+    regex: "true"
+  - action: replace                       # 用 Pod 注解覆盖抓取端口
+    source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+    regex: ([^:]+)(?::\d+)?;(\d+)
+    replacement: $1:$2
+    target_label: __address__
+  - action: labelmap                      # 把 meta 标签映射成业务标签
+    regex: __meta_kubernetes_pod_label_(.+)
+  - action: drop                          # 丢弃指标 (在 metric_relabel_configs 中)
+```
+
+与 Spring Cloud/Consul 这类"注册中心推送"的区别: Prometheus 是拉模型, SD 只是回答"该去哪里抓", 服务本身不感知监控; target 消失( Pod 删除) 后 instance 自动从 target 列表移除, up 指标随之消失, `absent(up{job=...})` 可用于"目标整个不见了"的告警.
 
 ### Q36: Prometheus 的告警规则和 Alertmanager 是如何协作的?
 

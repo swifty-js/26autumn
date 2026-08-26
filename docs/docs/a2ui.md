@@ -1,7 +1,7 @@
 # A2UI
 
-仓库路径: git@github.com:a2ui-project/a2ui.git
-本机器路径: $HOME/github/a2ui/packages/shadcn
+仓库路径: git@github.com:a2ui-project/a2ui.git (本机克隆位于 $HOME/Documents/a2ui)
+本机器路径: $HOME/github/a2ui/packages/shadcn (@swifty.js/a2ui monorepo, 本地 remote 为 git@github.com:hangtiancheng/a2ui.git)
 本机器文档库: $HOME/.swifty/docs
 
 ## 背景与动机
@@ -1542,7 +1542,7 @@ swifty-cli/apps/swifty-agent 是一个 AI OnCall 运维助手: 告警分析、�
 
 - Next.js 16 (App Router) + React 19 + TypeScript; 页面: app/page.tsx (主聊天) 、app/gallery/page.tsx (组件画廊)
 - Vercel AI SDK v7: streamText/generateText + tools + stopWhen, provider 为 @ai-sdk/openai 与 @ai-sdk/anthropic, 区分 thinkModel/quickModel
-- A2UI: @a2ui/web_core、@a2ui/react、@a2ui/markdown-it, 以及 "@swifty.js/a2ui-shadcn": "file:../../../a2ui/packages/shadcn" —— 本地 file 链接, 两个仓库协同演进
+- A2UI: @a2ui/web_core、@a2ui/react、@a2ui/markdown-it, 以及 "@swifty.js/a2ui-shadcn": "latest" (npm 依赖, 安装 0.0.1; 2026-08-24 之前为 file:../../../a2ui/packages/shadcn 本地链接) —— 两个仓库协同演进
 - 其他: Redis Stack 向量检索 (RAG) 、knex + mysql2、MCP SDK (日志工具) 、prom-client、Tailwind v4
 
 一个配套配置: reactStrictMode: false. 原因是 MessageProcessor 是有状态外部存储, StrictMode 的开发态双执行会重放已创建的 surface.
@@ -2037,7 +2037,7 @@ src/prompt/( ./prompt 导出) 把 A2UI Python agent SDK 的四种推理格式提
 
 - 框架: Next.js 16.2.9( App Router) + React 19.2.4 + TypeScript 6; 入口 app/layout.tsx、app/page.tsx( 主聊天界面) 、app/gallery/page.tsx( A2UI 组件画廊)
 - AI SDK: Vercel AI SDK v7( ai ^7.0.43) , streamText/generateText + tools + stopWhen: isStepCount( n) ; provider 为 @ai-sdk/openai 与 @ai-sdk/anthropic, lib/ai/models.ts 按 LLM_PROVIDER 切换, 区分 thinkModel/quickModel
-- A2UI 依赖: @a2ui/web_core ^0.10.6、@a2ui/react ^0.10.2、@a2ui/markdown-it, 以及 "@swifty.js/a2ui-shadcn": "file:../../../a2ui/packages/shadcn" ——本地 file 链接到上文调研的 shadcn 包, 两个仓库由此耦合
+- A2UI 依赖: @a2ui/web_core ^0.10.6、@a2ui/react ^0.10.2、@a2ui/markdown-it, 以及 "@swifty.js/a2ui-shadcn": "latest" (npm 安装 0.0.1; 调研时为 file:../../../a2ui/packages/shadcn 本地链接, 2026-08-24 起改为 npm 依赖) ——两个仓库由此耦合
 - 其他: Redis Stack 向量检索( RAG) 、knex+mysql2、MCP SDK( 日志工具) 、prom-client、Tailwind v4、streamdown
 
 目录约定( AGENTS.md) : app/( 路由+API) 、lib/( 服务端: lib/ai/{a2ui,pipelines,tools}、lib/redis) 、components/、hooks/.
@@ -2166,7 +2166,7 @@ prompt few-shot builder 覆盖三类运维界面:
 
 1. 它示范了不依赖 CopilotKit 的完整自建链路: prompt 注入( direct-json 模式) → 流式有状态过滤 → zod 校验 → 一次纠错重试 → 诚实降级, 每个环节都有明确失败语义.
 2. out-of-band action 管线( /api/a2ui_action + filterInPlaceMessages + 增量 processMessages) 是协议文档里没有现成答案、但真实应用必须解决的问题——surface 交互如何原地更新而不污染聊天流. 其防御性细节( 只允许 updateComponents/updateDataModel、只保留同一 surfaceId、防 "Surface already exists") 都是踩过坑后的经验.
-3. 通过 file: 链接直接依赖本地 a2ui/packages/shadcn, 说明这两个仓库是协同演进的: 协议库提供能力, 应用侧反哺真实场景需求.
+3. swifty-agent 通过 @swifty.js/a2ui-shadcn 依赖该组件库 (调研时为 file: 本地链接, 2026-08-24 起改为 npm latest 依赖), 说明这两个仓库是协同演进的: 协议库提供能力, 应用侧反哺真实场景需求.
 
 ### 4.4 需要注意的风险与坑
 

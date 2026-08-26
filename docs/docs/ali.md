@@ -405,7 +405,7 @@ api 模式要存: 接口地址、请求方式、轮询/刷新策略, 以及「�
 
 第六, 数据获取、补全与局部刷新. 接口数据走 fetch + 缓存 (SWR 思路), 筛选切换只更新 chartData/chartVars 并触发组件内 resetData/reset, 不销毁重建实例; 时序接口缺点位时用 chart-view 的 dimCompletion 按 xAxis.field 补行, 多系列缺失字段按行补齐, 保证引擎取值不出现空洞.
 
-第七, 参考 a2ui 的「组装 prompt + ReAct 工具调用 + 校验回喂」循环, 让 LLM 自己拉接口数据辅助生成 (详见 docs/a2ui.md 阶段 6-8). a2ui v0.9 是 prompt-first 设计: server 收到请求后把 JSON Schema 直接嵌入 system prompt 让 LLM 仿写, 不依赖 structured output, 生成后做校验, 失败把 VALIDATION_FAILED 错误回喂 LLM 重试. 这套循环可以平移到动态数据的图表生成:
+第七, 参考 a2ui 的「组装 prompt + ReAct 工具调用 + 校验回喂」循环, 让 LLM 自己拉接口数据辅助生成 (详见同目录的 a2ui.md 阶段 6-8). a2ui v0.9 是 prompt-first 设计: server 收到请求后把 JSON Schema 直接嵌入 system prompt 让 LLM 仿写, 不依赖 structured output, 生成后做校验, 失败把 VALIDATION_FAILED 错误回喂 LLM 重试. 这套循环可以平移到动态数据的图表生成:
 
 - Server 组装 prompt: 把 chartpark 配置 schema (coord/graphs/tips/legend 的全量字段表与 data/variables/options 三段契约) 嵌入 system prompt, 相当于把 generate-chartpark-config 技能的字段权威表搬进 prompt, 约束 LLM 不得编造字段
 - ReAct 循环先查数据再生成配置: LLM 根据用户的还原请求, 第一轮先 tool_use 调用相关数据接口, 拿到接口返回的 JSON 响应; 这样 LLM 同时了解了响应数据的真实 schema (字段名、类型、嵌套结构) 和一组具体数值, 第二轮再生成 chartpark 配置 JSON. graphs[].field / coord.xAxis.field 直接映射接口真实字段, 天然满足第五点的字段闭环; 具体数值还能帮 LLM 判断字段语义 (x 轴是不是日期、y 轴是不是数值、有几个系列), 避免凭空猜字段

@@ -2,16 +2,16 @@
 protected: true
 ---
 
-# swifty_cache 分布式缓存 -- 高级后端工程师面试 QA
+# swifty-cache 分布式缓存 -- 高级后端工程师面试 QA
 
 > 本机器路径: `$HOME/github/swifty.js/packages/cache`
 > 基于 npm 包 `@swifty.js/cache` (Node.js / TypeScript 实现, 与 Go 版 `swifty.go/swifty_cache` 对齐) 源码整理, 覆盖架构设计、存储引擎、一致性哈希、服务发现、并发模型、容错机制等核心主题.
 
 ## 1. 项目整体架构
 
-Q: 请介绍 swifty_cache 的整体架构设计.
+Q: 请介绍 swifty-cache 的整体架构设计.
 
-swifty_cache 是一个仿 Google groupcache 的分布式缓存框架 (TypeScript 实现, 依赖 `@grpc/grpc-js` 与 `etcd3`), 核心设计目标是在无中心节点的前提下, 通过一致性哈希将 key 映射到固定节点, 实现缓存的分片存储与对等访问.
+swifty-cache 是一个仿 Google groupcache 的分布式缓存框架 (TypeScript 实现, 依赖 `@grpc/grpc-js` 与 `etcd3`), 核心设计目标是在无中心节点的前提下, 通过一致性哈希将 key 映射到固定节点, 实现缓存的分片存储与对等访问.
 
 整体架构分为四层:
 
@@ -247,7 +247,7 @@ class SingleFlightGroup {
 
 与 x/sync/singleflight 的差异:
 
-| 维度        | swifty_cache (TS)        | x/sync/singleflight (Go)  |
+| 维度        | swifty-cache (TS)        | x/sync/singleflight (Go)  |
 | ----------- | ------------------------ | ------------------------- |
 | 底层结构    | `Map` + 共享 Promise     | `sync.Mutex` + `map` + WG |
 | 等待机制    | await 同一个 Promise     | `wg.Wait()`               |
@@ -385,7 +385,7 @@ Q: 如何防止节点间的请求无限转发?
 解决方案: 通过 gRPC metadata 标记 + 环归属判定双重保证.
 
 ```ts
-// client.ts: ClientPicker 创建 Client 时固定 peerRequest: true
+// client-picker.ts:121-124 创建 Client 时固定 peerRequest: true; client.ts:55-61 将标记写入 gRPC metadata
 private callMetadata(): grpc.Metadata {
   const metadata = new grpc.Metadata();
   if (this.peerRequest) metadata.set("x-peer-request", "true");
@@ -531,14 +531,14 @@ Q: 项目中有哪些值得学习的性能优化?
 
 ## 16. 与 groupcache 的对比
 
-Q: swifty_cache 相比 Google groupcache 有哪些扩展?
+Q: swifty-cache 相比 Google groupcache 有哪些扩展?
 
-| 维度         | groupcache               | swifty_cache (TS)              |
+| 维度         | groupcache               | swifty-cache (TS)              |
 | ------------ | ------------------------ | ------------------------------ |
 | 存储引擎     | 单层 LRU + sync.Mutex    | 分桶双层 LRU, 字节预算淘汰     |
 | 服务发现     | 静态 peer 列表           | etcd 动态发现 + Watch          |
 | 写操作       | 不支持 (纯 read-through) | 支持 set/delete + 异步写传播   |
-| 传输层       | HTTP (可选 gRPC)         | 纯 gRPC (@grpc/grpc-js)        |
+| 传输层       | HTTP                     | 纯 gRPC (@grpc/grpc-js)        |
 | TTL          | 无内建 TTL               | 内建 TTL + 懒清理 + 定时清理   |
 | 负载均衡     | 静态哈希                 | 可选 auto-rebalance 动态副本数 |
 | 并发模型     | 锁 + goroutine           | 单线程事件循环 + Promise       |

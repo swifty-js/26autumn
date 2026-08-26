@@ -26,7 +26,7 @@
 
 ## 1. 项目概览与入口
 
-TypeScript 编写( strict + `exactOptionalPropertyTypes`) , ESM/CJS 双产物( rollup, `preserveModules`) , zod 做运行时校验, vitest + jsdom 测试. 仓库另有 tsup.config.ts 与 `build:tsup` 脚本提供备选构建( package.json:74) .
+TypeScript 编写( strict + `exactOptionalPropertyTypes`) , ESM/CJS 双产物( rollup, `preserveModules`) , zod 做运行时校验, vitest + jsdom 测试. npm 包名 `@swifty.js/sentry`, 当前版本 0.0.5( package.json:2-3) . 仓库另有 tsup.config.ts 与 `build:tsup` 脚本提供备选构建( package.json:74) .
 
 package.json 定义 6 个公共入口( package.json:32-63 ↔ rollup.config.ts:58-65) :
 
@@ -79,7 +79,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 | fetch                           | 装饰 `globalThis.fetch`: `res.clone()` 读响应, catch 分支置 `statusCode = 0` 并 rethrow( 不吞业务异常)                         | decorate-http.ts:87-132 |
 | history                         | 装饰 `history.pushState`/`replaceState` + 覆写 `globalThis.onpopstate`( 链式调用旧 handler) , `from !== to` 才发布             | decorate-route.ts:38-88 |
 | click                           | `document.addEventListener("click")`, 经 `throttle(pub, clickThrottleDelay)` 节流( 默认 0, constants/index.ts:68)              | decorates.ts:64-77      |
-| error                           | `addEventListener("error", listener, true)` **捕获阶段**( 这是能捕到资源加载错误的关键) + 装饰 `console.error`( 带防重入标志)  | decorates.ts:89-121     |
+| error                           | `addEventListener("error", listener, true)` 捕获阶段( 这是能捕到资源加载错误的关键) + 装饰 `console.error`( 带防重入标志)  | decorates.ts:89-121     |
 | unhandledrejection / hashchange | 普通 window 监听                                                                                                               | decorates.ts:123-149    |
 | 白屏                            | `pubWhiteScreen` 装配时立即发布一次以启动采样                                                                                  | decorates.ts:151-158    |
 
@@ -98,7 +98,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 
 所有事件的公共骨架 `IReportPayload`( types/common.ts:54-64) : `id`( randomUUID) 、`deviceId`/`sessionId`( localStorage/sessionStorage 持久化, utils/session.ts) 、`type: EventType`、`name`、`time`/`timestamp`、`message`、`status: Status`. 由 `getBaseData()` 统一生成( utils/get-base-data.ts) .
 
-上报最终形态 `IReportData`( types/common.ts:173-181) = 公共骨架 + `url`/`userId`/`projectId`/`sdkVersion` + `breadcrumbs?`( 仅错误类事件附带, 见 §5.4) + `deviceInfo` + `payload`( 原始事件体) . 组装收口在 `payloadToReportData`( reporter/report-data.ts) .
+上报最终形态 `IReportData`( types/common.ts:173-181) = 公共骨架 + `url`/`userId`/`projectId`/`sdkVersion` + `breadcrumbs?`( 仅错误类事件附带, 见 §5.3) + `deviceInfo` + `payload`( 原始事件体) . 组装收口在 `payloadToReportData`( reporter/report-data.ts) .
 
 ## 4. 错误捕获体系
 
@@ -109,7 +109,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 捕获阶段的 `error` 事件统一进入 `handleError`( handle-error.ts:45-60) , 按序判型:
 
 1. `isErrorEvent`( is-type.ts:34-36) → 代码错误管线( §4.4) ;
-2. `isIExtendedErrorEvent`( is-type.ts:53-59) : `err instanceof Event && type === "error"` 且 target 经 zod union 校验为「有 `localName` 且 `src` 非空 或 `href` 非空」→ **资源加载错误**, 上报 `IResourceError = IReportPayload + {src, href}`( types/common.ts:76-79; handle-error.ts:62-89) , 并推 `Resource` 面包屑;
+2. `isIExtendedErrorEvent`( is-type.ts:53-59) : `err instanceof Event && type === "error"` 且 target 经 zod union 校验为「有 `localName` 且 `src` 非空 或 `href` 非空」→ 资源加载错误, 上报 `IResourceError = IReportPayload + {src, href}`( types/common.ts:76-79; handle-error.ts:62-89) , 并推 `Resource` 面包屑;
 3. `Error` 实例 → 取 name/message/stack 上报( handle-error.ts:91-101) ;
 4. 其他未知值 → JSON 序列化后按 Unknown Error 上报( handle-error.ts:103-113) .
 
@@ -128,9 +128,9 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 
 ### 4.4 错误去重( LRU) 与批量合并
 
-- **指纹**: `base64v2("Error-{message}-{filename}-{line}-{column}")`( handle-code-error.ts:103-105) ; `base64v2` 为 TextEncoder → btoa → URL-safe 去 padding( utils/base64.ts:28-36) . line/column 取 `ErrorEvent.lineno/colno`.
-- **LRU 去重**: `sentry.codeErrors` 是容量 1000 的 `BoundedSet`( utils/sentry.ts:106) . `add` 时若已存在先 `map.delete` 再 `map.set`——利用 `Map` 的插入序实现 touch( 访问即移到队尾) ; 超容删除 `map.keys().next().value` 即最旧项( utils/data-structures.ts:140-149) . `repeatCodeError = true` 可关闭去重放行重复错误. 去重不止代码错误: resource/runtime/unknown 错误同样以各自指纹走 codeErrors 去重( handle-error.ts:84-88、121-125) .
-- **批量合并**: BatchErrorManager 以 2s 防抖窗口聚合( 每次 push 重置 setTimeout, handle-code-error.ts:40-44) , flush 时按 `type-name-message` 分组: 组内 ≥5 条合并为一条 `IBatchErrorData {batchError: true, batchErrorLength, batchErrorLastHappenTime}`, 不足 5 条逐条上报( handle-code-error.ts:54-82) ——防止渲染循环内的同一错误刷爆上报通道.
+- 指纹: `base64v2("Error-{message}-{filename}-{line}-{column}")`( handle-code-error.ts:103-105) ; `base64v2` 为 TextEncoder → btoa → URL-safe 去 padding( utils/base64.ts:28-36) . line/column 取 `ErrorEvent.lineno/colno`.
+- LRU 去重: `sentry.codeErrors` 是容量 1000 的 `BoundedSet`( utils/sentry.ts:106) . `add` 时若已存在先 `map.delete` 再 `map.set`——利用 `Map` 的插入序实现 touch( 访问即移到队尾) ; 超容删除 `map.keys().next().value` 即最旧项( utils/data-structures.ts:140-149) . `repeatCodeError = true` 可关闭去重放行重复错误. 去重不止代码错误: resource/runtime/unknown 错误同样以各自指纹走 codeErrors 去重( handle-error.ts:84-88、121-125) .
+- 批量合并: BatchErrorManager 以 2s 防抖窗口聚合( 每次 push 重置 setTimeout, handle-code-error.ts:40-44) , flush 时按 `type-name-message` 分组: 组内 ≥5 条合并为一条 `IBatchErrorData {batchError: true, batchErrorLength, batchErrorLastHappenTime}`, 不足 5 条逐条上报( handle-code-error.ts:54-82) ——防止渲染循环内的同一错误刷爆上报通道.
 
 ## 5. 用户行为追踪
 
@@ -139,7 +139,7 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 无需手写埋点代码, 在 DOM 上声明 `swifty-sentry-*` 属性即可( utils/click-data.ts) :
 
 - 属性协议: `swifty-sentry-el`( 圈定埋点容器) 、`swifty-sentry-ev`( 事件 id) 、`swifty-sentry-msg`( 人读文案) ; `view/msg/ev` 为保留键, 其余 `swifty-sentry-*` 属性全部收进 `params`( click-data.ts:25-26, 106-123) .
-- 事件路径用 `event.composedPath()` 过滤 HTMLElement( Shadow DOM 友好; 为空回退 parentElement 链回溯) , 沿路径找**第一个**带上述任一属性的元素为埋点目标( click-data.ts:52-54, 133-145) .
+- 事件路径用 `event.composedPath()` 过滤 HTMLElement( Shadow DOM 友好; 为空回退 parentElement 链回溯) , 沿路径找第一个带上述任一属性的元素为埋点目标( click-data.ts:52-54, 125-131) .
 - 事件 id 取值优先级: `swifty-sentry-ev` → `title` → `swifty-sentry-el` → tagName( click-data.ts:90-104) .
 - `elementPath` 由 `dom2str` 生成: 对齐官方 Sentry `htmlTreeAsString` 策略——就近 5 层、每层 `tag#id.class`、`>` 连接、128 字符预算内整段丢弃不截断半个选择器( utils/dom2str.ts) .
 - 节流由 `clickThrottleDelay` 控制( 默认 0 即不节流, decorates.ts:64-77) .
@@ -156,16 +156,16 @@ src/core/setup.ts:42-123 依据 `sentry.options.enableXxx` 过滤 8 个订阅项
 
 - 存储: `Breadcrumb` 单例继承定容 `MinHeap<IBreadcrumbItem>`( 按 timestamp 的小顶堆, 满时仅当新项不早于堆顶才替换, 天然保留"最新 N 条", core/breadcrumb.ts、utils/data-structures.ts) . 容量由 `maxBreadcrumbs`( 默认 30) 在 `init` 时应用; `onBeforePushBreadcrumb` 钩子可在入堆前改写.
 - 写入: Click / Route(×2) / Http / CodeError(×2) / Resource 共 7 处 handler 写入, `userAction` 由 `event2breadcrumb` 映射为 `BreadcrumbType`.
-- 读取: `payloadToReportData` 仅对**错误类事件**( Error/UnhandledRejection/Resource/Vue/React/OtherFrameworks) 附加 `breadcrumbs: breadcrumb.dump()`( 时间升序快照, reporter/report-data.ts) ——面包屑语义是"通往故障的轨迹", 不给批量上报的普通事件增重.
+- 读取: `payloadToReportData` 仅对错误类事件( Error/UnhandledRejection/Resource/Vue/React/OtherFrameworks) 附加 `breadcrumbs: breadcrumb.dump()`( 时间升序快照, reporter/report-data.ts) ——面包屑语义是"通往故障的轨迹", 不给批量上报的普通事件增重.
 
 ## 6. 白屏检测: 关键点采样
 
 src/core/white-screen.ts 的算法( load 后启动) :
 
-1. **调度**: `setInterval(1000ms)`( WHITE_SCREEN_SAMPLE_INTERVAL, constants/index.ts:35) , 每个 tick 内优先用 `requestIdleCallback` 执行采样, 避免阻塞主线程; 采样上限 10 次( MAX_WHITE_SCREEN_SAMPLE_COUNT) , 定时器句柄存 `sentry.whiteScreenTimer`( white-screen.ts:131-154) .
-2. **关键点**: 十字形 18 个采样点——横排 `(innerWidth*i/10, innerHeight/2)`、竖排 `(innerWidth/2, innerHeight*i/10)`, i = 1..9; 逐点 `document.elementFromPoint`( white-screen.ts:70-79) .
-3. **空点判定**: 采样点无元素, 或命中"根容器"——`getCssSelectors(elem)` 返回 `[#id, .class 串, tag]` 三元组( 第二元素在 class 选择器后还拼接除 id/class/style 外的 `[attr="value"]` 属性选择器, get-css-selectors.ts:34-39) , 任一命中 `rootCssSelectors`( 默认 `["html","body","#app","#root"]`) 即视为根( white-screen.ts:40-55、utils/get-css-selectors.ts) . `emptyPoints >= 18`( 全部为空) 判定白屏( white-screen.ts:81) .
-4. **两种模式**( white-screen.ts:84-107) :
+1. 调度: `setInterval(1000ms)`( WHITE_SCREEN_SAMPLE_INTERVAL, constants/index.ts:35) , 每个 tick 内优先用 `requestIdleCallback` 执行采样, 避免阻塞主线程; 采样上限 10 次( MAX_WHITE_SCREEN_SAMPLE_COUNT) , 定时器句柄存 `sentry.whiteScreenTimer`( white-screen.ts:131-154) .
+2. 关键点: 十字形 18 个采样点——横排 `(innerWidth*i/10, innerHeight/2)`、竖排 `(innerWidth/2, innerHeight*i/10)`, i = 1..9; 逐点 `document.elementFromPoint`( white-screen.ts:70-79) .
+3. 空点判定: 采样点无元素, 或命中"根容器"——`getCssSelectors(elem)` 返回 `[#id, .class 串, tag]` 三元组( 第二元素在 class 选择器后还拼接除 id/class/style 外的 `[attr="value"]` 属性选择器, get-css-selectors.ts:34-39) , 任一命中 `rootCssSelectors`( 默认 `["html","body","#app","#root"]`) 即视为根( white-screen.ts:40-55、utils/get-css-selectors.ts) . `emptyPoints >= 18`( 全部为空) 判定白屏( white-screen.ts:81) .
+4. 两种模式( white-screen.ts:84-107) :
    - 无骨架屏( `hasSkeleton: false`) : 判白即上报, 否则停止采样;
    - 有骨架屏: 首次采样记录 `initialSelectors`, 后续每次重收 `currentSelectors`, 两集合排序拼接后仍相等( 页面长时间没有从骨架变成真实内容) → 上报白屏; 出现差异 → 判定渲染正常, 停止采样.
 5. 上报消息带 `sample count N`, 随后 stopSample( white-screen.ts:110-129) .
@@ -202,10 +202,10 @@ load 后上报 NavigationTiming( navigation-timing.ts:61-104, DNS/TCP/TTFB/DomRe
 
 `ScreenRecordPlugin`( src/plugins/screen-record/) 设计为"常态录制、事故触发上报":
 
-1. **录制**: `Promise.all([import("@rrweb/record"), import("pako")])` 双动态导入( 首屏零成本, recorder.ts:64-66) ; `record({recordCanvas: true, checkoutEveryNms: screenRecordDurationMs})`( 默认 3000ms, :94-95) ——rrweb 每 3s 重建全量快照( checkout) , 保证窗口内事件可独立重放.
-2. **滚动窗口**: 每个 emit 事件先经 `recordEventSchema = z.looseObject({timestamp: z.number()})` 校验( :32-34, 71-74) , `getRollingWindow` 只保留 `timestamp >= now - screenRecordDurationMs` 的事件( :40-46) , 内存占用恒定.
-3. **触发**: reporter 发送预检中, 若事件 `type ∈ screenRecordEventTypes`( 默认 Error/Xhr/Fetch/Resource/UnhandledRejection, constants/index.ts:59-65) 则置 `sentry.shouldScreenRecord = true`( reporter/send-preflight.ts:36-38) ; 下一个 rrweb emit 时机把窗口打包上报并复位标志( recorder.ts:79-92) ——即"故障发生 → 自动带出故障前 3 秒的现场录像".
-4. **压缩**: `zip = pako.gzip(JSON.stringify(events)) → base64`( rrweb 事件 JSON 冗余度高, gzip 收益显著, :104-109) ; 消费侧用包导出的 `unzipScreenRecord`( `ungzip + JSON.parse`, :111-117) 还原后交给 rrweb-player 重放.
+1. 录制: `Promise.all([import("@rrweb/record"), import("pako")])` 双动态导入( 首屏零成本, recorder.ts:64-66) ; `record({recordCanvas: true, checkoutEveryNms: screenRecordDurationMs})`( 默认 3000ms, :94-95) ——rrweb 每 3s 重建全量快照( checkout) , 保证窗口内事件可独立重放.
+2. 滚动窗口: 每个 emit 事件先经 `recordEventSchema = z.looseObject({timestamp: z.number()})` 校验( :32-34, 71-74) , `getRollingWindow` 只保留 `timestamp >= now - screenRecordDurationMs` 的事件( :40-46) , 内存占用恒定.
+3. 触发: reporter 发送预检中, 若事件 `type ∈ screenRecordEventTypes`( 默认 Error/Xhr/Fetch/Resource/UnhandledRejection, constants/index.ts:59-65) 则置 `sentry.shouldScreenRecord = true`( reporter/send-preflight.ts:36-38) ; 下一个 rrweb emit 时机把窗口打包上报并复位标志( recorder.ts:79-92) ——即"故障发生 → 自动带出故障前 3 秒的现场录像".
+4. 压缩: `zip = pako.gzip(JSON.stringify(events)) → base64`( rrweb 事件 JSON 冗余度高, gzip 收益显著, :104-109) ; 消费侧用包导出的 `unzipScreenRecord`( `ungzip + JSON.parse`, :111-117) 还原后交给 rrweb-player 重放.
 
 ## 9. 数据上报管道
 
@@ -213,10 +213,10 @@ load 后上报 NavigationTiming( navigation-timing.ts:61-104, DNS/TCP/TTFB/DomRe
 
 `reporter.send(payload)`( reporter/index.ts:162-181) 链路:
 
-1. **预检**( send-preflight.ts:26-40) : dsn 为空取消; `Math.random() > tracesSampleRate` 采样丢弃( 默认 1 全量) ; 顺带判定录屏触发( §8) .
-2. **单条钩子** `onBeforeReportData`: 返回 `false` 丢弃该条( report-data.ts:64-79) ; 随后组装 `IReportData` 入队.
-3. **批量策略**: 队列达 `cacheMaxLength`( 默认 10) 或调用方指定 `immediate` 时立即 flush; 否则 `setTimeout(cacheWaitingTime)`( 默认 2000ms, unref) 延迟合批( flush-scheduler.ts:25-34) . 队列溢出统一 `slice(-maxQueueLength)`( 默认 200) 保留最新( index.ts:80, 105, 119, 171) .
-4. **批量钩子** `beforePushEventList` 在出队后、发送前处理整批( batch.ts:27-41) ; 发送成功回调 `afterSendData`( index.ts:123) .
+1. 预检( send-preflight.ts:26-40) : dsn 为空取消; `Math.random() > tracesSampleRate` 采样丢弃( 默认 1 全量) ; 顺带判定录屏触发( §8) .
+2. 组装 `IReportData`( `payloadToReportData`, report-data.ts:41-62) 后过单条钩子 `onBeforeReportData`: 返回 `false` 丢弃该条( report-data.ts:64-79) , 通过后入队.
+3. 批量策略: 队列达 `cacheMaxLength`( 默认 10) 或调用方指定 `immediate` 时立即 flush; 否则 `setTimeout(cacheWaitingTime)`( 默认 2000ms, unref) 延迟合批( flush-scheduler.ts:25-34) . 队列溢出统一 `slice(-maxQueueLength)`( 默认 200) 保留最新( index.ts:80, 105, 119, 171) .
+4. 批量钩子 `beforePushEventList` 在出队后、发送前处理整批( batch.ts:27-41) ; 发送成功回调 `afterSendData`( index.ts:123) .
 
 ### 9.2 三级降级传输
 
@@ -232,9 +232,9 @@ sendBeacon 与带 keepalive 的 fetch( body ≤60KB) 均在页面卸载时仍能
 
 ### 9.3 离线缓存与故障自愈
 
-- **离线**: 发送时处于离线, 或发送失败, 批次写入 localStorage( key = `offlineCacheKey`, 默认 `swifty_sentry_offline_cache`; 读写均截断 `maxQueueLength`, offline-cache.ts:27-51) . 回读用 zod `reportDataListSchema.safeParse` 校验, 校验失败仅返回 []( 不清 key, offline-cache.ts:32-33) , 仅 JSON.parse 异常分支才清 key 防止反复失败( offline-cache.ts:36-38) .
-- **网络恢复**: 监听 `window 'online'` 事件, 自动 load 缓存并 flush 上报队列( network-listener.ts:31-43) .
-- **服务端故障**: 响应非 OK( 任意 `!res.ok`, 含 4xx) 或 fetch 异常时进入恢复模式——置离线标志, 每 `retryIntervalMilliseconds`( 默认 60s) 向 dsn 发 HEAD 探活, 恢复后自动回灌缓存( transports.ts:55-60、server-recovery.ts:33-62) .
+- 离线: 发送时处于离线, 或发送失败, 批次写入 localStorage( key = `offlineCacheKey`, 默认 `swifty_sentry_offline_cache`; 读写均截断 `maxQueueLength`, offline-cache.ts:27-51) . 回读用 zod `reportDataListSchema.safeParse` 校验, 校验失败仅返回 []( 不清 key, offline-cache.ts:32-33) , 仅 JSON.parse 异常分支才清 key 防止反复失败( offline-cache.ts:36-38) .
+- 网络恢复: 监听 `window 'online'` 事件, 自动 load 缓存并 flush 上报队列( network-listener.ts:31-43) .
+- 服务端故障: 响应非 OK( 任意 `!res.ok`, 含 4xx) 或 fetch 异常时进入恢复模式——置离线标志, 每 `retryIntervalMilliseconds`( 默认 60s) 向 dsn 发 HEAD 探活, 恢复后自动回灌缓存( transports.ts:55-60、server-recovery.ts:33-62) .
 - `sendLocal()` 公开 API 可手动触发离线缓存冲刷( core/api.ts:109-111) .
 
 ## 10. 框架集成: React 16+ / Vue 3+
@@ -254,9 +254,9 @@ sendBeacon 与带 keepalive 的 fetch( body ≤60KB) 均在页面卸载时仍能
 
 ## 11. 附录: 曝光插件、身份指纹、dev sourcemap 插件
 
-- **曝光插件**( plugins/exposure/index.ts) : 命令式 `observe({target, threshold?, params?})`; `ioMap: Map<threshold, IntersectionObserver>` 按阈值复用观察者( 默认 0.5) , `targetMap` 记录 observeTime/showTime; 进入视口记 showTime, **离开视口才上报曝光时长**( :57-97) .
-- **身份体系**( core/identity.ts:26-88) : `enableFingerprint: true`( 默认关) 时懒加载 `@fingerprintjs/fingerprintjs` 生成 visitorId, 落 localStorage 作稳定匿名 id; `setUserId/setVisitorId/getIdentity` 读写 options; `getIPs` 基于 RTCPeerConnection ICE candidate( core/ip.ts:32) .
-- **dev sourcemap 插件**( src/vite.ts:55-141、src/webpack.ts:69-138) : 在 dev server 挂中间件拦截 dsn 路径的 POST 上报, 用构建器内存中的 sourcemap( vite 模块图 / webpack 产物 `.map`) 经 `enrichReportData` 还原压缩堆栈到源码位置( 含代码片段) , 追加写 `logs/sentry_<时间戳>.jsonl` 并响应 `{code: 0}`——本地开发即可闭环验证"报错 → 还原 → 落盘".
+- 曝光插件( plugins/exposure/index.ts) : 命令式 `observe({target, threshold?, params?})`; `ioMap: Map<threshold, IntersectionObserver>` 按阈值复用观察者( 默认 0.5) , `targetMap` 记录 observeTime/showTime; 进入视口记 showTime, 离开视口才上报曝光时长( :57-97) .
+- 身份体系( core/identity.ts:26-88) : `enableFingerprint: true`( 默认关) 时懒加载 `@fingerprintjs/fingerprintjs` 生成 visitorId, 落 localStorage 作稳定匿名 id; `setUserId/setVisitorId/getIdentity` 读写 options; `getIPs` 基于 RTCPeerConnection ICE candidate( core/ip.ts:32) .
+- dev sourcemap 插件( src/vite.ts:55-156、src/webpack.ts:69-98 与 155-204) : 在 dev server 挂中间件拦截 dsn 路径的 POST 上报, 用构建器内存中的 sourcemap( vite 模块图 / webpack 产物 `.map`) 经 `enrichReportData` 还原压缩堆栈到源码位置( 含代码片段) , 追加写 `logs/sentry_<时间戳>.jsonl` 并响应 `{code: 0}`——本地开发即可闭环验证"报错 → 还原 → 落盘".
 
 ---
 

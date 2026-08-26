@@ -1,21 +1,21 @@
 # CodeGraph 深度解析: 给 AI 编码 Agent 的本地代码知识图谱
 
-仓库路径: git@github.com:colbymchenry/codegraph.git
+仓库路径: git@github.com:colbymchenry/codegraph.git (本机克隆位于 $HOME/Documents/codegraph)
 
-## 一、项目快照( 截至 2026-08-12)
+## 一、项目快照( 截至 2026-08-26)
 
 CodeGraph( colbymchenry/codegraph) 是 2026 年 1 月 18 日由独立开发者 Colby McHenry 创建的开源项目, 他在 Medium 个人介绍中自我描述为"15+ 年经验的自学软件工程师". 项目定位是给 AI 编码 agent 做"前置索引"的本地 MCP 服务器: 预先把代码库的符号、调用边、依赖关系构建成一张知识图谱, 让 agent 一次查询拿到精确上下文, 而不是用 grep + Read 逐文件爬. 创建后 4 个月登上 GitHub Trending 前列( 5 月 23 日单日新增 2,434 star) .
 
-仓库当前状态( GitHub API, 2026-08-12) :
+仓库当前状态( GitHub API, 2026-08-26) :
 
 | 指标         | 数值                                                                |
 | ------------ | ------------------------------------------------------------------- |
-| stars        | 66,003                                                              |
-| forks        | 4,156                                                               |
+| stars        | 68,137                                                              |
+| forks        | 4,336                                                               |
 | contributors | 42                                                                  |
-| open issues  | 409                                                                 |
+| open issues  | 448                                                                 |
 | 创建时间     | 2026-01-18                                                          |
-| 最近推送     | 2026-08-08                                                          |
+| 最近推送     | 2026-08-25                                                          |
 | 当前版本     | v1.5.0( 2026-07-21 发布, "The Rust engine release")                 |
 | License      | MIT                                                                 |
 | npm 包       | @colbymchenry/codegraph                                             |
@@ -26,7 +26,7 @@ CodeGraph( colbymchenry/codegraph) 是 2026 年 1 月 18 日由独立开发者 C
 
 已适配的 agent( README, 共 9 个产品、11 个安装目标) : Claude Code、Cursor、Codex CLI、opencode、Hermes Agent、Gemini CLI、Antigravity IDE、Kiro、GitHub Copilot( VS Code / CLI / JetBrains 三个变体) .
 
-从 5 月底( 约 29.1k stars、v0.9.4) 到 8 月中( 66k stars、v1.5.0) , 两个半月里项目完成了三次质变: 6 月 12 日 1.0.0 引入遥测与 MCP 工具面收窄; 7 月 7 日 1.3.0 把语言数从 22 扩到 30+( 含 COBOL、VB.NET、ArkTS、CUDA、Solidity、Terraform) ; 7 月 21 日 1.5.0 上线 Rust 原生解析内核. 发布节奏极快: CHANGELOG 共 31 个版本块, 5 月中旬以来平均不到 3 天一个版本.
+从 5 月底( 约 29.1k stars、v0.9.4) 到 8 月下旬( 68k stars、v1.5.0) , 近三个月里项目完成了三次质变: 6 月 12 日 1.0.0 引入遥测与 MCP 工具面收窄; 7 月 7 日 1.3.0 把语言数从 22 扩到 30+( 含 COBOL、VB.NET、ArkTS、CUDA、Solidity、Terraform) ; 7 月 21 日 1.5.0 上线 Rust 原生解析内核. 发布节奏极快: CHANGELOG 共 31 个版本块, 5 月中旬以来平均不到 3 天一个版本.
 
 ## 二、它到底要解决什么问题
 
@@ -36,7 +36,7 @@ CodeGraph 的核心立论是: 这种探索本质上是把"静态结构信息"用
 
 ## 三、架构总览
 
-代码分层管线( CLAUDE.md 第 7 行起) :
+代码分层管线( CLAUDE.md 第 39-45 行) :
 
 ```text
 ExtractionOrchestrator( 抽取编排)
@@ -59,7 +59,7 @@ src/ 顶层模块职责( 均经源码核实) :
 | src/search/       | 查询解析( kind:/lang:/path:/name: 字段过滤) 、停用词/词干/驼峰拆词                                                                                                                                                                                                           |
 | src/installer/    | 11 个 agent 安装目标( targets/registry.ts) , MCP 配置写入                                                                                                                                                                                                                    |
 | src/telemetry/    | 匿名遥测客户端( 546 行)                                                                                                                                                                                                                                                      |
-| src/bin/          | CLI 入口( commander, 2483 行)                                                                                                                                                                                                                                                |
+| src/bin/          | CLI 入口( commander, 2501 行)                                                                                                                                                                                                                                                |
 | codegraph-kernel/ | Rust 原生解析内核( 独立 Cargo crate, 编译为 .node 动态库)                                                                                                                                                                                                                    |
 
 ## 四、核心技术深挖
@@ -194,7 +194,7 @@ src/mcp/tools.ts 当前定义 8 个工具( 早期是 10 个, codegraph_context �
 | codegraph_files                       | 索引内文件树, 支持 glob 过滤                                                             |
 | codegraph_status                      | 索引健康度                                                                               |
 
-关键设计: 默认只暴露 codegraph_explore 一个工具( DEFAULT_MCP_TOOLS, tools.ts 第 1286 行) , 其余 7 个可用环境变量 CODEGRAPH_MCP_TOOLS 重新启用. 所有工具声明 readOnlyHint 与 idempotentHint( 为 Cursor Ask 模式, issue #1018) , 全部支持 projectPath 参数实现 monorepo 多项目查询( issue #964) .
+关键设计: 默认只暴露 codegraph_explore 一个工具( DEFAULT_MCP_TOOLS, tools.ts 第 1303 行) , 其余 7 个可用环境变量 CODEGRAPH_MCP_TOOLS 重新启用. 所有工具声明 readOnlyHint 与 idempotentHint( 为 Cursor Ask 模式, issue #1018) , 全部支持 projectPath 参数实现 monorepo 多项目查询( issue #964) .
 
 CLAUDE.md 里的 MCP 设计哲学是整个项目最有借鉴价值的部分, 摘录要点:
 
@@ -485,13 +485,14 @@ cg.watch();
 
 给企业决策者的三句话总结: 第一, CodeGraph 证明了 agent 的探索成本可以用确定性预计算大幅压缩( 最新基准 -44% 成本/-88% 工具调用) , 这是 agent 规模化账单上最直接的杠杆; 第二, 它的本地架构 + SLSA 供应链签名 + 可审计遥测, 恰好落在"受监管行业也能过安全评审"的窄窗口里; 第三, 它目前是单仓工具而非平台, 企业落地姿态应当是"团队级自助试点 + 环境变量基线预置", 跨仓治理等待其托管平台( getcodegraph.com) 成熟或另选中心化方案.
 
-无论是否采用, 这个项目 7 个月 66k stars 的真正原因值得记住: 它没有发明新算法, 而是把"静态可推导的代码结构"从 LLM 的工作记忆里搬了出来——先吃掉 AST 能给的一切, 再谈语义层. CLAUDE.md 里那句判据——"你的回答是否好到让 agent 不去读文件"——值得所有做 agent 基础设施的团队记住.
+无论是否采用, 这个项目 7 个月 68k stars 的真正原因值得记住: 它没有发明新算法, 而是把"静态可推导的代码结构"从 LLM 的工作记忆里搬了出来——先吃掉 AST 能给的一切, 再谈语义层. CLAUDE.md 里那句判据——"你的回答是否好到让 agent 不去读文件"——值得所有做 agent 基础设施的团队记住.
 
 ## 附录: 调研方法与来源
 
 本文更新基于以下一手材料( 调研日期 2026-08-12) :
 
-- 仓库克隆 colbymchenry/codegraph @ c6aaa20( main, 2026-08-08 推送) , 源码级阅读
+- 仓库克隆 colbymchenry/codegraph @ 44e1812( main, 2026-08-22 推送) , 源码级阅读
 - GitHub API / gh CLI: stars 66,003、forks 4,156、contributors 42、open issues 409、created 2026-01-18、release 列表( v0.9.5 至 v1.5.0)
+- 2026-08-26 复核( GitHub API 与 npm registry) : stars 68,137、forks 4,336、open issues 448、最近推送 2026-08-25; 最新 release 与 npm 包均为 v1.5.0, License MIT
 - 关键文件: package.json、README.md、CHANGELOG.md( 31 个版本块) 、CLAUDE.md、TELEMETRY.md、BUNDLING.md、src/db/schema.sql、src/mcp/tools.ts、src/types.ts、src/extraction/kernel/、codegraph-kernel/Cargo.toml 及 src/lib.rs、docs/design/native-extraction-kernel.md、docs/design/rust-kernel-migration-plan.md、docs/design/generated-file-detection.md、docs/benchmarks/residual-context-occupancy.md、scripts/build-bundle.sh、.github/workflows/release.yml、install.sh
 - 初版文章: 陶刚< CodeGraph 深度解析> ( 知乎, 2026 年 5 月) , 本文保留其问题定义与赛道分类框架, 全部数据与架构描述已按 v1.5.0 源码重新核实

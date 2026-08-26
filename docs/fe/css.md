@@ -1387,7 +1387,7 @@ A:
 - 加载时机: 多个 `<link>` 并行下载, 且浏览器预加载扫描器 (preload scanner) 能在 HTML 解析早期就发现并发起请求; `@import` 必须等包含它的 CSS 文件下载并解析后才能发现下一层 URL, 形成串行瀑布, 嵌套时延迟逐级放大
 - 能力差异: `<link>` 支持 `rel="preload"`、`rel="alternate stylesheet"`、`media`、`disabled` 等, 且能被 JS 操作 DOM 动态增删; `@import` 也支持媒体查询后缀 (`@import url(a.css) screen;`), 但无法被 JS 直接操控, 也没有预加载能力
 - 渲染阻塞: 两者都是渲染阻塞资源; 但 `@import` 的串行特性会显著拖慢首次渲染
-- 历史兼容: 极老浏览器 (IE5-) 不支持 `@import`, 当年曾用作 hack, 如今无意义
+- 历史兼容: 极老浏览器 (IE4 及更早) 不支持 `@import`, 当年曾用作 hack, 如今无意义
 
 结论: 生产环境永远用 `<link>` 加载样式表, 避免 `@import`; 需要异步加载非关键 CSS 时用 `media="print" onload` 或 `rel="preload" as="style"` 技巧.
 
@@ -1571,7 +1571,7 @@ Tailwind CSS 的按需生成:
 ```javascript
 // tailwind.config.js
 module.exports = {
-  content: ["./src//*.{js,jsx,ts,tsx}"],
+  content: ["./src/**/*.{js,jsx,ts,tsx}"],
 };
 ```
 
@@ -2760,7 +2760,7 @@ View Transitions API (视图过渡):
 ```
 
 - `animation-timeline: view()`: 进度绑定元素自身在视口中的可见进度, 配合 `animation-range: entry 0% cover 40%` 控制起止区间, 实现元素入场淡入、视差效果, 可替代一部分 IntersectionObserver 用例
-- 兼容性: Chromium 已支持, Safari/Firefox 逐步跟进中, 需 `@supports (animation-timeline: scroll())` 检测并以无动画作为降级
+- 兼容性: Chromium 115+ 与 Safari 26+ 已支持, Firefox 仍在跟进中, 需 `@supports (animation-timeline: scroll())` 检测并以无动画作为降级
 
 ---
 

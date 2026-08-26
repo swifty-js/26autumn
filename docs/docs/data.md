@@ -1082,7 +1082,7 @@ init({ dsn: "/api/log", ignoreErrors: ["Script error."] });
    - try-catch 包裹关键调用, 主动上报带堆栈的错误, 不依赖 window error
    - 给关键异步边界加 unhandledrejection 捕获, Promise 链中的错误不受 Script error 限制, 能拿到完整堆栈
    - sourcemap 反解: 即使只有模糊的行号, 只要脚本是自己的 (只是走了 CDN), 配好 CORS 后结合 hidden sourcemap 仍可反解到源码
-   - 自建 CDN 域名与页面同域, 从根上消除跨域. 注意: 「子域 + document.domain」的旧做法已过时——Chrome 109 起默认禁用 document.domain setter (仅当页面显式返回 Origin-Opener-Policy 响应头时才可恢复), 不建议再依赖; 优先选择同域部署, 或保留跨域但配齐 CORS
+   - 自建 CDN 域名与页面同域, 从根上消除跨域. 注意: 「子域 + document.domain」的旧做法已过时——Chrome 109 起默认禁用 document.domain setter (仅当页面显式返回 Origin-Agent-Cluster: ?0 响应头主动退出 origin-keyed agent cluster 时才可恢复), 不建议再依赖; 优先选择同域部署, 或保留跨域但配齐 CORS
 
 4. 资源加载错误不受此限制: img/script/link 加载失败走 capture 阶段的 error 事件, 能拿到 target.src/href, 可以直接定位是哪个资源挂了
 
@@ -1175,7 +1175,7 @@ self.MonacoEnvironment = {
 - worker 创建加容错: getWorkerUrl 加载失败时降级, monaco 会回退到主线程提供基础编辑能力, 编辑器不至于整体崩溃. 但回退能力有限——基础编辑、简单高亮可保留, TypeScript 的语义检查、跨文件类型推导等强依赖 worker 的能力会降级或缺失, 容错是保住编辑器不整体崩溃, 不是等价替代
 
 2. 错误兜底与重试 (治标, 与 Q1/Q4 的监控链路衔接)
-   - 资源错误捕获: script/link 加载失败不冒泡到 window error, 需在 capture 阶段监听 error 事件 (监控 SDK 的 ResourcePlugin 即这样做). 资源错误与 JS 运行时错误的捕获机制不同: 运行时错误触发 window.onerror 并携带 message/stack; 资源错误只触发目标元素的 error 事件, 且被标记为不冒泡, 只能在捕获阶段拦住:
+   - 资源错误捕获: script/link 加载失败不冒泡到 window error, 需在 capture 阶段监听 error 事件 (swifty-sentry 的核心错误监听即这样做: decorates.ts 里 globalThis.addEventListener("error", listener, true) 注册捕获阶段监听, 错误进入 handleError 后由 reportResourceError 从 target 上取 src/href 归为 Resource 类型事件). 资源错误与 JS 运行时错误的捕获机制不同: 运行时错误触发 window.onerror 并携带 message/stack; 资源错误只触发目标元素的 error 事件, 且被标记为不冒泡, 只能在捕获阶段拦住:
 
 ```typescript
 window.addEventListener(
@@ -1273,7 +1273,7 @@ const EditorPage = lazy(() => retryImport(() => import("./pages/Editor")));
 
 webpack 中可配合 html-webpack-plugin 的注入或用 preload-webpack-plugin 自动为路由 chunk 生成 modulepreload 标签
 
-适用场景: modulepreload 用低优先级下载, 不阻塞 HTML 解析和首屏渲染, 但会和首屏资源竞争带宽. 如果首屏本身包含编辑器, modulepreload 能让它和首屏一起尽早下载, 值得用. 但 Tiktok 平台首屏是搜索推荐页, 编辑器是其他路由, 首屏不包含编辑器——此时 modulepreload 几百 KB 的 monaco-vendor 会挤占首屏资源带宽, 弱网下间接拖慢首屏, 不建议用, 改用 requestIdleCallback 在首屏完成后再预取
+适用场景: modulepreload 不阻塞 HTML 解析和首屏渲染, 但默认优先级并不低 (Chrome 中 modulepreload 与动态 import 的模块预载同属中等优先级, 且会提前解析编译模块), 会和首屏资源竞争带宽. 如果首屏本身包含编辑器, modulepreload 能让它和首屏一起尽早下载, 值得用. 但 Tiktok 平台首屏是搜索推荐页, 编辑器是其他路由, 首屏不包含编辑器——此时 modulepreload 几百 KB 的 monaco-vendor 会挤占首屏资源带宽, 弱网下间接拖慢首屏, 不建议用, 改用 requestIdleCallback 在首屏完成后再预取
 
 - requestIdleCallback 时机预取: 相比 modulepreload 在 HTML 渲染后立即开始下载, requestIdleCallback 在首屏渲染完成、浏览器空闲后才触发, 不和首屏资源竞争带宽, 适合首屏不包含编辑器的场景. 在首屏指标 (LCP) 上报完成后的空闲时机预取编辑器相关资源: 编辑器页面 chunk 是 webpack chunk 用 import() 预取, worker 脚本是 CDN URL 不在 webpack 打包体系里, 用 fetch() 预取到 HTTP 缓存. requestIdleCallback 带 timeout 兜底参数, 避免页面一直不空闲导致预取被无限延迟:
 
@@ -2406,13 +2406,25 @@ boot.ts 的监控代码由五个部分组成, 全部基于浏览器原生 Perfor
 
 第五部分, 队列化上报. 所有数据推入 window 上的队列, 格式统一为 action 加 arguments 的事件结构, 由后加载的监控 SDK 异步消费. 上报动作全部包在 try/catch 中, 监控代码的任何异常都不会影响业务启动.
 
+### 6.2 为什么大型企业项目选择手写而非第三方监控 SDK
+
+boot.ts 的监控只用了 performance.mark/measure、PerformanceObserver、Navigation/Resource Timing 等浏览器原生 API, 不依赖任何第三方监控 SDK 的采集能力 (swr-demo 的 perf-monitor.ts 头部注释同样声明这一点). 选择手写有三个现实原因:
+
+1. 采集时机必须早于 SDK 本身. 监控对象是启动链路 (加载库文件、登录校验、菜单预取、prepare 执行), 而第三方 SDK 是 JS bundle 的一部分, 只有 bundle 下载执行后才就位; 依赖 SDK 就意味着 SDK 加载之前的启动阶段全部测不到. 引导脚本手写采集 + window 队列暂存, 让数据先于 SDK 产生, SDK 就位后异步消费队列——这与 Q12 中 Slardar 的预收集机制 (同步 JS Snippets + 全局队列) 是同一思路, 只是这里预收集的是性能打点而非错误.
+
+2. 指标是业务启动链路的私有定制. bizCode 归因长任务、指定接口 (checkAccess、findMenuList 等) 的单独耗时、四个并行菜单请求中找最慢的一个、0.003 采样率的模块路径上报——这些指标描述的是本系统特有的启动流程, 通用监控 SDK 的标准采集项 (PV、JS 错误、通用 Web Vitals) 覆盖不到, 硬套 SDK 的自定义事件 API 反而绕远.
+
+3. 引导脚本有严格的体积与稳定性约束. 它运行在关键路径上, 每多一个依赖都会拖慢被测量的启动过程, 监控代码自身异常更不能中断业务启动 (所以 mark/measure/上报全部包 try/catch). 几十行原生 API 代码可控性远好于引入一个完整 SDK.
+
+这与第 3 节手写 SWR 的选型逻辑同构: 在存量约束下 (MPA、多技术栈共存、引导脚本先于框架执行), 用最小的自研代码精准采集业务真正关心的指标, 公共底座都是浏览器原生能力 (Performance API、promise、全局挂载), 这也是它能在 jQuery、原生 JS、React 页面里通用的原因.
+
 ### 6.3 swr-demo 的监控接入实现
 
 swr-demo 按 boot.ts 的同构思路接入了等价的手写监控, 核心文件是 src/perf-monitor.ts, 对应关系如下:
 
 | boot.ts                          | swr-demo                         | 说明                                                                                                                 |
 | -------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| window.PERF_QUEUE                | PERF_QUEUE 数组                  | 队列化上报, demo 中打印到控制台                                                                                      |
+| window.PERF_QUEUE                 | PERF_QUEUE 数组                  | 队列化上报, demo 中打印到控制台                                                                                      |
 | longTaskObserver                 | observeLongTasks                 | PerformanceObserver 观察 longtask, 50ms 阈值上报                                                                     |
 | performance.mark boot-start/end  | swr-boot-start/end               | main.tsx 入口打起点, 每轮 run 会 resetBootMarks 后在 run 内重打, measure 实际以 run 内的起点为准; SWR 数据就绪打终点 |
 | performanceMeasure 封装          | 同名函数                         | measure 加 try/catch, 取最后一条同名条目                                                                             |

@@ -1,6 +1,6 @@
 # OpenSpec 调研文档
 
-仓库路径: https://github.com/Fission-AI/openspec
+仓库路径: https://github.com/Fission-AI/openspec (本机克隆位于 $HOME/Documents/openspec)
 
 ## 一、OpenSpec 是什么
 
@@ -57,7 +57,7 @@ openspec/
 │   │   ├── proposal.md       为什么做、做什么 (intent + scope)
 │   │   ├── design.md         怎么做 (技术方案 + 架构决策)
 │   │   ├── tasks.md          实施清单 (checkbox 列表)
-│   │   ├── .openspec.yaml    变更元数据 (schema, 创建时间等)
+│   │   ├── .openspec.yaml    变更元数据 (schema, created, skip_specs, retire_capabilities 等)
 │   │   └── specs/            delta specs (描述"变化量")
 │   │       └── ui/
 │   │           └── spec.md
@@ -97,7 +97,7 @@ Spec 中不该有的: 内部类名/函数名、库/框架选择、实现步骤 (
 
 3. Delta Specs 描述差异而非全貌
 
-这是 OpenSpec 适配棕地开发的关键设计. 不需要重写整个 spec, 只写三个区段:
+这是 OpenSpec 适配棕地开发的关键设计. 不需要重写整个 spec, 只写四个区段:
 
 ```markdown
 ## ADDED Requirements
@@ -118,13 +118,25 @@ The system MUST expire sessions after 15 minutes of inactivity.
 ### Requirement: Remember Me
 
 (Deprecated in favor of 2FA)
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: Login Rate Limit`
+- TO: `### Requirement: Authentication Rate Limit`
 ```
 
-归档时的合并规则:
+归档时的合并规则 (源码按 RENAMED → REMOVED → MODIFIED → ADDED 的顺序应用):
 
 - ADDED → 追加到主 spec
 - MODIFIED → 替换主 spec 中对应的需求
 - REMOVED → 从主 spec 中删除
+- RENAMED → 主 spec 中对应需求原地重命名 (只改名, 不改内容)
+
+三个相关机制:
+
+- 为全新 capability 写 delta 时以 `## Purpose` 区段开头 (一两句话), 归档时用它作为新主 spec 的 Purpose; 已有 capability 的 delta 不需要它
+- 一个 change 若没有任何 spec delta, `openspec validate` 会拒绝, 除非其 .openspec.yaml 声明 `skip_specs: true` (适用于纯重构、工具、文档类变更)
+- REMOVED 删掉某 capability 的最后一条需求时, 归档会删除该 spec 文件 (capability 退休), 但仅当 .openspec.yaml 声明 `retire_capabilities: true`
 
 Delta 的好处: 清晰 (一眼看出改了什么)、避免冲突 (两个 change 改同一 spec 的不同需求不冲突)、审阅高效、天然适配棕地.
 
@@ -181,7 +193,7 @@ Delta 的好处: 清晰 (一眼看出改了什么)、避免冲突 (两个 change
      在这里运行 openspec               在这里运行 /opsx:*
 ```
 
-`openspec init` 在终端运行, 它会把 slash commands 安装到 AI 工具中. 之后日常操作主要在 AI 聊天框中完成. 没有单独的"交互模式"需要启动.
+`openspec init` 在终端运行, 它会把 slash commands 和 skills 写入所选的 AI 工具 (取决于工具和 delivery 设置, 可能只有 skills、只有 commands 或两者都有). 之后日常操作主要在 AI 聊天框中完成. 没有单独的"交互模式"需要启动.
 
 ### 4.2 Core Profile (默认安装)
 
@@ -530,7 +542,7 @@ Full spec (高风险场景):
 ## 十一、CLI 命令速查
 
 ```bash
-# 初始化
+# 初始化 (--language 可指定 artifacts 语言, --tools 非交互选择工具)
 openspec init
 
 # 查看活跃 changes
@@ -545,8 +557,14 @@ openspec status --change <name> --json
 # 获取 artifact 创建指令
 openspec instructions <artifact-id> --change <name> --json
 
+# 创建 change 脚手架 (工作流模板要求走它创建, 不要手建目录)
+openspec new change <name> [--schema <schema>] [--store <id>]
+
 # 验证 spec 格式
 openspec validate <name>
+
+# 校验已归档 change 的任务是否全部勾选 (适合 pre-commit 钩子)
+openspec validate --archived
 
 # 交互式仪表盘
 openspec view
@@ -554,15 +572,27 @@ openspec view
 # 归档
 openspec archive <name> --yes
 
+# 查看 artifact 模板解析路径
+openspec templates [--schema <name>]
+
 # Schema 管理
 openspec schemas
 openspec schema fork spec-driven my-workflow
 openspec schema validate my-workflow
+openspec schema which <name>          # 查看 schema 从哪里解析 (调试优先级)
 
 # Store 管理
 openspec store setup <id> --path <dir>
 openspec store register <dir>
+openspec store unregister <id>
+openspec store remove <id> --yes
 openspec store list --json
+openspec store doctor
+
+# 个人工作集
+openspec workset create <name> --member <path> --tool <id>
+openspec workset list
+openspec workset open <name>
 
 # 健康检查
 openspec doctor
@@ -570,7 +600,7 @@ openspec doctor
 # 工作上下文
 openspec context --json
 
-# 更新 agent 指令 (升级后执行)
+# 更新 agent 指令 (升级后执行; 会顺带检查 npm registry 上是否有新版)
 openspec update
 ```
 
@@ -592,13 +622,14 @@ openspec update
 
 - 自由度的代价是纪律: 没有门禁意味着需要自己保持 change 聚焦
 - Spec 只描述可观察行为: 实现细节属于 design.md, 两者不混
-- 没有自动同步: Store 的共享完全靠 git, OpenSpec 不做任何网络操作
+- 没有自动同步: Store 的共享完全靠 git, OpenSpec 永远不会自动 clone/pull/push store (CLI 仅有的网络行为是匿名遥测上报和 openspec update 的 npm registry 版本检查, 后者可用 OPENSPEC_NO_UPDATE_CHECK 跳过)
 
 ## 十三、技术细节
 
 - 运行时要求: Node.js >= 20.19.0
 - 安装: `npm install -g @fission-ai/openspec@latest`
 - 包管理: 也支持 pnpm, yarn, bun, nix
-- 遥测: 只收集命令名和版本, 可通过 `openspec config set telemetry.enabled false` 或 `OPENSPEC_TELEMETRY=0` 关闭
+- 遥测: 只收集命令名和版本 (无参数、路径、内容或 PII), CI 环境自动禁用; 可通过 `openspec config set telemetry.enabled false`、`OPENSPEC_TELEMETRY=0` 或 `DO_NOT_TRACK=1` 关闭
+- 多语言: `openspec init --language "<语言>"` 会把语言指令写入 config.yaml 的 context, 之后 artifacts 用该语言生成; 结构性标题和 SHALL/MUST 关键词保持英文 (校验依赖它们), 已有项目则直接编辑 context 字段
 - 推荐模型: 高推理能力模型 (文档推荐 Codex 5.5 和 Opus 4.7)
 - 上下文卫生: 建议在开始实现前清理上下文窗口

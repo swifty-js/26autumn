@@ -15,6 +15,8 @@
 │  + setUserId / setVisitorId / getIdentity / getBaseInfo  │
 │  + tracePerformance / traceCustomEvent / tracePageView   │
 │  + beforeSendData / afterSendData / reportFrameworkError │
+│  + isInitialized / getUserId / getIPs / sendLocal        │
+│  + beforePushEventList                                   │
 ├─────────────────────────────────────────────────────┤
 │                   Core Layer                        │
 │  sdk-lifecycle / setup / bus / decorates / handlers │
@@ -107,10 +109,17 @@ setup() 的清理函数设计:
 // 核心结构
 const event2handlers = new Map<EventType, Set<TEventHandler>>();
 
-// 发布
+// 发布( 每个 handler 单独 try/catch, 单个消费者抛错不影响其他消费者)
 function pub(type: EventType, data: unknown): void {
   const handlers = event2handlers.get(type);
-  if (handlers) handlers.forEach((handler) => handler(data));
+  if (!handlers) return;
+  for (const handler of handlers) {
+    try {
+      handler(data);
+    } catch (err) {
+      sentryLogger.error("Error executing event handler", err);
+    }
+  }
 }
 
 // 订阅( 返回清理函数)
@@ -127,7 +136,8 @@ function sub(type: EventType, handler: TEventHandler): Cleanup {
 2. 一对多分发: 一个 HTTP 事件可以同时触发上报、面包屑记录、屏幕录制标记等多个消费者
 3. 可测试性: 可以独立测试采集层和处理层, mock 总线即可
 4. 动态订阅: 插件可以在运行时订阅/取消订阅, 无需修改核心代码
-5. 清理友好: 每个 `sub()` 返回 cleanup 函数, `destroy()` 时调用 `clearSubscriptions()` 一次性清空
+5. 异常隔离: pub 对每个 handler 单独 try/catch, 一个消费者抛错不会中断其余消费者, 也不会把异常抛回生产者
+6. 清理友好: 每个 `sub()` 返回 cleanup 函数, `destroy()` 时调用 `clearSubscriptions()` 一次性清空
 
 与 EventEmitter 的区别:
 
@@ -427,8 +437,8 @@ window.addEventListener("online", () => {
 
 2. 离线缓存持久化( offline-cache.ts) :
 
-- 存储介质: `localStorage`, key 为 `swifty_sentry_offline_cache`( 可配置)
-- 写入时机: 离线时每次 send 后、flush 失败时、页面关闭前
+- 存储介质: `localStorage`, key 为 `swifty_sentry_offline_cache`( 可配置 offlineCacheKey)
+- 写入时机: send 阶段发现离线时( 裁剪后写入) 、flush 阶段发现离线或发送失败回插后( 各写入一次)
 - 读取校验: 从 localStorage 加载时使用 Zod schema 校验数据完整性, 损坏数据丢弃
 - 容量控制: `events.slice(-maxQueueLength)` 限制最大 200 条, 防止撑爆 localStorage
 
@@ -567,6 +577,8 @@ if (hasSkeleton) {
   stopSample(); // 选择器变化了 → 正常渲染 → 非白屏
 }
 ```
+
+触发链路: setup() 中当 `enableWhiteScreen: true` 时订阅 EventType.WhiteScreen 并调用 decorates.ts 的 `pubWhiteScreen()` 立即发布一个 WhiteScreen 事件, handle-events.ts 的 `handleWhiteScreen` 收到后调用 `checkWhiteScreen()` 启动采样, 采样到白屏时通过回调把最初那条事件交给 reporter 发送.
 
 性能优化:
 
@@ -709,6 +721,12 @@ PerformancePlugin 是 SDK 最重的插件, 采集以下指标类别:
 
 - 如 Q10 所述的 MutationObserver 方案
 
+8. HTTP 性能( 可选, 非 PerformancePlugin 采集) :
+
+- `enableHttpPerformance: true` 时, `core/handle-http.ts` 把成功的 XHR/Fetch 请求额外上报为 Performance 事件
+- name 为 `HTTP <method>`, value 为 elapsedTime, extra 携带 method/statusCode/serverTiming( `handle-http.ts:54-68`)
+- 默认关闭( `enableHttpPerformance: false`), 避免全量请求都产生一条性能数据
+
 ---
 
 ## Q12: 面包屑( Breadcrumb) 为什么使用最小堆? 相比数组有什么优势?
@@ -764,7 +782,7 @@ class MinHeap<T extends { timestamp: number }> {
 
 dump() 的调用时机:
 
-`dump()` 返回按时间戳排序的有序面包屑列表. 它在上报数据组装时被调用: `reporter/report-data.ts:59` 中 `data.breadcrumbs = breadcrumb.dump()`, 将有序面包屑附加到每条上报数据中, 帮助后端还原用户操作路径.
+`dump()` 返回按时间戳排序的有序面包屑列表. 它在上报数据组装时被调用: `reporter/report-data.ts:59` 中 `data.breadcrumbs = breadcrumb.dump()`. 注意并非每条数据都携带面包屑: 只有错误类事件( Error/UnhandledRejection/Resource/Vue/React/OtherFrameworks, 即 report-data.ts 顶部的 BREADCRUMB_EVENT_TYPES 集合) 会附加, 帮助后端还原故障前的用户操作路径, 也避免面包屑在批量事件上成倍放大载荷体积.
 
 ---
 
@@ -822,9 +840,9 @@ export async function recorder(reporter: IDataReporter): Promise<Cleanup> {
 
 触发机制:
 
-- 不是持续录制, 而是事件驱动触发
+- 不是持续上报, 而是事件驱动触发
 - 当上报的事件类型匹配 `screenRecordEventTypes`( 默认: Error、XHR、Fetch、Resource、UnhandledRejection) 时, `send-preflight.ts` 设置 `sentry.shouldScreenRecord = true`
-- ScreenRecordPlugin 检测到标记后, 取当前滚动窗口内的 rrweb 事件快照, 附加到上报数据中
+- recorder 的 emit 回调检测到该标记后, 把当前滚动窗口内的 rrweb 事件作为一个独立的 ScreenRecord 事件发送( 并非附加到触发事件上) , 并把标记复位为 false
 
 压缩流程:
 
@@ -854,8 +872,11 @@ base64 字符串 → Uint8Array → pako.ungzip() → JSON.parse() → rrweb eve
 抽象基类定义( types/plugin.ts) :
 
 ```typescript
-abstract class SentryPlugin {
-  abstract type: EventType;
+export abstract class SentryPlugin {
+  public type: EventType;
+  constructor(type: EventType) {
+    this.type = type;
+  }
   abstract init(): void;
   destroy?(): void;
 }
@@ -1136,13 +1157,13 @@ export function getDeclarativeClickData(
     x,
     y, // 元素绝对坐标( getBoundingClientRect + 滚动偏移)
     params: getParams(fallbackPath), // 收集 swifty-sentry-* 自定义参数( view/msg/ev 保留键除外)
-    elementPath: getNodeXPath(trackingTarget).slice(-128), // 自研 XPath, 尾部截取 128 字符
+    elementPath: dom2str(trackingTarget), // utils/dom2str.ts: CSS 选择器式祖先路径
     triggerTime: Date.now(),
   };
 }
 ```
 
-其中 `getNodeXPath()` 自研实现: 从元素向上遍历到 body, 将各级标签名小写后用 `>` 连接( 如 `div>span>button`) , 未使用 dom2str.
+其中 `dom2str()`( utils/dom2str.ts, 思路对齐 Sentry 的 htmlTreeAsString) : 从被点击元素向上最多遍历 5 层( MAX_TRAVERSE_HEIGHT = 5) , 每层生成 `tag#id.class` 形式的选择器并用 ` > ` 连接( 如 `body > div#app > button.btn.primary`) ; 累计长度达到 128 字符( MAX_OUTPUT_LENGTH) 后丢弃整层选择器而非截断半个, 被点击元素本身始终保留.
 
 事件监听安装( decorates.ts) :
 
@@ -1169,7 +1190,7 @@ function pubClick(): Cleanup {
 2. 不侵入逻辑: 不与业务事件处理耦合
 3. Shadow DOM 支持: `composedPath()` 穿透 Shadow DOM 边界
 4. 自动化: 配合框架的模板系统, 可以批量为组件添加追踪属性
-5. 元素路径: 自研 `getNodeXPath()` 生成 `>` 连接的标签名路径, `slice(-128)` 保留尾部( 离元素最近的部分)
+5. 元素路径: `dom2str()` 生成 CSS 选择器式祖先路径, 最近 5 层, 128 字符上限, 超预算时丢弃整层选择器而非截断半个
 
 ---
 
@@ -1222,18 +1243,19 @@ FingerprintJS 集成:
 async function initIdentity(): Promise<void> {
   if (!sentry.options.enableFingerprint) return;
 
-  // 优先从 localStorage 读取缓存
+  // 优先从 localStorage 读取缓存( key: swifty_sentry_anonymous_id)
   const cached = localStorage.getItem("swifty_sentry_anonymous_id");
   if (cached) {
-    sentry.anonymousId = cached;
+    sentry.setOptions({ anonymousId: cached });
     return;
   }
 
   // 动态加载 FingerprintJS( 避免未启用时加载 ~50KB)
-  const fp = await FingerprintJS.load();
-  const result = await fp.get();
-  sentry.anonymousId = result.visitorId;
+  const fingerprint = await import("@fingerprintjs/fingerprintjs");
+  const agent = await fingerprint.default.load();
+  const result = await agent.get();
   localStorage.setItem("swifty_sentry_anonymous_id", result.visitorId);
+  sentry.setOptions({ anonymousId: result.visitorId });
 }
 ```
 
@@ -1306,7 +1328,7 @@ TypeScript 配置:
 测试工程:
 
 - Vitest + jsdom 环境
-- 14 个测试文件覆盖核心模块
+- 15 个测试文件( test/*.test.ts) 覆盖核心模块
 - v8 coverage, 阈值 70%( lines/functions/branches/statements)
 - 自定义 fake: `fake-intersection-observer.ts`、`report-payloads.ts`
 
@@ -1461,20 +1483,23 @@ export function pubHistory(): Cleanup {
       unused: string,
       url?: string | URL | null,
     ) {
-      if (url) {
-        const from = latestHref;
-        const to = normalizeRouteUrl(url);
-        if (from !== to) {
-          latestHref = to;
-          pub(EventType.History, {
-            ...getBaseData(),
-            type: EventType.History,
-            from,
-            to,
-          });
-        }
+      if (!url) {
+        return oldPropsVal.call(this, data, unused, url);
       }
-      return oldPropsVal.call(this, data, unused, url);
+      const from = latestHref;
+      const to = normalizeRouteUrl(url);
+      // 先执行原始 pushState/replaceState, 保证事件处理器观察到目标 href
+      const result = oldPropsVal.call(this, data, unused, url);
+      if (from !== to) {
+        latestHref = to;
+        pub(EventType.History, {
+          ...getBaseData(),
+          type: EventType.History,
+          from,
+          to,
+        });
+      }
+      return result;
     };
   };
   const cleanupPushState = decorateProp(
@@ -1496,7 +1521,7 @@ export function pubHistory(): Cleanup {
 }
 ```
 
-注意: EventType 枚举中没有专门的路由变化事件类型, History 模式发布 `EventType.History`, Hash 模式发布 `EventType.HashChange`, 下游分别订阅处理.
+注意: 路由变化没有统一的事件类型, History 模式发布 `EventType.History`( 枚举值 "History") , Hash 模式发布 `EventType.HashChange`( 枚举值 "Event hashchange") , 下游 handleHistory / handleHashChange 分别订阅处理.
 
 Hash 模式拦截( decorates.ts) :
 
@@ -1593,7 +1618,7 @@ reporter.send(
   {
     ...getBaseData(),
     type: EventType.PV, // 与 PV 共用 EventType.PV, 靠 name 区分
-    name: "Page" + "Dwell", // name 字面量为 Page 与 Dwell 拼接
+    name: "PageDwell",
     message: page.url,
     status: Status.OK,
     extra: { url: page.url, referrer: page.referrer, duration }, // 时长字段为 extra.duration
@@ -1638,7 +1663,7 @@ globalThis.addEventListener("beforeunload", () => {
 - Web Worker 上报: 将 JSON 序列化、gzip 压缩移到 Worker 线程, 避免阻塞主线程( 当前 pako 压缩在主线程执行)
 - 批量 DOM 查询优化: 白屏检测的 18 次 `elementFromPoint` 会触发 layout, 可以合并到一次 reflow 中
 - FSP MutationObserver 节流: 当前每次 DOM 变化都检查 `isInViewport`( 触发 getBoundingClientRect) , 可以用 IntersectionObserver 替代视口判断
-- rrweb 按需加载: ScreenRecordPlugin 的 rrweb 依赖较重( ~100KB) , 可以用 `import()` 动态加载
+- rrweb 加载时机: rrweb 已通过 `import()` 动态加载( recorder.ts) , 但 ScreenRecordPlugin 的 init 会立即触发加载; 可以进一步推迟到首次出现录屏标记时再加载, 让未发生错误的会话完全不付出加载代价
 
 2. 可靠性优化:
 
@@ -1735,8 +1760,8 @@ IReportData
 │                 language, screenResolution }
 └── payload:
     ├── deviceId / sessionId: 设备与会话标识
-    ├── line / column: 出错行列号( 配合 sourcemap 反解)
-    └── extra: Error.stack 堆栈字符串( 运行时错误)
+    ├── line / column: 出错行列号( window.onerror 路径携带, 配合 sourcemap 反解)
+    └── extra: Error.stack 堆栈字符串( Error 实例路径携带, 如 traceError/console.error)
 ```
 
 设计要点:
@@ -1978,9 +2003,11 @@ monorepo 中的 `client` 包是 SDK 的 React demo, 它将 react-router 的配�
 
 ```
 src/pages/
-├── page.tsx                 -> /
-├── favorite-list/page.tsx   -> /favorite-list
-└── search-list/page.tsx     -> /search-list
+├── page.tsx                -> /
+├── behavior/page.tsx       -> /behavior
+├── errors/page.tsx         -> /errors
+├── network/page.tsx        -> /network
+└── performance/page.tsx    -> /performance
 ```
 
 插件工作流程:
@@ -2006,18 +2033,25 @@ imports.push(`const ${name} = lazy(() => import("${importPath}"));`);
 entries.push(`  { path: "${routePath}", element: <${name} /> }`);
 ```
 
-生成的 routes.tsx:
+生成的 routes.tsx( 实际产物节选) :
 
 ```tsx
 // Auto-generated by page-routes plugin — DO NOT EDIT!!!
-const FavoriteList = lazy(() => import("../pages/favorite-list/page"));
+import { lazy } from "react";
+import type { RouteObject } from "react-router-dom";
+
+const Behavior = lazy(() => import("../pages/behavior/page"));
+const Errors = lazy(() => import("../pages/errors/page"));
+const Network = lazy(() => import("../pages/network/page"));
 const Home = lazy(() => import("../pages/page"));
-const SearchList = lazy(() => import("../pages/search-list/page"));
+const Performance = lazy(() => import("../pages/performance/page"));
 
 export const routes: RouteObject[] = [
-  { path: "/favorite-list", element: <FavoriteList /> },
+  { path: "/behavior", element: <Behavior /> },
+  { path: "/errors", element: <Errors /> },
+  { path: "/network", element: <Network /> },
   { path: "/", element: <Home /> },
-  { path: "/search-list", element: <SearchList /> },
+  { path: "/performance", element: <Performance /> },
 ];
 ```
 
@@ -2027,4 +2061,59 @@ export const routes: RouteObject[] = [
 2. lazy 默认分包: 每个页面独立 chunk, 路由级代码分割开箱即用
 3. 写入幂等: 生成内容与已有文件一致时跳过写入, 避免触发无意义的 HMR
 4. 双构建支持: 同一份生成逻辑( page-routes.js) 被 vite 插件和 webpack 插件( webpack-plugin-page-routes.js) 复用
-5. 与监控联动: demo 同时接入 SDK 与 sourcemap 插件, 演示「页面报错 -> 上报 -> 反解到 page.tsx 源码」的完整链路
+5. 与监控联动: demo 以 `dsn: "/api/log"` 接入 SDK, vite dev server 通过 proxy 把 /api 转发到独立 server( 8088 端口) , 由 server 端持有 dist/.sourcemaps 下的 .map 文件反解堆栈( vite.config.ts 中 sentryPlugin mock 的 import 目前处于注释状态) , 演示「页面报错 -> 上报 -> 反解到 page.tsx 源码」的完整链路
+
+---
+
+## Q32: getIPs 和 SDK 自身的调试日志是如何实现的?
+
+答:
+
+这是两个容易被忽略但公开导出的辅助能力.
+
+getIPs( core/ip.ts, 从主入口导出) :
+
+```typescript
+export function getIPs(timeout = 500): Promise<readonly string[]> {
+  return new Promise((resolve) => {
+    if (typeof globalThis.RTCPeerConnection !== "function") {
+      resolve([]);
+      return;
+    }
+    const ips = new Set<string>();
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+    const finish = (): void => {
+      peer.onicecandidate = null;
+      peer.close();
+      resolve([...ips]);
+    };
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        collectIps(event.candidate.candidate, ips);
+      }
+    };
+    peer.createDataChannel("@swifty.js/sentry-IP-probe");
+    void peer
+      .createOffer()
+      .then((offer) => peer.setLocalDescription(offer))
+      .catch(finish);
+    setTimeout(finish, Math.max(timeout, 100));
+  });
+}
+```
+
+实现要点:
+
+1. 原理: 建立 WebRTC RTCPeerConnection( STUN 服务器 stun.l.google.com:19302) , 从 ICE candidate 字符串里用正则提取 IPv4/IPv6 地址( ipPattern 同时匹配两种格式)
+2. 超时兜底: 默认 500ms( 下限 100ms) 后强制 finish, close 连接并返回已收集的 IP, 不会悬挂 Promise
+3. 能力降级: 浏览器不支持 RTCPeerConnection 时直接返回空数组
+4. 注意: 该 API 不参与自动上报, 需要业务方主动调用( `const ips = await getIPs()`) ; 现代浏览器的隐私策略( mDNS obfuscation) 可能只返回 .local 地址
+
+sentryLogger( utils/logger.ts) :
+
+1. 开关: 所有日志由 `options.debug` 控制( `globalThis.__sentry__?.options.debug ?? false`), 默认关闭, 生产环境零噪音
+2. 形态: info/success/warn/error 四级, 使用 console.groupCollapsed + 主题色前缀( Iosevka/Maple Mono/Menlo/Cascadia Code 等宽字体) 输出
+3. 结构化: 数组数据用 console.table 渲染( 可指定列) , 对象数据嵌套 console.group 展示
+4. 耗时输出: success 级别支持 duration 参数, 上报批次发送成功时会输出 `Time cost Xms`( reporter/index.ts 用 performance.now() 计算 flush 耗时) , 方便定位上报管道的延迟

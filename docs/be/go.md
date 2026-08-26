@@ -741,7 +741,7 @@ A: `net` 包的所有 fd 都设为非阻塞并注册进 netpoller (Linux epoll /
 3. 调度循环、sysmon 会调用 `netpoll()` (epoll_wait 非阻塞/带超时) 收割就绪事件, 把对应 G 置为 runnable 放回队列;
 4. G 被再次调度后从 `Read` 处继续, 重新执行读取.
 
-价值: 开发者写阻塞式同步代码, 运行时自动转成事件驱动, 一条连接一个 goroutine 的模型可以扛几十万连接 (每 G 仅 2KB 起步). 自研 TCP 框架正是建立在这套机制的廉价并发之上——swifty_rpc 的 `TCPClient` 每条连接启动一个 `readLoop()` goroutine, 请求发出前用 `atomic.AddUint64` 生成 seq 存入 `pending sync.Map` (seq → Future), readLoop 按响应头里的 RequestID 从 pending 中 `LoadAndDelete` 匹配并唤醒等待者.
+价值: 开发者写阻塞式同步代码, 运行时自动转成事件驱动, 一条连接一个 goroutine 的模型可以扛几十万连接 (每 G 仅 2KB 起步). 自研 TCP 框架正是建立在这套机制的廉价并发之上——swifty_rpc 的 `TCPClient` 每条连接启动一个 `readLoop()` goroutine, 请求发出前经 `nextSeq()` 用类型化原子 `seq atomic.Uint64` 的 `seq.Add(1)` 生成序号存入 `pending sync.Map` (seq → Future), readLoop 按响应头里的 RequestID 从 pending 中 `LoadAndDelete` 匹配并唤醒等待者.
 
 ### 7.6 goroutine 栈: 从 2KB 到 1GB
 
@@ -1095,7 +1095,7 @@ A:
 1. ctx 作为函数第一个参数显式传递 (`func Do(ctx context.Context, ...)`); 不放 struct 字段 (例外: 贯穿单个请求生命周期的对象, 如 `http.Request`).
 2. Value 只放请求域元数据 (trace id、登录态、租户), 不放业务参数和依赖 (DB 连接、logger 配置项该走参数或依赖注入). key 用非导出自定义类型防碰撞: `type ctxKey struct{}`——swifty_cache 用 `peerRequestContextKey struct{}` 标记"这是对等节点转发来的请求", 防止 Set/Delete 的对等同步无限回环, 是该模式的实战用例.
 3. 不传 nil ctx, 不确定就 `context.TODO()`.
-4. 所有跨网络/可能阻塞的调用必须透传 ctx 并响应取消. swifty_rpc 是完整示例: `Client.Invoke(ctx, ...)` 先 `context.WithTimeout(ctx, c.timeout)` 收敛预算, 等待结果走 `Future.WaitWithContext`——`select { case <-f.done: ...; case <-ctx.Done(): return ctx.Err() }`; 超时/取消后还会主动 `future.Done(nil, ctx.Err())` 使熔断器记录失败, 迟到的服务端响应成为幂等 no-op. 链路贯通后才能实现"上游超时, 全链路立即止损".
+4. 所有跨网络/可能阻塞的调用必须透传 ctx 并响应取消. swifty_rpc 是完整示例: `Client.Invoke(ctx, ...)` 先 `context.WithTimeout(ctx, c.timeout)` 收敛预算, 等待结果走 `Future.GetResultWithContext(callCtx, reply)`——`select { case <-f.done: ...; case <-ctx.Done(): return ctx.Err() }`; 超时/取消后还会主动 `future.Done(nil, ctx.Err())` 使熔断器记录失败, 迟到的服务端响应成为幂等 no-op. 链路贯通后才能实现"上游超时, 全链路立即止损".
 5. 超时应分层收敛: 入口设总预算 (如 2s), 下游各环节用 `WithTimeout` 分剩余预算, 避免下游超时大于上游造成无效等待.
 6. ctx 是协作式取消: 只是关一个 channel, 代码不检查 Done 就不会停. CPU 密集循环要在合适粒度上主动 `select` 检查.
 
@@ -1200,7 +1200,7 @@ A:
 4. 典型模式:
    - 计数器/指标: atomic.Int64.Add, 远快于 mutex. 伪共享注意: 多个热点计数器放在一个 struct 里会共享缓存行, 需 padding.
    - 配置热更新 / COW: `atomic.Pointer[Config]`, 写者构造全新对象后 Store, 读者 Load 拿到不可变快照, 读侧零锁.
-   - 状态门闩: CAS 保证"只有一个 goroutine 执行关闭逻辑". 真实用例: swifty_cache 的 `Group.Close` 用 `atomic.CompareAndSwapInt32(&g.closed, 0, 1)` 实现幂等关闭, Get/Set 入口用 `atomic.LoadInt32(&g.closed)` 快速拒绝; 统计字段 (gets/loads/peerHits 等) 全部走 `atomic.AddInt64`, 读写热路径零锁.
+   - 状态门闩: CAS 保证"只有一个 goroutine 执行关闭逻辑". 真实用例: swifty_cache 的 `Group.Close` 用类型化原子 `closed atomic.Int32` 的 `CompareAndSwap(0, 1)` 实现幂等关闭 (group.go:259), Get/Set 入口用 `closed.Load()` 快速拒绝; 统计字段 (gets/loads/peerHits 等) 全部是 `atomic.Int64` 类型走 `.Add(1)`, 读写热路径零锁.
 5. 选择标准: 单变量读改写 → atomic; 多个变量需要保持一致的复合不变式 → mutex. 不要用多个 atomic 变量拼装事务语义, 那是数据竞争的温床.
 
 ### 10.6 singleflight: 防缓存击穿的标准武器

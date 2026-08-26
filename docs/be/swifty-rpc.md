@@ -408,7 +408,7 @@ future.OnComplete(func(err error) {
 1. 恰好一次: `OnComplete` 存储在 Future 的单一 slot 中, `Done` 幂等保证回调最多触发一次.
 2. 锁外执行: `Done` 在释放 `mu` 之后才调用 `onComplete`, 避免回调内部 (断路器加锁) 与 Future 锁形成死锁.
 3. 即时触发: 如果注册 `OnComplete` 时 Future 已经完成, 回调立即执行, 不会丢失.
-4. 完整覆盖: 发送失败、响应错误、超时 (通过强制 Done) 都会触发回调, 断路器统计不遗漏.
+4. 完整覆盖: 响应错误、超时 (通过强制 Done) 都会触发回调; 发送失败( 连接池 Acquire 失败或 `SendAsyncWithCodec` 返回 err) 时 Future 尚未创建, 直接在 `invokeAsync` 中调用 `br.RecordFailure()` (invoke.go:163-166, 183-187), 不经回调. 断路器统计不遗漏.
 
 ### Q17: InvokeAsync 的超时看门狗是如何工作的?
 
@@ -473,7 +473,7 @@ Method(req *T, stream ServerStream) error
 反射调用流程:
 
 1. `reflect.New(methodType.In(1).Elem())` 分配请求对象.
-2. `codec.Unmarshal(body, req.Interface())` 反序列化.
+2. `len(body) > 0` 时 `codec.Unmarshal(body, req.Interface())` 反序列化, 空 body 跳过( handler.go:161-165, 188-192) .
 3. `safeCall(method, args)` 执行 (带 panic 恢复).
 4. 流式: 启动独立 goroutine, 返回 `(nil, true, nil)` 告知 Process 跳过响应写入.
 5. Unary: 返回结果值, 由 Process 序列化并写回.
@@ -862,6 +862,9 @@ RoundRobin (轮询):
 type RoundRobin struct { idx atomic.Uint64 }
 
 func (r *RoundRobin) Select(list []Instance) Instance {
+    if len(list) == 0 {
+        return Instance{}  // 空列表防御 (round_robin.go:39-41)
+    }
     i := r.idx.Add(1)
     return list[(i-1) % uint64(len(list))]
 }
@@ -877,6 +880,9 @@ Random (随机):
 type Random struct { r *rand.Rand; m sync.Mutex }
 
 func (r *Random) Select(list []Instance) Instance {
+    if len(list) == 0 {
+        return Instance{}  // 空列表防御 (random.go:43-45)
+    }
     r.m.Lock()
     defer r.m.Unlock()
     return list[r.r.Intn(len(list))]
@@ -889,7 +895,7 @@ func (r *Random) Select(list []Instance) Instance {
 WeightedRR (平滑加权轮询, Nginx 算法):
 
 ```go
-// 每次 Select:
+// 每次 Select (前置防御: len(list)==0、len(list)!=len(weights)、totalWeight<=0 均返回零值 Instance, weighted_rr.go:56-69):
 for i := range weights { currentWeight[i] += weights[i] }
 maxIdx := index of max(currentWeight)
 currentWeight[maxIdx] -= totalWeight
@@ -916,8 +922,8 @@ if len(r.weights) != len(list) { return Instance{} }
 func (r *Registry) copyInstances(service string) []Instance {
     r.mu.RLock()
     defer r.mu.RUnlock()
-    instances := make([]Instance, 0, len(cache))
-    for _, ins := range cache {  // map 迭代, 顺序随机!
+    var instances []Instance
+    for _, ins := range r.services[service] {  // map 迭代, 顺序随机!
         instances = append(instances, ins)
     }
     return instances
@@ -1087,7 +1093,7 @@ Watch 持续更新:
 
 选择理由:
 
-- `pending`/`streams`: 读操作 (readLoop 的 Load/LoadAndDelete) 远多于写操作 (发送时 Store), 且 key 空间不重叠 (每个 RequestID 只被一个 goroutine 写入). sync.Map 的 read-only 快路径避免了锁竞争.
+- `pending`/`streams`: key 空间不重叠( 每个请求恰好一次 Store + 一次 LoadAndDelete, 读写 1:1, 每个 RequestID 只被一个 goroutine 写入), 这是 sync.Map 的最优场景, 避免了锁竞争.
 - `pools`/`breaker`: 典型的"初始化后只读"模式, LoadOrStore 保证并发安全的懒创建, 之后全是 Load 快路径.
 
 不适用场景: 如果 key 集合频繁变化且读写均匀, 普通 map + RWMutex 可能更优 (sync.Map 的 dirty promotion 有额外开销).

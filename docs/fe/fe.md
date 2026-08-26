@@ -550,7 +550,7 @@ A: requestAnimationFrame(cb): 告诉浏览器下一帧绘制前调用 cb, 回调
 - 后台标签页会暂停, 天然省电.
 - 每帧只执行一次, 需要持续动画要在回调里再次注册.
 
-requestIdleCallback(cb, { timeout }): 在浏览器空闲时段调用, cb 收到 IdleDeadline, deadline.timeRemaining() 告知本帧剩余空闲时间, deadline.didTimeout 表示是否因超时强制执行. 适合低优先级任务: 日志上报、预计算、非关键数据同步. 注意: 空闲回调中应避免直接大量修改 DOM( 可能迫使布局在回调内同步发生) , 修改 DOM 的工作应拆到 rAF 中; Safari 支持较晚, 需 setTimeout 降级.
+requestIdleCallback(cb, { timeout }): 在浏览器空闲时段调用, cb 收到 IdleDeadline, deadline.timeRemaining() 告知本帧剩余空闲时间, deadline.didTimeout 表示是否因超时强制执行. 适合低优先级任务: 日志上报、预计算、非关键数据同步. 注意: 空闲回调中应避免直接大量修改 DOM( 可能迫使布局在回调内同步发生) , 修改 DOM 的工作应拆到 rAF 中; Safari 稳定版至今未实现( 仅 Safari Technology Preview 可通过标志开启), 需 setTimeout 降级.
 
 两者常配合做时间切片: rIC 做数据准备, rAF 做 DOM 更新.
 
@@ -2459,7 +2459,7 @@ BigInt: 任意精度整数( 123n) ; 不能与 Number 混算( 显式转换) ; typ
 - Array.prototype.at(-1)、findLast.
 - Object.hasOwn( 替代 hasOwnProperty.call) .
 - 顶层 await( ES2022) ; 类私有字段 #x( 真私有, 运行时不可访问, 与 TS private 的"类型层私有"本质不同) .
-- Array.prototype.group / Object.groupBy; Promise.withResolvers; structuredClone.
+- Object.groupBy / Map.groupBy( ES2024; 原 Array.prototype.group 提案最终改为静态方法落地) ; Promise.withResolvers; structuredClone.
 - 正则 d 标志( indices, 捕获组起止下标) 、命名捕获组、后行断言.
 - 在途提案: Temporal( 取代 Date) 、Record & Tuple( #{...} 深不可变 + 值相等 ===) 、Decorator( 已落地 TS 5) 、Iterator Helpers( iter.map/filter/take) 、Pattern Matching.
 

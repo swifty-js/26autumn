@@ -3,7 +3,7 @@
 //       + Navigation Timing 拆解 + Resource Timing 采集 + 队列化上报
 // 不依赖任何第三方监控 SDK, 全部基于浏览器原生 Performance API
 
-// ============ 上报队列( 对应 boot.ts 的 window.AES_QUEUE)  ============
+// ============ 上报队列( 对应 boot.ts 的 window.PERF_QUEUE)  ============
 
 export interface PerfLogEntry {
   action: "log";

@@ -697,8 +697,11 @@ useEffect(() => {
   fetchData(options);
 }, [options]); // options 每次渲染都是新对象
 
-// 修复: useMemo 稳定引用, 或拆解为基本类型依赖
-const stableOptions = useMemo(() => options, [options.a, options.b]);
+// 修复: 依据基本类型依赖用 useMemo 重建稳定引用( 或直接把 effect 依赖改为 options.a 等基本类型)
+const stableOptions = useMemo(
+  () => ({ a: options.a, b: options.b }),
+  [options.a, options.b],
+);
 
 // 陷阱二: 在 useEffect 中同步更新 state 导致循环
 useEffect(() => {

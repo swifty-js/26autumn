@@ -762,7 +762,7 @@ A:
 
 1. 延迟响应 vs 即时写入: swifty_http 的延迟响应允许上游中间件在 `next()` 返回后修改下游设置的响应, 但牺牲了流式写入的灵活性( SSE/WS 需要 flushed 标志绕过) . Gin 的 `c.JSON()` 立即写入, 更直观但不可逆.
 
-2. 零依赖 vs 生态: swifty_http 手写 WebSocket 和 SSE, 代码量约 600 行, 覆盖了核心场景. Gin 生态依赖 gorilla/websocket 等成熟库, 边界情况处理更完善.
+2. 零依赖 vs 生态: swifty_http 手写 WebSocket 和 SSE, 代码量约 760 行( websocket.go 590 行 + sse.go 172 行), 覆盖了核心场景. Gin 生态依赖 gorilla/websocket 等成熟库, 边界情况处理更完善.
 
 3. Context 复用: Gin 使用 `sync.Pool` 复用 Context 对象减少 GC 压力. swifty_http 每请求新建 Context, 实现简单但在极高 QPS 下 GC 压力更大.
 
@@ -821,7 +821,7 @@ A:
 
 5. 中间件错误传播: 当前 panic 是唯一的错误传播机制. 可考虑在 Context 中增加 `Err error` 字段, 允许中间件返回错误而非 panic.
 
-6. HTTP/2 支持: 当前依赖 `http.Server` 的默认行为. 如果配置 TLS, `ListenAndServeTLS` 会自动启用 HTTP/2, 但 SSE 在 HTTP/2 下的行为需要验证.
+6. HTTP/2 支持: 当前依赖 `http.Server` 的默认行为. 框架只导出了 `Listen` ( 内部调 `ListenAndServe`), `server` 是未导出字段, 包外无法调 `ListenAndServeTLS`; 若要启用 HTTP/2 需框架新增导出的 TLS 监听方法, 且 SSE 在 HTTP/2 下的行为需要验证.
 
 7. 请求体大小限制: `BindJSON` 没有限制 body 大小, 恶意客户端可以发送超大 body 耗尽内存. 应包装 `http.MaxBytesReader`.
 

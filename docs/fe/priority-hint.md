@@ -20,9 +20,9 @@ Priority Hints 是一项 Web 平台特性，允许开发者向浏览器传达资
 | ------- | ------------------------------------------------------- |
 | Highest | 主 HTML 文档、关键 CSS（阻塞渲染的样式表）              |
 | High    | 字体（`@font-face` 引用）、同步脚本、`<img>` 在视口内时 |
-| Medium  | 预加载的脚本（`<script async>`）、部分图片              |
-| Low     | 视口外的图片、`prefetch` 资源                           |
-| Lowest  | `preload` 中 `as` 类型为非关键的资源                    |
+| Medium  | 较晚发现的 CSS 与脚本、部分图片                         |
+| Low     | `async` / `defer` 脚本、视口外的图片、音视频资源        |
+| Lowest  | `prefetch` 资源                                         |
 
 这个模型在大多数情况下运作良好，但存在局限：
 
@@ -80,7 +80,8 @@ const normal = await fetch("/api/page-content");
 - `<img>` — 图片资源
 - `<link>` — 预加载（preload）、预取（prefetch）、样式表等
 - `<script>` — 脚本资源
-- `<iframe>` — 嵌入文档
+
+注意：`<iframe>` 不支持 `fetchpriority`。该属性在 HTML 规范中只定义于 `img`、`link`、`script` 三个元素（早期提案曾包含 `iframe`，标准化时被移除），主流浏览器均未实现 iframe 上的 fetchpriority。
 
 ---
 
@@ -191,13 +192,7 @@ LCP（Largest Contentful Paint）是 Core Web Vitals 指标之一。如果 LCP �
 
 ### 4.5 iframe 优先级
 
-```html
-<!-- 核心功能 iframe（如支付组件） -->
-<iframe src="/payment/widget" fetchpriority="high"></iframe>
-
-<!-- 非关键 iframe（如社交媒体嵌入） -->
-<iframe src="https://social.example.com/embed/123" fetchpriority="low"></iframe>
-```
+`<iframe>` 不支持 `fetchpriority`：该属性只定义在 `img`、`link`、`script` 上，早期提案中的 iframe 支持在标准化时被移除，主流浏览器也没有实现。对非关键 iframe（如社交媒体嵌入），可改用 `loading="lazy"` 延迟加载或在需要时再动态插入；对关键 iframe（如支付组件），将其放在 HTML 靠前位置并减少前置的阻塞资源即可。
 
 ### 4.6 动态 fetch 请求的优先级
 
@@ -242,7 +237,7 @@ async function prefetchNextPage(pageId) {
 | -------- | -------------------- | ----------------------------------------- |
 | 控制层面 | 何时发起请求         | 请求在队列中的优先级                      |
 | 作用时机 | 资源进入视口前不加载 | 资源开始加载后影响调度                    |
-| 适用元素 | `<img>`, `<iframe>`  | `<img>`, `<link>`, `<script>`, `<iframe>` |
+| 适用元素 | `<img>`, `<iframe>`  | `<img>`, `<link>`, `<script>`            |
 | 可组合   | 是                   | 是                                        |
 
 两者正交，可以组合：`loading="lazy" fetchpriority="low"` 表示"晚点再加载，加载时也排后面"。
@@ -341,8 +336,8 @@ onLCP((metric) => {
 
 | 浏览器           | HTML `fetchpriority` | JS `fetch({ priority })` | 备注           |
 | ---------------- | -------------------- | ------------------------ | -------------- |
-| Chrome           | 102+                 | 102+                     | 完整支持       |
-| Edge             | 102+                 | 102+                     | 与 Chrome 同步 |
+| Chrome           | 101+                 | 101+                     | 完整支持       |
+| Edge             | 101+                 | 101+                     | 与 Chrome 同步 |
 | Firefox          | 132+                 | 132+                     | 较晚支持       |
 | Safari           | 17.2+                | 17.2+                    | 部分行为差异   |
 | Samsung Internet | 19+                  | 19+                      | —              |
