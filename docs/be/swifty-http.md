@@ -3,9 +3,9 @@
 > 本机器路径: `$HOME/github/swifty.go/swifty_http`
 > 基于项目 `github.com/hangtiancheng/swifty.go/swifty_http` 源码整理, 覆盖洋葱模型中间件、延迟响应、Trie 路由、SSE、WebSocket (RFC 6455) 等核心主题.
 
-## Q1: 项目整体架构与设计理念
+## 项目整体架构与设计理念
 
-Q: 请介绍 swifty_http 的整体架构, 它的核心设计理念是什么?
+请介绍 swifty_http 的整体架构, 它的核心设计理念是什么?
 
 A: swifty_http 是一个受 Koa.js 启发的 Go HTTP 框架, 核心设计理念有三:
 
@@ -40,9 +40,9 @@ http.Server -> Application.ServeHTTP
 
 ---
 
-## Q2: 洋葱模型中间件机制 (compose)
+## 洋葱模型中间件机制 (compose)
 
-Q: 请详细解释 compose 函数的实现原理, 它如何保证洋葱模型的执行顺序? 如何防止 next() 被多次调用?
+请详细解释 compose 函数的实现原理, 它如何保证洋葱模型的执行顺序? 如何防止 next() 被多次调用?
 
 A: `compose` 函数位于 `swifty.go:132-153`, 核心实现:
 
@@ -85,9 +85,9 @@ func compose(middlewares []Middleware, final Middleware) func(ctx *Context) {
 
 ---
 
-## Q3: 延迟响应 (Deferred Response) 机制
+## 延迟响应 (Deferred Response) 机制
 
-Q: 什么是延迟响应? 为什么选择这种设计? respond() 如何处理不同类型的 Body?
+什么是延迟响应? 为什么选择这种设计? respond() 如何处理不同类型的 Body?
 
 A: 延迟响应是 Koa.js 的核心设计: 中间件不直接操作 `http.ResponseWriter`, 而是设置 `ctx.Status`、`ctx.Body`、`ctx.headers`, 最终由 `respond()` 统一写出.
 
@@ -127,9 +127,9 @@ flushed 标志: SSE 和 WebSocket 场景中, 连接已被接管( hijack 或 head
 
 ---
 
-## Q4: Trie 路由树的设计与实现
+## Trie 路由树的设计与实现
 
-Q: 路由匹配使用的 Trie 树是如何设计的? 支持哪些路由模式? 时间复杂度如何?
+路由匹配使用的 Trie 树是如何设计的? 支持哪些路由模式? 时间复杂度如何?
 
 A: 路由树实现在 `trie.go`, 是一棵按 URL path 段( segment) 分割的前缀树.
 
@@ -164,9 +164,9 @@ type node struct {
 
 ---
 
-## Q5: 路由注册与匹配的细节问题
+## 路由注册与匹配的细节问题
 
-Q: addRoute 中为什么要做 pattern 规范化? getRoute 如何提取路径参数?
+addRoute 中为什么要做 pattern 规范化? getRoute 如何提取路径参数?
 
 A: Pattern 规范化( `router.go:54-66`) :
 
@@ -201,9 +201,9 @@ parsePattern 的 `*` 截断: `/static/*filepath/extra` 中 `*filepath` 之后的
 
 ---
 
-## Q6: Router 分组与前缀中间件
+## Router 分组与前缀中间件
 
-Q: Router 分组如何实现前缀隔离和中间件作用域? matchRouterPath 的边界匹配为什么重要?
+Router 分组如何实现前缀隔离和中间件作用域? matchRouterPath 的边界匹配为什么重要?
 
 A: 分组结构( `group.go`) :
 
@@ -254,9 +254,9 @@ normalizePrefix( `group.go:50-64`) : 确保前缀以 `/` 开头、不以 `/` 结
 
 ---
 
-## Q7: Context 设计与 Koa 风格对比
+## Context 设计与 Koa 风格对比
 
-Q: Context 的设计有哪些 Koa 风格的特征? State 和 Params 的用途是什么? Throw 的设计意图?
+Context 的设计有哪些 Koa 风格的特征? State 和 Params 的用途是什么? Throw 的设计意图?
 
 A: Context 结构( `context.go:33-57`) :
 
@@ -302,9 +302,9 @@ BindJSON( `context.go:108-111`) : 使用 `json.NewDecoder` 流式解码, 比 `io
 
 ---
 
-## Q8: Recovery 中间件与 panic 恢复
+## Recovery 中间件与 panic 恢复
 
-Q: Recovery 中间件如何工作? 为什么要特殊处理 http.ErrAbortHandler? trace 函数的实现细节?
+Recovery 中间件如何工作? 为什么要特殊处理 http.ErrAbortHandler? trace 函数的实现细节?
 
 A: Recovery 实现( `recovery.go:49-70`) :
 
@@ -353,9 +353,9 @@ func trace(message string) string {
 
 ---
 
-## Q9: 静态文件服务实现
+## 静态文件服务实现
 
-Q: Static 方法如何实现静态文件服务? 为什么需要 statusRecorder? staticFileExists 的设计考量?
+Static 方法如何实现静态文件服务? 为什么需要 statusRecorder? staticFileExists 的设计考量?
 
 A: 注册( `group.go:111-115`) :
 
@@ -415,9 +415,9 @@ staticFileExists( `group.go:141-160`) :
 
 ---
 
-## Q10: SSE (Server-Sent Events) 实现
+## SSE (Server-Sent Events) 实现
 
-Q: SSE 实现如何保证线程安全? Heartbeat 的 goroutine 生命周期如何管理? Stream 方法的设计?
+SSE 实现如何保证线程安全? Heartbeat 的 goroutine 生命周期如何管理? Stream 方法的设计?
 
 A: SSEWriter 初始化( `sse.go:38-51`) :
 
@@ -517,9 +517,9 @@ func (w *SSEWriter) Stream(ch <-chan string) {
 
 ---
 
-## Q11: WebSocket 实现 (RFC 6455)
+## WebSocket 实现 (RFC 6455)
 
-Q: WebSocket 握手过程如何实现? 为什么选择 Hijack 而非标准 ResponseWriter? CheckOrigin 的安全意义?
+WebSocket 握手过程如何实现? 为什么选择 Hijack 而非标准 ResponseWriter? CheckOrigin 的安全意义?
 
 A: 握手流程( `websocket.go:91-178`) :
 
@@ -562,9 +562,9 @@ if brw.Reader.Buffered() > 0 {
 
 ---
 
-## Q12: WebSocket 帧解析与消息重组
+## WebSocket 帧解析与消息重组
 
-Q: readFrame 如何解析 WebSocket 帧? readMessage 如何处理分片消息? 有哪些安全校验?
+readFrame 如何解析 WebSocket 帧? readMessage 如何处理分片消息? 有哪些安全校验?
 
 A: 帧格式( RFC 6455 Section 5.2) :
 
@@ -639,9 +639,9 @@ writeFrame( `websocket.go:488-518`) : 服务端到客户端不 mask( RFC 规定)
 
 ---
 
-## Q13: 并发安全设计
+## 并发安全设计
 
-Q: 框架中有哪些并发安全的设计? WSConn 的读写锁如何工作?
+框架中有哪些并发安全的设计? WSConn 的读写锁如何工作?
 
 A: WSConn 的锁设计( `websocket.go:68-82`) :
 
@@ -686,9 +686,9 @@ Application 层面的隐含约束: 路由注册( addRoute) 应在 Listen 之前�
 
 ---
 
-## Q14: 优雅关闭 (Graceful Shutdown)
+## 优雅关闭 (Graceful Shutdown)
 
-Q: Application 的 Shutdown 如何实现? 为什么 server 在 New() 中构造而非 Listen() 中?
+Application 的 Shutdown 如何实现? 为什么 server 在 New() 中构造而非 Listen() 中?
 
 A: 实现( `swifty.go:64-74`) :
 
@@ -742,9 +742,9 @@ app.Shutdown(ctx)
 
 ---
 
-## Q15: 与 Gin/Echo 等框架的对比
+## 与 Gin/Echo 等框架的对比
 
-Q: swifty_http 与 Gin、Echo 相比, 设计哲学有何不同? 各自的适用场景?
+swifty_http 与 Gin、Echo 相比, 设计哲学有何不同? 各自的适用场景?
 
 A:
 
@@ -774,9 +774,9 @@ A:
 
 ---
 
-## Q16: 零依赖设计的取舍
+## 零依赖设计的取舍
 
-Q: 零依赖带来了哪些优势和限制? WebSocket 实现相比 gorilla/websocket 缺少什么?
+零依赖带来了哪些优势和限制? WebSocket 实现相比 gorilla/websocket 缺少什么?
 
 A: 优势:
 
@@ -801,9 +801,9 @@ SSE 的限制:
 
 ---
 
-## Q17: 潜在改进方向
+## 潜在改进方向
 
-Q: 如果要将 swifty_http 用于生产环境, 你认为有哪些需要改进的地方?
+如果要将 swifty_http 用于生产环境, 你认为有哪些需要改进的地方?
 
 A:
 

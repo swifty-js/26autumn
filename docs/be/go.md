@@ -204,7 +204,7 @@ Go 只有值传递: 无论传什么类型, 形参都是实参的拷贝. slice/ma
 
 ### 2.1 slice 的运行时结构是什么
 
-Q: 描述 slice 在运行时的内存布局, 它和数组的本质区别是什么?
+描述 slice 在运行时的内存布局, 它和数组的本质区别是什么?
 
 A: slice 在运行时对应 `runtime.slice` 结构体, 在 64 位平台上恒为 24 字节:
 
@@ -242,7 +242,7 @@ type slice struct {
 
 ### 2.2 append 的扩容策略与内存对齐
 
-Q: append 触发扩容时, 新容量是怎么算出来的? 为什么实测容量经常比理论值大?
+append 触发扩容时, 新容量是怎么算出来的? 为什么实测容量经常比理论值大?
 
 A: 分两步: 先按增长公式算"期望容量", 再按内存分配器的 size class 向上取整.
 
@@ -272,7 +272,7 @@ if newLen > doublecap {
 
 ### 2.3 共享底层数组的经典陷阱
 
-Q: 下面代码输出什么? 如何修复?
+下面代码输出什么? 如何修复?
 
 ```go
 a := []int{1, 2, 3, 4, 5}
@@ -294,7 +294,7 @@ A: `b` 与 `a` 共享底层数组且 `cap` 有富余, `append` 原地写入覆�
 
 ### 2.4 nil slice 与空 slice 的区别
 
-Q: `var s []int` 和 `s := []int{}` 有什么区别?
+`var s []int` 和 `s := []int{}` 有什么区别?
 
 A:
 
@@ -310,7 +310,7 @@ A:
 
 ### 2.5 slice 作为函数参数的传递语义
 
-Q: Go 只有值传递, 那为什么函数内能修改调用方的 slice 元素, 却不能让调用方看到 append 的结果?
+Go 只有值传递, 那为什么函数内能修改调用方的 slice 元素, 却不能让调用方看到 append 的结果?
 
 A: 传参拷贝的是 24 字节的 slice header, 两个 header 指向同一底层数组:
 
@@ -332,7 +332,7 @@ func myAppendPtr(s *[]int) {
 
 ### 2.6 slice 删除元素与内存泄漏
 
-Q: 从 slice 中删除元素的标准写法? 指针型 slice 删除时要注意什么?
+从 slice 中删除元素的标准写法? 指针型 slice 删除时要注意什么?
 
 A:
 
@@ -362,7 +362,7 @@ s = s[:len(s)-1]
 
 ### 3.1 经典 hmap/bmap 实现
 
-Q: 讲讲 Go map (1.23 及以前) 的底层结构和一次读写的完整流程.
+讲讲 Go map (1.23 及以前) 的底层结构和一次读写的完整流程.
 
 A: 核心结构:
 
@@ -396,7 +396,7 @@ type bmap struct {
 
 ### 3.2 扩容机制: 翻倍扩容与等量扩容
 
-Q: map 什么时候扩容? 两种扩容有什么区别? 为什么是渐进式的?
+map 什么时候扩容? 两种扩容有什么区别? 为什么是渐进式的?
 
 A: `mapassign` 时检查两个条件:
 
@@ -409,7 +409,7 @@ A: `mapassign` 时检查两个条件:
 
 ### 3.3 Go 1.24 的 Swiss Table 重写
 
-Q: 听说新版 Go 重写了 map?
+听说新版 Go 重写了 map?
 
 A: Go 1.24 (2025.02) 把内置 map 从链式桶实现替换为基于 Swiss Table (Google Abseil 的开放寻址方案) 的实现:
 
@@ -422,7 +422,7 @@ A: Go 1.24 (2025.02) 把内置 map 从链式桶实现替换为基于 Swiss Table
 
 ### 3.4 map 的几个语言级约束及原因
 
-Q: 为什么 map 元素不可寻址? 为什么迭代顺序随机? key 有什么要求?
+为什么 map 元素不可寻址? 为什么迭代顺序随机? key 有什么要求?
 
 A:
 
@@ -435,7 +435,7 @@ A:
 
 ### 3.5 并发安全: fatal 而非 panic, 以及 sync.Map
 
-Q: 并发读写 map 会怎样? 能 recover 吗? sync.Map 适用什么场景?
+并发读写 map 会怎样? 能 recover 吗? sync.Map 适用什么场景?
 
 A: 运行时通过 `hmap.flags` 的 `hashWriting` 位做检测, 发现并发读写会调用 `runtime.fatal("concurrent map read and map write")`——这是 fatal throw, 不是 panic, recover 救不回来, 进程直接退出. 这是有意为之: 并发写 map 意味着内部结构可能已损坏, 继续运行只会产生更诡异的错误.
 
@@ -447,7 +447,7 @@ A: 运行时通过 `hmap.flags` 的 `hashWriting` 位做检测, 发现并发读�
 
 ### 3.6 分片锁并发 map 的实现要点
 
-Q: 让你手写一个高并发 map, 你会怎么设计? 分片锁有哪些细节?
+让你手写一个高并发 map, 你会怎么设计? 分片锁有哪些细节?
 
 A: 核心思想: 把一个"大 map + 一把大锁"拆成 N 个"小 map + 小锁", 不同 key 大概率落到不同分片, 锁竞争按分片数近似线性下降. 骨架:
 
@@ -482,7 +482,7 @@ func (s *ShardedMap) shardOf(key string) *shard {
 
 ## 4. string 与 []byte
 
-Q: string 的底层结构? 和 []byte 互转的成本? 如何零拷贝?
+string 的底层结构? 和 []byte 互转的成本? 如何零拷贝?
 
 A: string 是不可变的字节序列, 运行时表示为 16 字节的二元组 (比 slice 少一个 cap, 因为不可变不需要):
 
@@ -515,7 +515,7 @@ s := unsafe.String(unsafe.SliceData(b), len(b)) // []byte -> string, 此后 b �
 
 ### 5.1 eface 与 iface
 
-Q: interface 的两种运行时表示? itab 里有什么?
+interface 的两种运行时表示? itab 里有什么?
 
 A:
 
@@ -549,7 +549,7 @@ type itab struct {
 
 ### 5.2 nil interface 陷阱
 
-Q: 为什么下面的代码打印 "not nil"?
+为什么下面的代码打印 "not nil"?
 
 ```go
 type MyErr struct{}
@@ -579,7 +579,7 @@ c = g                // 装箱后动态类型变为 *Gopher, c == nil 变为 fal
 
 ### 5.3 动态派发的成本与逃逸
 
-Q: 接口调用比直接调用慢在哪? 什么时候该避免接口?
+接口调用比直接调用慢在哪? 什么时候该避免接口?
 
 A: 成本有三层:
 
@@ -641,7 +641,7 @@ A: 成本有三层:
 
 ### 7.1 G、M、P 各自的职责
 
-Q: 详细讲讲 GMP 模型, 为什么需要 P 这一层?
+详细讲讲 GMP 模型, 为什么需要 P 这一层?
 
 A:
 
@@ -688,7 +688,7 @@ A:
 
 ### 7.2 一次完整的调度循环
 
-Q: 一个 M 是按什么顺序找下一个 G 来运行的?
+一个 M 是按什么顺序找下一个 G 来运行的?
 
 A: `runtime.schedule()` → `findRunnable()` 的优先级:
 
@@ -706,7 +706,7 @@ A: `runtime.schedule()` → `findRunnable()` 的优先级:
 
 ### 7.3 抢占机制的演进
 
-Q: 一个 `for {}` 死循环会卡死整个调度器吗?
+一个 `for {}` 死循环会卡死整个调度器吗?
 
 A: 分版本:
 
@@ -717,7 +717,7 @@ A: 分版本:
 
 ### 7.4 系统调用与 handoff
 
-Q: G 陷入阻塞系统调用时, P 会被一起阻塞吗?
+G 陷入阻塞系统调用时, P 会被一起阻塞吗?
 
 A: 不会, 这正是 handoff 机制:
 
@@ -732,7 +732,7 @@ A: 不会, 这正是 handoff 机制:
 
 ### 7.5 netpoller 与网络 IO
 
-Q: Go 如何做到"同步代码、异步执行"的网络模型?
+Go 如何做到"同步代码、异步执行"的网络模型?
 
 A: `net` 包的所有 fd 都设为非阻塞并注册进 netpoller (Linux epoll / macOS-BSD kqueue / Windows IOCP):
 
@@ -745,7 +745,7 @@ A: `net` 包的所有 fd 都设为非阻塞并注册进 netpoller (Linux epoll /
 
 ### 7.6 goroutine 栈: 从 2KB 到 1GB
 
-Q: goroutine 栈是怎么增长的? 为什么不用分段栈?
+goroutine 栈是怎么增长的? 为什么不用分段栈?
 
 A: 初始 2KB, 连续栈 (contiguous stack) 方案:
 
@@ -758,7 +758,7 @@ Go 1.3 之前用分段栈 (segmented stack), 栈不够时链一个新段. 缺点
 
 ### 7.7 GOMAXPROCS 与容器环境
 
-Q: 容器里 GOMAXPROCS 有什么坑?
+容器里 GOMAXPROCS 有什么坑?
 
 A: `GOMAXPROCS` 默认取机器逻辑 CPU 数. 容器场景的经典问题: Pod limit 2 核, 宿主机 64 核, Go 1.24 及以前默认 GOMAXPROCS=64 → 64 个 P 的调度开销、GC 标记并行度失衡、CFS 配额下频繁被内核限流 (throttling), P99 明显劣化. 解法:
 
@@ -767,7 +767,7 @@ A: `GOMAXPROCS` 默认取机器逻辑 CPU 数. 容器场景的经典问题: Pod 
 
 ### 7.8 sysmon 与 goroutine 状态机
 
-Q: sysmon 是什么? goroutine 有哪些状态, 怎么流转?
+sysmon 是什么? goroutine 有哪些状态, 怎么流转?
 
 A: sysmon (system monitor) 是一个特殊的 M: 不绑定 P、不进调度循环, 独立死循环运行, 休眠间隔在 20μs~10ms 之间自适应 (系统越闲睡得越久). 它是运行时的"看门人", 职责:
 
@@ -806,7 +806,7 @@ P 与 M 的创建时机: P 在 `schedinit()` 调 `procresize(GOMAXPROCS)` 时一
 
 ### 8.1 hchan 结构与收发流程
 
-Q: 描述 channel 的运行时结构, 以及一次 send 的完整路径.
+描述 channel 的运行时结构, 以及一次 send 的完整路径.
 
 A: `make(chan T, n)` 在堆上分配一个 `runtime.hchan` (channel 用于跨 goroutine 通信, 生命周期不可能局限在单个函数内, 所以一律堆分配):
 
@@ -864,7 +864,7 @@ recv 完全对称, 另有一个特殊分支: 缓冲区满且 sendq 有等待者�
 
 ### 8.2 各种边界状态速查表
 
-Q: 对 nil channel、closed channel 的各种操作分别是什么行为?
+对 nil channel、closed channel 的各种操作分别是什么行为?
 
 A: 这是必背表格:
 
@@ -884,7 +884,7 @@ A: 这是必背表格:
 
 ### 8.3 channel 与 happens-before
 
-Q: channel 操作提供什么内存序保证?
+channel 操作提供什么内存序保证?
 
 A: Go 内存模型明确规定:
 
@@ -894,7 +894,7 @@ A: Go 内存模型明确规定:
 
 ### 8.4 select 的实现与随机性
 
-Q: select 多个 case 就绪时怎么选? 底层如何实现?
+select 多个 case 就绪时怎么选? 底层如何实现?
 
 A:
 
@@ -915,7 +915,7 @@ type scase struct {
 
 ### 8.5 goroutine 泄漏与工程范式
 
-Q: 常见的 goroutine 泄漏模式和防御手段?
+常见的 goroutine 泄漏模式和防御手段?
 
 A: 泄漏的本质是 G 永久阻塞在 channel/锁上, 无人唤醒, 其栈和引用的对象永不回收. 四大经典模式:
 
@@ -931,7 +931,7 @@ A: 泄漏的本质是 G 永久阻塞在 channel/锁上, 无人唤醒, 其栈和�
 
 ### 8.6 channel 高频并发模式
 
-Q: 用 channel 实现 worker pool、fan-in/fan-out、限流、超时控制, 各写出骨架并说明关键点.
+用 channel 实现 worker pool、fan-in/fan-out、限流、超时控制, 各写出骨架并说明关键点.
 
 A:
 
@@ -1016,7 +1016,7 @@ case <-ctx.Done():
 
 ### 9.1 接口设计与四种实现
 
-Q: context.Context 的接口方法及标准库的几种实现?
+context.Context 的接口方法及标准库的几种实现?
 
 A:
 
@@ -1040,7 +1040,7 @@ Context 于 Go 1.7 引入标准库, 核心作用是在跨函数、跨 goroutine 
 
 ### 9.2 取消传播的树形机制
 
-Q: cancel 是怎么传播的? 为什么取消只影响子树?
+cancel 是怎么传播的? 为什么取消只影响子树?
 
 A:
 
@@ -1088,7 +1088,7 @@ WithCancel   |         |
 
 ### 9.3 context 的工程规约
 
-Q: 使用 context 的最佳实践和反模式?
+使用 context 的最佳实践和反模式?
 
 A:
 
@@ -1101,7 +1101,7 @@ A:
 
 ### 9.4 1.20+ 新 API: Cause、AfterFunc、WithoutCancel
 
-Q: 近几个版本 context 包加了什么?
+近几个版本 context 包加了什么?
 
 A:
 
@@ -1115,7 +1115,7 @@ A:
 
 ### 10.1 Mutex: 正常模式与饥饿模式
 
-Q: sync.Mutex 的实现原理? 什么是饥饿模式?
+sync.Mutex 的实现原理? 什么是饥饿模式?
 
 A: Mutex 是 8 字节: `state int32` (锁定位/唤醒位/饥饿位/等待者计数复用一个字) + `sema uint32` (信号量). 加锁路径分层:
 
@@ -1133,7 +1133,7 @@ A: Mutex 是 8 字节: `state int32` (锁定位/唤醒位/饥饿位/等待者计
 
 ### 10.2 RWMutex 与写者优先
 
-Q: RWMutex 怎么避免写者饿死? 什么时候 RWMutex 反而比 Mutex 慢?
+RWMutex 怎么避免写者饿死? 什么时候 RWMutex 反而比 Mutex 慢?
 
 A: 内部为 `w Mutex` (写者互斥) + `readerCount atomic.Int32` + `readerWait` + 两个信号量. 写锁到来时把 readerCount 原子减去 `1<<30` (rwmutexMaxReaders), 使其变为负值——后续新读者看到负值即排队, 写者等存量读者 (readerWait) 清零后获锁. 即写请求会阻断后续读请求, 避免读多场景写者永远插不进去.
 
@@ -1141,7 +1141,7 @@ A: 内部为 `w Mutex` (写者互斥) + `readerCount atomic.Int32` + `readerWait
 
 ### 10.3 WaitGroup、Once、Cond 的正确用法
 
-Q: WaitGroup 有哪些误用? Once 怎么实现的?
+WaitGroup 有哪些误用? Once 怎么实现的?
 
 A:
 
@@ -1176,7 +1176,7 @@ type entry struct { p unsafe.Pointer } // 指向 value; nil=逻辑删除, expung
 
 ### 10.4 sync.Pool 与 victim cache
 
-Q: sync.Pool 的实现和适用边界?
+sync.Pool 的实现和适用边界?
 
 A: 目的: 摊薄短生命周期对象的分配与 GC 成本, 不是做连接池/资源池 (元素随时可能被 GC 无声回收, 绝不能放有状态资源).
 
@@ -1190,7 +1190,7 @@ A: 目的: 摊薄短生命周期对象的分配与 GC 成本, 不是做连接池
 
 ### 10.5 atomic 与无锁编程
 
-Q: atomic 提供什么保证? 和 mutex 怎么选?
+atomic 提供什么保证? 和 mutex 怎么选?
 
 A:
 
@@ -1205,7 +1205,7 @@ A:
 
 ### 10.6 singleflight: 防缓存击穿的标准武器
 
-Q: singleflight 的原理和陷阱?
+singleflight 的原理和陷阱?
 
 A: `golang.org/x/sync/singleflight`: 同一 key 的并发调用只放一个进去真正执行, 其余等待并共享同一结果. 内部即 `mutex + map[string]*call`, call 里 WaitGroup 挂起后来者.
 
@@ -1219,7 +1219,7 @@ A: `golang.org/x/sync/singleflight`: 同一 key 的并发调用只放一个进�
 
 ### 10.7 errgroup 与并发数控制
 
-Q: 并发发起一批子任务, 要求任一失败即整体取消、限制最大并发、收集第一个错误——标准做法是什么?
+并发发起一批子任务, 要求任一失败即整体取消、限制最大并发、收集第一个错误——标准做法是什么?
 
 A: `golang.org/x/sync/errgroup`, 它解决了裸 WaitGroup 的三个缺口: 错误传播、失败即取消、并发上限.
 
@@ -1251,7 +1251,7 @@ if err := g.Wait(); err != nil { // 返回第一个非 nil 错误
 
 ## 11. Go 内存模型与 happens-before
 
-Q: 什么是数据竞争? Go 内存模型给了哪些同步保证?
+什么是数据竞争? Go 内存模型给了哪些同步保证?
 
 A: 数据竞争 = 两个 goroutine 并发访问同一内存位置, 至少一个是写, 且无 happens-before 边. 有竞争的程序行为未定义 (Go 保证不会像 C++ 那样任意炸, 但读到的值可能是"撕裂"的中间态, 如 interface/slice/string 多字结构写一半).
 
@@ -1271,7 +1271,7 @@ A: 数据竞争 = 两个 goroutine 并发访问同一内存位置, 至少一个�
 
 ### 12.1 三级分配器: mcache/mcentral/mheap
 
-Q: new/make 一个对象时, 内存从哪来?
+new/make 一个对象时, 内存从哪来?
 
 A: Go 分配器脱胎于 tcmalloc, 按大小三条路:
 
@@ -1283,7 +1283,7 @@ A: Go 分配器脱胎于 tcmalloc, 按大小三条路:
 
 ### 12.2 逃逸分析的判定规则
 
-Q: 哪些情况会导致变量逃逸到堆? 如何观测和优化?
+哪些情况会导致变量逃逸到堆? 如何观测和优化?
 
 A: 原则: 编译器能证明变量生命周期不超出栈帧且大小编译期已知, 就分配在栈上; 证明不了就逃逸到堆. 常见逃逸场景:
 
@@ -1302,7 +1302,7 @@ A: 原则: 编译器能证明变量生命周期不超出栈帧且大小编译期
 
 ### 13.1 GC 流程、写屏障与调优
 
-Q: 讲讲 Go GC 的完整流程、写屏障的作用, 以及调优手段.
+讲讲 Go GC 的完整流程、写屏障的作用, 以及调优手段.
 
 A: Go 使用并发三色标记-清除 (非分代、非压缩、非移动). 常见 GC 实现方式有标记清扫、标记整理、增量式、分代式、引用计数等, 均属于追踪式 GC 与引用计数两大族的混合; Go 选择了其中最适合低延迟目标的组合.
 
@@ -1408,7 +1408,7 @@ scvg 行是 scavenger 归还 OS 的统计: inuse (在用)、idle (空闲待归�
 
 ## 14. defer、panic 与 recover
 
-Q: defer 的执行时机与性能演进? recover 为什么必须直接写在 defer 函数里?
+defer 的执行时机与性能演进? recover 为什么必须直接写在 defer 函数里?
 
 A:
 
@@ -1443,7 +1443,7 @@ panic/recover:
 
 ### 15.1 GOOS/GOARCH 与交叉编译基础
 
-Q: Go 为什么交叉编译特别容易? 具体怎么做?
+Go 为什么交叉编译特别容易? 具体怎么做?
 
 A: 因为 Go 工具链自带全平台后端与链接器, 标准库对每个平台的实现随源码分发, 且纯 Go 代码不依赖目标平台的 C 工具链——一条命令即可:
 
@@ -1466,7 +1466,7 @@ go tool dist list
 
 ### 15.2 CGO 与静态链接
 
-Q: 为什么 CGO_ENABLED=0 是发布容器镜像的常见做法? CGO 有什么代价?
+为什么 CGO_ENABLED=0 是发布容器镜像的常见做法? CGO 有什么代价?
 
 A:
 
@@ -1484,7 +1484,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o app
 
 ### 15.3 构建约束: build tags 与文件后缀
 
-Q: 怎么为不同平台提供不同实现?
+怎么为不同平台提供不同实现?
 
 A: 两种机制:
 
@@ -1503,7 +1503,7 @@ package fastio
 
 ### 15.4 编译产物优化与发布实践
 
-Q: 生产发布的构建参数你会怎么定?
+生产发布的构建参数你会怎么定?
 
 A:
 
@@ -1525,7 +1525,7 @@ go build -trimpath \
 
 ## 16. 泛型要点
 
-Q: Go 泛型的实现方式? 和 C++ 模板、Java 泛型的区别? 什么时候不该用泛型?
+Go 泛型的实现方式? 和 C++ 模板、Java 泛型的区别? 什么时候不该用泛型?
 
 A:
 
@@ -1537,7 +1537,7 @@ A:
 
 ## 17. 工程实践: pprof、race、泄漏排查
 
-Q: 线上一个 Go 服务 CPU 飙高 / 内存缓慢增长 / goroutine 数持续上涨, 各自的排查路径?
+线上一个 Go 服务 CPU 飙高 / 内存缓慢增长 / goroutine 数持续上涨, 各自的排查路径?
 
 A: 前置: 服务常驻开启 `net/http/pprof` (内网端口), 核心指标 (goroutine 数、heap、GC 停顿、GOMAXPROCS) 接入监控.
 
@@ -1609,7 +1609,7 @@ Q5: select 永久阻塞检测
 
 ### 19.1 运行时死锁检测的能力与盲区
 
-Q: `fatal error: all goroutines are asleep - deadlock!` 是怎么检测出来的? 为什么线上很多死锁它反而不报?
+`fatal error: all goroutines are asleep - deadlock!` 是怎么检测出来的? 为什么线上很多死锁它反而不报?
 
 A: 检测逻辑在 `runtime.checkdead`: 每当一个 M 进入休眠, 运行时检查"还在干活的 M 数量", 若所有 goroutine 都阻塞在运行时可见的原语上 (channel 收发、select、sync 原语的 sema、Wait), 且没有可运行的 G、没有活跃的 timer 和 netpoll 等待, 就直接 fatal (throw, recover 不了).
 
@@ -1623,7 +1623,7 @@ A: 检测逻辑在 `runtime.checkdead`: 每当一个 M 进入休眠, 运行时�
 
 ### 19.2 六种经典死锁形态
 
-Q: 写出你见过的典型死锁代码, 并说明修复方式.
+写出你见过的典型死锁代码, 并说明修复方式.
 
 A:
 
@@ -1681,7 +1681,7 @@ mu.Unlock() // 消费者恰好需要先拿 mu 才能消费 → 死锁
 
 ### 19.3 死锁预防与排查
 
-Q: 工程上如何系统性地预防和定位死锁?
+工程上如何系统性地预防和定位死锁?
 
 A:
 
@@ -1704,7 +1704,7 @@ A:
 
 ### 20.1 go mod 与最小版本选择 MVS
 
-Q: Go 的依赖版本是怎么决策的? go.sum 是锁文件吗?
+Go 的依赖版本是怎么决策的? go.sum 是锁文件吗?
 
 A: Go modules 用 MVS (Minimal Version Selection, 最小版本选择): 构建时收集依赖图中对每个模块的所有版本要求, 取其中最大的那个"最低要求" (即满足所有 require 的最小版本), 不会自动升到最新. 对比 npm/cargo 的 SAT 求解 + 锁文件:
 
@@ -1718,7 +1718,7 @@ A: Go modules 用 MVS (Minimal Version Selection, 最小版本选择): 构建时
 
 ### 20.2 go vet 与静态检查体系
 
-Q: go vet 能查出哪些 bug? 它和编译器、race detector 的分工?
+go vet 能查出哪些 bug? 它和编译器、race detector 的分工?
 
 A: vet 做编译器不管的语义检查——代码合法但大概率是 bug 的模式. 与本文各章直接相关的检查项:
 
@@ -1737,7 +1737,7 @@ A: vet 做编译器不管的语义检查——代码合法但大概率是 bug �
 
 ### 20.3 go test 高级用法
 
-Q: 表驱动测试、t.Parallel、TestMain、fuzzing 分别解决什么问题? 测试缓存怎么回事?
+表驱动测试、t.Parallel、TestMain、fuzzing 分别解决什么问题? 测试缓存怎么回事?
 
 A:
 
@@ -1777,7 +1777,7 @@ func TestParse(t *testing.T) {
 
 ### 20.4 benchmark 写法与陷阱
 
-Q: 写一个正确的 benchmark 有哪些坑? b.N 和 1.24 的 b.Loop 有什么区别?
+写一个正确的 benchmark 有哪些坑? b.N 和 1.24 的 b.Loop 有什么区别?
 
 A:
 

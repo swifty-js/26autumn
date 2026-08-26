@@ -5,7 +5,7 @@
 
 ## 1. 项目整体架构
 
-Q: 请介绍 swifty-cache 的整体架构设计.
+请介绍 swifty-cache 的整体架构设计.
 
 swifty-cache 是一个仿 Google groupcache 的分布式缓存框架 (TypeScript 实现, 依赖 `@grpc/grpc-js` 与 `etcd3`), 核心设计目标是在无中心节点的前提下, 通过一致性哈希将 key 映射到固定节点, 实现缓存的分片存储与对等访问.
 
@@ -56,7 +56,7 @@ swifty-cache 是一个仿 Google groupcache 的分布式缓存框架 (TypeScript
 
 ## 2. 读路径 (Read-Through) 设计
 
-Q: 详细描述一次 Get 请求的完整链路.
+详细描述一次 Get 请求的完整链路.
 
 ```
   调用方          Group           Cache        SingleFlight        ConHashMap      远端节点/数据源
@@ -95,7 +95,7 @@ Q: 详细描述一次 Get 请求的完整链路.
 6. 写入缓存: 在 singleflight 回调内部, 按 `expiration` 配置写入本地 `mainCache` (`expiration > 0` 时用 `addWithExpiration`, 否则 `add`; 默认 `expiration = 0` 即不带 TTL)
 7. 返回: 包装为 `ByteView` 返回给调用方
 
-Q: 为什么统计计数和缓存填充放在 singleflight 回调内部?
+为什么统计计数和缓存填充放在 singleflight 回调内部?
 
 `loads`、`loadDuration` 等计数以及 `mainCache.add` 都写在 `do(key, fn)` 的回调里, 而不是 `get` 的外层. 这样每次实际加载只统计一次: N 个并发等待者共享同一个 Promise, 回调只执行一次, 避免了等待方重复计数、重复写缓存.
 
@@ -103,7 +103,7 @@ Q: 为什么统计计数和缓存填充放在 singleflight 回调内部?
 
 ## 3. 写路径与写传播
 
-Q: Set 和 Delete 操作如何保证多节点间的数据一致性?
+Set 和 Delete 操作如何保证多节点间的数据一致性?
 
 写路径 (对应 `group.ts` 中 `Group.set` / `Group.delete`):
 
@@ -116,7 +116,7 @@ Q: Set 和 Delete 操作如何保证多节点间的数据一致性?
    - ClientPicker 创建 Client 时固定设置 `peerRequest: true`, Client 会在每次调用的 metadata 中写入 `x-peer-request: true`, 防止接收方再次转发
    - 传播失败只 `log.warn` 记录, 不重试, 也不影响本地写入的返回
 
-Q: 这种写传播方案的一致性保证是什么级别? 有什么局限?
+这种写传播方案的一致性保证是什么级别? 有什么局限?
 
 这是最终一致性模型, 存在以下局限:
 
@@ -130,7 +130,7 @@ Q: 这种写传播方案的一致性保证是什么级别? 有什么局限?
 
 ## 4. 存储引擎: 分桶双层 LRU
 
-Q: LruStore 的分桶双层设计解决了什么问题?
+LruStore 的分桶双层设计解决了什么问题?
 
 对应 `lru.ts` 中的 `LruStore` 结构:
 
@@ -161,7 +161,7 @@ class LruStore implements Store {
 - 一次性扫描 (scan) 的数据只经过 L1, 不会被再次访问因此不会进入 L2, 避免挤占频繁访问的热数据
 - 字节预算淘汰时优先从 L1 淘汰 (`evictTail`), L1 淘汰不出有效条目才淘汰 L2
 
-Q: 底层 InternalCache 为什么用数组而非链表节点?
+底层 InternalCache 为什么用数组而非链表节点?
 
 ```ts
 class InternalCache {
@@ -180,7 +180,7 @@ class InternalCache {
 - 哨兵节点: `doubleLink[0]` 作为环形链表头尾哨兵, 简化边界处理
 - 字节统计外置: 条目大小 (`key.length + value.len()`) 由 `LruStore.bucketBytes` 按桶记账, InternalCache 自身不维护字节数
 
-Q: 字节预算 (byte budget) 淘汰是如何工作的?
+字节预算 (byte budget) 淘汰是如何工作的?
 
 每个桶有独立的字节预算 `bucketMaxBytes = Math.max(1, Math.floor(maxBytes / (mask + 1)))` (仅当 `maxBytes > 0` 时; `maxBytes <= 0` 时预算为 0, 整体禁用字节预算淘汰; mask+1 即实际桶数):
 
@@ -194,7 +194,7 @@ Q: 字节预算 (byte budget) 淘汰是如何工作的?
 
 ## 5. TTL 与过期清理
 
-Q: TTL 过期是如何判定和清理的?
+TTL 过期是如何判定和清理的?
 
 与 Go 版不同, TypeScript 实现没有粗粒度时钟, 直接使用 `Date.now()` 毫秒时间戳. 过期清理由两条路径协同:
 
@@ -208,7 +208,7 @@ Q: TTL 过期是如何判定和清理的?
 - `InternalCache.get` 以 `expireAt > 0` 作为有效条目的判据, 删除/淘汰时把槽位重置为 `expireAt = 0`
 - `Cache.addWithExpiration` 发现 `expirationTime - Date.now() <= 0` 时等价于一次 delete, 不会写入已过期的值
 
-Q: 为什么这里直接用 Date.now() 就够了?
+为什么这里直接用 Date.now() 就够了?
 
 Go 版引入粗粒度时钟是为了规避高 QPS 下 `time.Now()` 的 vDSO 开销. Node.js 单线程模型下, TTL 判断本身不是热点 (每次 get 一次调用), `Date.now()` 的开销可以忽略, 没有引入自定义时钟的必要. 代价是精度完全依赖系统时钟, 且 60s 级别的清理周期意味着过期条目最多会在内存中多停留一分钟.
 
@@ -216,7 +216,7 @@ Go 版引入粗粒度时钟是为了规避高 QPS 下 `time.Now()` 的 vDSO 开�
 
 ## 6. SingleFlight 并发去重
 
-Q: SingleFlightGroup 的实现原理是什么? 与 Go 版 x/sync/singleflight 有何异同?
+SingleFlightGroup 的实现原理是什么? 与 Go 版 x/sync/singleflight 有何异同?
 
 对应 `single-flight.ts`:
 
@@ -251,7 +251,7 @@ class SingleFlightGroup {
 | Forget 方法 | 无 (finally 自动 delete) | 有                        |
 | 适用场景    | 高并发读缓存             | 通用                      |
 
-Q: 如果 fn 内部抛异常会怎样?
+如果 fn 内部抛异常会怎样?
 
 共享的 Promise 被 reject, 所有 await 它的调用方同时收到同一个错误 (执行者一侧还会 rethrow). 与 Go 版把 recover 包装成 error 的做法不同, 这里没有吞异常的逻辑 — JS 的异常本身就是一等错误值, 每个调用方可以自行 catch 处理; 预挂的空 catch 只是保证无等待者时进程不会因为 unhandledRejection 告警. 对缓存场景而言, 一次回源失败会让该 key 的所有并发等待者一起失败, 下一个请求会重新触发加载.
 
@@ -259,7 +259,7 @@ Q: 如果 fn 内部抛异常会怎样?
 
 ## 7. 一致性哈希
 
-Q: ConHashMap 的实现细节? 虚拟节点的作用是什么?
+ConHashMap 的实现细节? 虚拟节点的作用是什么?
 
 对应 `consistent-hash.ts`:
 
@@ -288,13 +288,13 @@ class ConHashMap {
 3. 环形语义: 二分结果等于 `keys.length` 时回绕到 `keys[0]`
 4. 通过 `hashMap.get(keys[idx])` 得到物理节点, 同时累加该节点的命中计数
 
-Q: 节点增删时如何最小化数据迁移?
+节点增删时如何最小化数据迁移?
 
 - 增加节点: 只影响新节点在环上 "接管" 的区间, 其他节点的 key 映射不变
 - 删除节点: 该节点的虚拟点被移除, 其 key 顺时针漂移到下一个节点
 - 理论上每次增删只迁移 `1/N` 的数据 (N 为节点数)
 
-Q: 自动再均衡 (auto-rebalance) 是怎么工作的?
+自动再均衡 (auto-rebalance) 是怎么工作的?
 
 这是相对 Go 版的扩展能力, 默认关闭 (`autoRebalance: false`):
 
@@ -306,7 +306,7 @@ Q: 自动再均衡 (auto-rebalance) 是怎么工作的?
 
 ## 8. etcd 服务发现与注册
 
-Q: 服务注册和发现的完整流程是什么?
+服务注册和发现的完整流程是什么?
 
 基于 `etcd3` npm 库实现. 注册 (Server 侧, `register.ts` 中 `register` 函数):
 
@@ -326,7 +326,7 @@ Q: 服务注册和发现的完整流程是什么?
    - 始终跳过自身地址
 4. 断线重连: etcd3 库内部自动重连; Watcher 触发 `connected` 事件时执行一次 `fetchAll()` 全量 resync, 对每个地址回调 onPut (已存在的连接会被 ClientPicker 去重)
 
-Q: 为什么用 Watch + 重连后全量 Reconcile 而不是纯 Watch?
+为什么用 Watch + 重连后全量 Reconcile 而不是纯 Watch?
 
 - 断线窗口内可能错过事件 (etcd 侧还可能发生 compaction), 纯 Watch 无法保证本地视图与 etcd 一致
 - 全量 Reconcile 保证最终一致: 重连成功后重新 fetch, 对比本地状态增补缺失节点 (删除由 delete 事件单独驱动)
@@ -336,7 +336,7 @@ Q: 为什么用 Watch + 重连后全量 Reconcile 而不是纯 Watch?
 
 ## 9. gRPC 传输层
 
-Q: gRPC 通信层是如何设计的?
+gRPC 通信层是如何设计的?
 
 基于 `@grpc/grpc-js` + `@grpc/proto-loader` (运行时动态加载 .proto). Proto 定义 (`proto/swifty.proto`):
 
@@ -363,7 +363,7 @@ Client 侧 (`client.ts`):
 - 构造时若 `peerRequest: true` (ClientPicker 总是这样创建), 每次调用的 metadata 都会写入 `x-peer-request: true`
 - 响应处理: Get 返回 `Buffer.from(response.value)`; Delete 返回布尔 `response.value`
 
-Q: 为什么选择 gRPC 而非 HTTP/REST?
+为什么选择 gRPC 而非 HTTP/REST?
 
 - 二进制序列化 (protobuf) 比 JSON 更紧凑, 减少网络带宽
 - HTTP/2 多路复用, 单连接支持并发请求
@@ -374,7 +374,7 @@ Q: 为什么选择 gRPC 而非 HTTP/REST?
 
 ## 10. 防转发环路机制
 
-Q: 如何防止节点间的请求无限转发?
+如何防止节点间的请求无限转发?
 
 问题场景: A 收到用户请求, pickPeer 指向 B, 转发给 B. B 收到后如果再次转发给 C (或 A), 就会形成转发链甚至环路.
 
@@ -407,7 +407,7 @@ function isPeerRequest(call: grpc.ServerUnaryCall<any, any>): boolean {
 
 ## 11. 并发模型
 
-Q: Node.js 单线程模型下, 这个项目如何处理并发?
+Node.js 单线程模型下, 这个项目如何处理并发?
 
 TypeScript 实现没有任何互斥锁 (与 Go 版形成鲜明对比), 并发安全由事件循环模型天然保证:
 
@@ -420,7 +420,7 @@ TypeScript 实现没有任何互斥锁 (与 Go 版形成鲜明对比), 并发安
 | 后台任务 | TTL 清理 (`setInterval`, 默认 60s) 与自动再均衡 (1s, 默认关闭) 以宏任务形式与请求处理交错           |
 | 关闭幂等 | 各组件用 `closed` 布尔标记防重复清理 (单线程下读改写本身是原子的)                                   |
 
-Q: 没有锁, 会不会出现 "读到写了一半的状态"?
+没有锁, 会不会出现 "读到写了一半的状态"?
 
 不会. JS 的同步函数不会在执行中途被打断 — `LruStore.setWithExpiration` 里 "删旧条目、put 新条目、累加字节、触发淘汰" 这一整段都是同步的, 事件循环只在遇到 `await` (如 gRPC 调用、Getter 回源) 时才切换任务. 需要警惕的反而是跨 await 的状态一致性: SingleFlight 正是为此而设, 它保证两次 await 之间共享的加载结果只产生一份.
 
@@ -428,7 +428,7 @@ Q: 没有锁, 会不会出现 "读到写了一半的状态"?
 
 ## 12. ByteView 不可变语义
 
-Q: ByteView 的设计意图是什么?
+ByteView 的设计意图是什么?
 
 ```ts
 class ByteView implements Value {
@@ -446,7 +446,7 @@ class ByteView implements Value {
 - 实现 `Value` 接口的 `len()` 后, `LruStore` 的字节预算可以直接用 `key.length + value.len()` 记账, 存储引擎不感知具体 value 类型
 - `toString()` 走 `b.toString()`, JS 字符串同样不可变, 天然安全
 
-Q: 拷贝发生在哪些边界?
+拷贝发生在哪些边界?
 
 拷贝策略是 "信任内部、防御边界":
 
@@ -460,7 +460,7 @@ Q: 拷贝发生在哪些边界?
 
 ## 13. Group 注册表与生命周期
 
-Q: Group 的全局注册表如何工作? 重复注册会怎样?
+Group 的全局注册表如何工作? 重复注册会怎样?
 
 ```ts
 const groups: Map<string, Group> = new Map();
@@ -472,7 +472,7 @@ const groups: Map<string, Group> = new Map();
 - `destroyGroup(name)`: 先从 map 移除再 `close()`, 返回是否存在
 - `destroyAllGroups`: 快照所有 Group, 清空 map 后逐个 close
 
-Q: Group.close() 做了什么?
+Group.close() 做了什么?
 
 1. `closed` 布尔标记保证幂等, 重复调用直接返回
 2. 关闭 `mainCache` (清理 TTL 定时器, 释放 store)
@@ -486,7 +486,7 @@ Q: Group.close() 做了什么?
 
 ## 14. 容错与降级策略
 
-Q: 系统在各种故障场景下的行为是什么?
+系统在各种故障场景下的行为是什么?
 
 | 故障场景            | 处理方式                                                                                    |
 | ------------------- | ------------------------------------------------------------------------------------------- |
@@ -499,7 +499,7 @@ Q: 系统在各种故障场景下的行为是什么?
 | 节点崩溃            | Lease 10s 过期, etcd 自动删除 key, peer 收到 delete 事件                                    |
 | 写传播失败          | `log.warn` 记录后静默丢弃 (3s deadline), 不影响本地写入的成功返回                           |
 
-Q: 如果 etcd 完全宕机, 缓存还能工作吗?
+如果 etcd 完全宕机, 缓存还能工作吗?
 
 可以. 已建立的 gRPC 连接是长连接, 不依赖 etcd 持续可用. 影响仅限于:
 
@@ -511,7 +511,7 @@ Q: 如果 etcd 完全宕机, 缓存还能工作吗?
 
 ## 15. 性能优化要点
 
-Q: 项目中有哪些值得学习的性能优化?
+项目中有哪些值得学习的性能优化?
 
 1. 分桶存储: 字节记账与淘汰循环限定在单桶内, 写入触发的淘汰不必扫描全缓存
 2. 数组式 LRU: 构造时预分配节点池, 装满后复用 LRU 尾节点下标, 稳态下零新增分配
@@ -527,7 +527,7 @@ Q: 项目中有哪些值得学习的性能优化?
 
 ## 16. 与 groupcache 的对比
 
-Q: swifty-cache 相比 Google groupcache 有哪些扩展?
+swifty-cache 相比 Google groupcache 有哪些扩展?
 
 | 维度         | groupcache               | swifty-cache (TS)              |
 | ------------ | ------------------------ | ------------------------------ |
@@ -545,7 +545,7 @@ Q: swifty-cache 相比 Google groupcache 有哪些扩展?
 
 ## 17. 可能的改进方向
 
-Q: 如果让你继续演进这个项目, 会考虑哪些方向?
+如果让你继续演进这个项目, 会考虑哪些方向?
 
 1. 一致性保证: 引入 Raft 或基于 etcd 的分布式锁实现强一致写
 2. 写传播可靠性: 引入 WAL (Write-Ahead Log) + 重试队列, 避免异步写丢失

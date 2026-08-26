@@ -1,12 +1,12 @@
 # ClickHouse & Kafka 技术笔记
 
-> 本文覆盖覆盖 ClickHouse 列式存储引擎、MergeTree 家族、分布式架构、查询优化, 以及 Kafka 存储模型、生产者/消费者语义、高可用机制、性能调优等核心考点.
+> 本文覆盖覆盖 ClickHouse 列式存储引擎、MergeTree 家族、分布式架构、查询优化, 以及 Kafka 存储模型、生产者/消费者语义、高可用机制、性能调优等核心知识点.
 
 ---
 
 ## 一、ClickHouse 存储引擎
 
-### Q1: ClickHouse 为什么选择列式存储? 与行式存储 (MySQL) 的本质区别是什么?
+### ClickHouse 为什么选择列式存储? 与行式存储 (MySQL) 的本质区别是什么?
 
 行式存储 (MySQL InnoDB): 数据按行连续存放, 一行所有列物理相邻. 适合 OLTP — 单行读写只需一次 I/O 即可取到完整记录.
 
@@ -24,7 +24,7 @@
 - 写入需要按列拆分: 一行数据要拆成 N 列分别追加, 写放大
 - 不适合频繁更新: 列存更新一行等于重写多个列文件
 
-### Q2: MergeTree 引擎的核心结构是什么? 数据写入和合并的流程?
+### MergeTree 引擎的核心结构是什么? 数据写入和合并的流程?
 
 MergeTree 是 ClickHouse 最基础的表引擎, 核心组件:
 
@@ -56,7 +56,7 @@ table/
 - 合并时重新排序、重建索引、重新压缩
 - 合并是异步的, 不阻塞读写; 读时如果数据跨多个 part, 会做多路归并
 
-### Q3: 稀疏索引 (primary.idx) 是如何加速查询的? 与 MySQL B+ 树索引的区别?
+### 稀疏索引 (primary.idx) 是如何加速查询的? 与 MySQL B+ 树索引的区别?
 
 ClickHouse 的稀疏索引:
 
@@ -84,7 +84,7 @@ granule 2:   rows 16385~24576
 
 关键限制: 稀疏索引要求数据物理有序 (按 ORDER BY 排列), 所以 MergeTree 写入时会排序. 如果查询条件不是 ORDER BY 的前缀, 索引无法使用, 退化为全表扫描.
 
-### Q4: ReplacingMergeTree、AggregatingMergeTree、CollapsingMergeTree 分别解决什么问题?
+### ReplacingMergeTree、AggregatingMergeTree、CollapsingMergeTree 分别解决什么问题?
 
 MergeTree 家族通过不同的合并策略解决不同场景:
 
@@ -110,7 +110,7 @@ CollapsingMergeTree(Sign):
 - 查询时必须用 `GROUP BY ... HAVING sum(Sign) > 0` 或 `FINAL` 过滤未合并的脏数据
 - 缺点: 写入量翻倍, 查询复杂; 实践中更常用 ReplacingMergeTree
 
-### Q5: ClickHouse 的数据分区 (PARTITION BY) 和分片 (SHARD) 有什么区别?
+### ClickHouse 的数据分区 (PARTITION BY) 和分片 (SHARD) 有什么区别?
 
 分区 (PARTITION BY) — 单机内的逻辑划分:
 
@@ -142,7 +142,7 @@ CREATE TABLE events_dist ON CLUSTER my_cluster AS events_local
 ENGINE = Distributed(my_cluster, default, events_local, sipHash64(user_id));
 ```
 
-### Q6: ClickHouse 的副本机制 (ReplicatedMergeTree) 是如何工作的? 与 ZooKeeper 的关系?
+### ClickHouse 的副本机制 (ReplicatedMergeTree) 是如何工作的? 与 ZooKeeper 的关系?
 
 ReplicatedMergeTree 实现表级副本:
 
@@ -177,7 +177,7 @@ ZooKeeper 的角色:
 - 分片解决水平扩展 (数据分散到多台机器)
 - 生产部署: N 个分片 x M 个副本, 每个分片有 M 份数据
 
-### Q7: ClickHouse 查询执行的向量化引擎是什么? 为什么比逐行处理快?
+### ClickHouse 查询执行的向量化引擎是什么? 为什么比逐行处理快?
 
 传统数据库 (MySQL) 的 Volcano 模型: 每个算子每次处理一行, 通过 `next()` 调用向上传递. 问题:
 
@@ -202,7 +202,7 @@ Volcano (逐行):          向量化 (逐列块):
 
 实际收益: 在聚合、过滤等计算密集型操作上, 向量化比逐行快 5~10 倍; 配合列存的高压缩率, 解压后直接以 SIMD 友好格式处理, 进一步减少内存带宽消耗.
 
-### Q8: ClickHouse 的物化视图 (Materialized View) 与普通视图有什么区别? 如何实现增量聚合?
+### ClickHouse 的物化视图 (Materialized View) 与普通视图有什么区别? 如何实现增量聚合?
 
 普通视图 (VIEW): 只是一条保存的 SQL, 每次查询时重新执行, 不存储数据.
 
@@ -241,7 +241,7 @@ GROUP BY hour, event_type;
 - 多个物化视图可以挂在同一张源表上, 各自独立增量计算
 - 与 AggregatingMergeTree 配合可以存更复杂的中间状态 (如 HyperLogLog 的 sketch)
 
-### Q9: ClickHouse 的 TTL 机制和数据生命周期管理
+### ClickHouse 的 TTL 机制和数据生命周期管理
 
 TTL 可以设置在列级或表级:
 
@@ -275,7 +275,7 @@ TTL 还支持:
 
 ## 二、ClickHouse 查询优化与实战
 
-### Q10: ORDER BY 键的设计原则是什么? 如何影响查询性能?
+### ORDER BY 键的设计原则是什么? 如何影响查询性能?
 
 ORDER BY 键决定了数据的物理排列顺序和稀疏索引的结构, 是 ClickHouse 性能优化的第一要素.
 
@@ -294,7 +294,7 @@ ORDER BY 键决定了数据的物理排列顺序和稀疏索引的结构, 是 Cl
 -- 正确: ORDER BY (user_id, status): user_id 区分度高, 先定位用户再过滤状态
 ```
 
-### Q11: ClickHouse 的 JOIN 实现方式有哪些? 大表 JOIN 的性能陷阱?
+### ClickHouse 的 JOIN 实现方式有哪些? 大表 JOIN 的性能陷阱?
 
 ClickHouse 的 JOIN 实现:
 
@@ -311,7 +311,7 @@ ClickHouse 的 JOIN 实现:
 - 字典 (Dictionary): 维度表 (如城市名、商品类目) 加载为内存字典, 用 `dictGet` 函数替代 JOIN
 - `join_algorithm` 设置: 根据数据量选择 `hash` / `partial_merge` / `grace_hash` / `auto`
 
-### Q12: ClickHouse 的 Mutation (ALTER UPDATE / DELETE) 为什么慢? 生产上怎么替代?
+### ClickHouse 的 Mutation (ALTER UPDATE / DELETE) 为什么慢? 生产上怎么替代?
 
 Mutation 是异步的重量级操作:
 
@@ -334,7 +334,7 @@ ALTER TABLE events DELETE WHERE user_id = 12345;
 3. 分区级操作: `ALTER TABLE DROP PARTITION` 删除整个分区 (瞬间完成)
 4. 轻量删除 (22.8+): `DELETE FROM events WHERE ...` (注意不是 ALTER TABLE DELETE), 只标记行删除, 不重写 part, 查询时过滤; 合并时物理清除. 比 mutation 快很多, 但标记期间仍占磁盘
 
-### Q13: ClickHouse 与 MySQL 在 OLAP 场景下的性能差异根源是什么?
+### ClickHouse 与 MySQL 在 OLAP 场景下的性能差异根源是什么?
 
 同样一条 `SELECT count(*) FROM orders WHERE status = 'paid' GROUP BY region` (1 亿行, 20 列):
 
@@ -359,7 +359,7 @@ ALTER TABLE events DELETE WHERE user_id = 12345;
 
 ## 三、Kafka 架构与存储
 
-### Q14: Kafka 的整体架构是怎样的? 核心组件有哪些?
+### Kafka 的整体架构是怎样的? 核心组件有哪些?
 
 ```text
                     ┌─────────────────────────────────────────────┐
@@ -389,7 +389,7 @@ ALTER TABLE events DELETE WHERE user_id = 12345;
 - Consumer Group: 一组消费者共同消费一个 topic, 每个 partition 只被组内一个消费者消费
 - Offset: 每条消息在 partition 内的唯一递增编号, 消费者通过 offset 记录消费进度
 
-### Q15: Kafka 的消息存储结构是怎样的? 为什么吞吐量这么高?
+### Kafka 的消息存储结构是怎样的? 为什么吞吐量这么高?
 
 存储结构:
 
@@ -417,7 +417,7 @@ partition-0/
 5. 分区并行: 多个 partition 分布在不同 broker, 读写天然并行
 6. 消息格式紧凑: 二进制协议, 变长编码, 无冗余字段
 
-### Q16: Kafka 的 ISR 机制是什么? Leader 选举的流程?
+### Kafka 的 ISR 机制是什么? Leader 选举的流程?
 
 ISR (In-Sync Replicas): 与 leader 保持同步的副本集合.
 
@@ -445,7 +445,7 @@ Leader 选举流程 (KRaft 模式, 2.8+):
    - true: 从所有副本 (包括不同步的) 中选一个, 可能丢数据 (可用性优先)
 4. Controller 将新 leader 信息写入元数据, 通知所有 broker 和消费者
 
-### Q17: Kafka 的 Producer 发送消息的完整流程? acks 参数的含义?
+### Kafka 的 Producer 发送消息的完整流程? acks 参数的含义?
 
 发送流程:
 
@@ -467,7 +467,7 @@ acks 参数:
 
 生产建议: `acks=all` + `retries=Integer.MAX_VALUE` + `enable.idempotence=true`, 在保证不丢的前提下实现 exactly-once 写入.
 
-### Q18: Kafka 的幂等 Producer 和事务 Producer 是怎么实现的?
+### Kafka 的幂等 Producer 和事务 Producer 是怎么实现的?
 
 幂等 Producer (单分区 exactly-once):
 
@@ -501,7 +501,7 @@ try {
 - 底层: 事务协调者在 `__transaction_state` topic 中记录事务状态 (PrepareCommit -> Commit); 各分区 leader 收到 PrepareCommit 后写 COMMIT 标记; 消费者设置 `isolation.level=read_committed` 时只读 COMMIT 之前的消息
 - 代价: 事务消息的延迟增加 (两阶段提交), 吞吐下降约 30~50%
 
-### Q19: Consumer Group 的 Rebalance 机制是什么? 有什么问题? 如何优化?
+### Consumer Group 的 Rebalance 机制是什么? 有什么问题? 如何优化?
 
 Rebalance 触发条件:
 
@@ -530,7 +530,7 @@ Eager 协议的问题:
 3. 调参: 增大 `session.timeout.ms` (如 45s)、增大 `max.poll.interval.ms` (如 5min)、减小 `max.poll.records` 避免处理超时
 4. 手动提交 offset: 处理完再提交, 避免自动提交导致的重复消费
 
-### Q20: Kafka 如何保证消息不丢失? 端到端 exactly-once 怎么实现?
+### Kafka 如何保证消息不丢失? 端到端 exactly-once 怎么实现?
 
 消息可能在三个环节丢失:
 
@@ -559,7 +559,7 @@ Consumer (read_committed) --> 处理逻辑 --> Transactional Producer
 
 ## 四、Kafka 高级特性与调优
 
-### Q21: Kafka 的消息顺序性如何保证? 什么场景下会乱序?
+### Kafka 的消息顺序性如何保证? 什么场景下会乱序?
 
 Kafka 的顺序保证:
 
@@ -579,7 +579,7 @@ Kafka 的顺序保证:
 3. Consumer 多线程处理: 一个 partition 的消息被分发到多个线程, 处理完成顺序不确定
    - 解决: 单 partition 单线程; 或按 key 哈希分发到固定线程
 
-### Q22: Kafka 的零拷贝 (Zero-Copy) 原理是什么? 对比传统 I/O 省了哪些步骤?
+### Kafka 的零拷贝 (Zero-Copy) 原理是什么? 对比传统 I/O 省了哪些步骤?
 
 传统 I/O (read + write):
 
@@ -607,7 +607,7 @@ Kafka 使用 sendfile 系统调用:
 
 补充: 如果开启了压缩 (producer 端压缩), 消息在 broker 端是压缩存储的, 消费者也是压缩接收后自行解压, 所以 broker 转发时不需要解压, 零拷贝仍然有效.
 
-### Q23: Kafka 与 RocketMQ、RabbitMQ 的对比? 各自适用场景?
+### Kafka 与 RocketMQ、RabbitMQ 的对比? 各自适用场景?
 
 | 维度       | Kafka                 | RocketMQ                     | RabbitMQ                  |
 | ---------- | --------------------- | ---------------------------- | ------------------------- |
@@ -630,7 +630,7 @@ Kafka 使用 sendfile 系统调用:
 - 电商交易、金融支付、需要延迟消息和事务回查: RocketMQ
 - 中小规模、复杂路由、多协议接入: RabbitMQ
 
-### Q24: Kafka 的 Controller 是怎么选举的? KRaft 模式与 ZooKeeper 模式的区别?
+### Kafka 的 Controller 是怎么选举的? KRaft 模式与 ZooKeeper 模式的区别?
 
 ZooKeeper 模式 (旧):
 
@@ -653,7 +653,7 @@ KRaft 的优势:
 4. 支持更大规模: ZK 的 Watch 机制在大量 partition 时性能下降, KRaft 无此问题
 5. 元数据变更可追溯: 所有变更是 Raft 日志, 天然有审计能力
 
-### Q25: Kafka 消费者的 Offset 管理策略? 自动提交和手动提交的区别?
+### Kafka 消费者的 Offset 管理策略? 自动提交和手动提交的区别?
 
 Offset 存储: 消费者的 offset 存在内部 topic `__consumer_offsets` 中 (默认 50 个 partition), key 是 (group, topic, partition).
 
@@ -699,7 +699,7 @@ consumer.subscribe(topics, new ConsumerRebalanceListener() {
 });
 ```
 
-### Q26: Kafka 的日志清理策略有哪些? Log Compaction 的原理?
+### Kafka 的日志清理策略有哪些? Log Compaction 的原理?
 
 两种清理策略 (`log.cleanup.policy`):
 
@@ -732,7 +732,7 @@ offset 4: key=B, value=5   (B 的最新值)
 - 数据库变更日志 (CDC): 只关心每行的最终状态
 - 配置/缓存同步: 每个 key 只需要最新值
 
-### Q27: Kafka 生产环境的关键配置和调优参数有哪些?
+### Kafka 生产环境的关键配置和调优参数有哪些?
 
 Broker 端:
 
@@ -772,7 +772,7 @@ Consumer 端:
 
 ## 五、ClickHouse + Kafka 联合架构
 
-### Q28: ClickHouse 如何消费 Kafka 数据? Kafka Engine 的工作原理?
+### ClickHouse 如何消费 Kafka 数据? Kafka Engine 的工作原理?
 
 ClickHouse 内置 Kafka 引擎, 可以将 Kafka topic 作为数据源:
 
@@ -820,7 +820,7 @@ SELECT * FROM events_kafka;
 - 每批消费的数据量由 `kafka_max_block_size` 控制 (默认 65536 行)
 - ClickHouse 重启后从上次提交的 offset 继续消费, 可能重复消费 (需目标表去重)
 
-### Q29: 实时数仓架构中 ClickHouse + Kafka 的典型分层设计?
+### 实时数仓架构中 ClickHouse + Kafka 的典型分层设计?
 
 ```text
 数据源 (MySQL/日志/API)
@@ -854,7 +854,7 @@ SELECT * FROM events_kafka;
 - 去重策略: Kafka 的 at-least-once 语义导致 ClickHouse 端必须去重, 用 ReplacingMergeTree 或查询时 `GROUP BY + argMax`
 - 数据回溯: Kafka 保留期内可以重置 offset 重新消费, 重建 ClickHouse 中的聚合表
 
-### Q30: ClickHouse 写入性能优化的关键点? 为什么不能高频小批量写入?
+### ClickHouse 写入性能优化的关键点? 为什么不能高频小批量写入?
 
 写入模型:
 
@@ -885,7 +885,7 @@ ENGINE = Buffer(default, events, 16, 10, 100, 10000, 100000, 1000000, 10000000);
 5. 写入时排序: 数据按 ORDER BY 键预排序后再写入, 减少合并时的排序开销
 6. 避免写入时更新: 用 ReplacingMergeTree 追加新版本, 不要 ALTER UPDATE
 
-### Q31: ClickHouse 的分布式查询是如何执行的? 有哪些性能瓶颈?
+### ClickHouse 的分布式查询是如何执行的? 有哪些性能瓶颈?
 
 分布式查询执行流程 (以 `SELECT count() FROM events_dist WHERE date = '2024-01-01' GROUP BY region` 为例):
 
@@ -907,7 +907,7 @@ ENGINE = Buffer(default, events, 16, 10, 100, 10000, 100000, 1000000, 10000000);
 4. JOIN 的 shuffle: 分布式 JOIN 需要将右表数据广播或按 key shuffle 到各分片, 数据量大时极慢
    - 优化: 表 colocate (相同分片键); 字典替代 JOIN; 全局临时表 (`GLOBAL IN/JOIN`)
 
-### Q32: 如何设计 ClickHouse 表结构以支撑高并发查询? 生产中的常见坑?
+### 如何设计 ClickHouse 表结构以支撑高并发查询? 生产中的常见坑?
 
 高并发查询设计:
 
@@ -937,7 +937,7 @@ ALTER TABLE events ADD PROJECTION proj_by_type (
 
 ## 六、综合设计题
 
-### Q33: 设计一个实时用户行为分析系统, 从数据采集到查询展示的全链路?
+### 设计一个实时用户行为分析系统, 从数据采集到查询展示的全链路?
 
 需求: 日活千万级 App, 采集用户点击/浏览/购买事件, 支持实时看板 (分钟级延迟) 和历史明细查询.
 
@@ -975,7 +975,7 @@ Grafana / 自研 BI / API Gateway
 4. 分层存储: 明细 90 天后 TTL 删除, 聚合数据长期保留, 控制存储成本
 5. 查询路由: 实时看板查 events_hourly (数据量小, 毫秒响应); 明细分析查 events_detail (按需扫描)
 
-### Q34: Kafka 消费积压 (Consumer Lag) 如何排查和解决?
+### Kafka 消费积压 (Consumer Lag) 如何排查和解决?
 
 排查步骤:
 
@@ -1010,7 +1010,7 @@ kafka-consumer-groups.sh --bootstrap-server broker:9092 \
 3. 新消费者消费新 topic, 有足够并行度处理积压
 4. 积压消化后恢复正常架构
 
-### Q35: ClickHouse 集群扩容和数据迁移怎么做? 如何保证扩容期间服务不中断?
+### ClickHouse 集群扩容和数据迁移怎么做? 如何保证扩容期间服务不中断?
 
 扩容流程 (以从 3 分片扩到 4 分片为例):
 

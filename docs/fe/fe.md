@@ -4,7 +4,7 @@
 
 ## 第一部分 JavaScript 语言核心
 
-### Q1. typeof 与数据类型检测有哪些陷阱
+### typeof 与数据类型检测有哪些陷阱
 
 A: JavaScript 有 8 种数据类型, 其中 7 种原始类型为 undefined、null、boolean、number、string、symbol、bigint, 加上引用类型 object( function 是可调用的 object 子类型) .
 
@@ -24,7 +24,7 @@ typeof 的常见结果与陷阱:
 - 判断 null 应直接使用 v === null.
 - 判断 plain object 还需结合 Object.getPrototypeOf 排除 class 实例等场景.
 
-### Q2. 宽松相等与严格相等的区别及隐式类型转换规则
+### 宽松相等与严格相等的区别及隐式类型转换规则
 
 A: === 是严格相等, 不做类型转换, 类型不同直接返回 false. == 是宽松相等, 类型不同时会按规范的 Abstract Equality Comparison 算法做隐式转换后比较.
 
@@ -50,7 +50,7 @@ NaN == NaN    // false, NaN 不等于任何值包括自身
 
 补充: Object.is 与 === 几乎一致, 区别只有两处: Object.is(NaN, NaN) 为 true, Object.is(+0, -0) 为 false. 还常延伸讨论为什么应避免 ==: 转换规则难以记忆、容易引入隐蔽 bug, 团队规范通常要求默认使用 ===.
 
-### Q3. 原型与原型链是什么
+### 原型与原型链是什么
 
 A: 每个对象都有一个内部槽 [[Prototype]], 指向它的原型对象, 可以通过 Object.getPrototypeOf 或 `__proto__`( 历史遗留但已被 ECMAScript 附录 B 规范化、HTML 规范要求浏览器实现的访问器) 访问. 函数对象额外拥有一个 prototype 属性, 该属性的 constructor 指回函数本身. 当通过 new 创建实例时, 实例的 [[Prototype]] 会被设为构造函数的 prototype.
 
@@ -75,7 +75,7 @@ Child.prototype.constructor = Child;
 
 常见延伸: Object.create(null) 创建的对象没有原型, 适合作为纯字典使用, 避免 `__proto__`、constructor 等键名冲突( 这也是原型链污染攻击的防御手段之一) ; 运行期通过 `__proto__` 或 Object.setPrototypeOf 修改原型会导致引擎去优化( 隐藏类失效) , 应优先在创建时用 Object.create 或 class 确定原型.
 
-### Q4. new 操作符做了什么
+### new 操作符做了什么
 
 A: new 调用构造函数时按以下步骤执行:
 
@@ -102,7 +102,7 @@ function myNew(Fn, ...args) {
 - 继承场景下 new.target 指向最末端实际被 new 的类, 可用于实现抽象基类.
 - 构造函数里 return 一个原始值会被忽略, return 一个对象则会替换默认实例.
 
-### Q5. instanceof 的原理是什么
+### instanceof 的原理是什么
 
 A: A instanceof B 的语义是: 在 A 的原型链上查找是否存在 B.prototype. 注意它检查的不是构造函数本身, 而是构造函数的 prototype 属性.
 
@@ -128,7 +128,7 @@ function myInstanceof(obj, Fn) {
 - 函数可以通过 Symbol.hasInstance 自定义 instanceof 行为.
 - 修改 Fn.prototype 的指向后, 旧实例与新 prototype 的 instanceof 结果会变化, 因为判断发生在查询时刻.
 
-### Q6. this 指向的判定规则
+### this 指向的判定规则
 
 A: this 在函数调用时动态绑定, 按优先级从高到低有四条规则:
 
@@ -145,7 +145,7 @@ A: this 在函数调用时动态绑定, 按优先级从高到低有四条规则:
 
 判定口诀: 先看是不是 new, 再看 call/apply/bind, 再看是不是对象打点调用, 都不是就是默认绑定.
 
-### Q7. call apply bind 的区别与手写实现
+### call apply bind 的区别与手写实现
 
 A: 三者都用于显式指定 this. call(thisArg, a, b, ...) 立即调用并逐个传参; apply(thisArg, [a, b]) 立即调用并以数组传参; bind(thisArg, a, b) 不调用, 返回一个永久绑定 this( 并可预置部分参数) 的新函数.
 
@@ -169,7 +169,7 @@ Function.prototype.myBind = function (ctx, ...preset) {
 - apply 与 call 性能在现代引擎中差别不大, 历史上 apply 传数组略慢的说法已不成立.
 - 常见用途: 借用方法( Array.prototype.slice.call(arguments), 现代写法是 [...args]) 、回调固定上下文、偏函数( partial application) .
 
-### Q8. 闭包是什么 有什么用途
+### 闭包是什么 有什么用途
 
 A: 闭包是函数与其词法环境的组合: 函数在定义时捕获外层作用域的变量环境, 即使外层函数已经返回, 只要内部函数还被引用, 这些变量就不会被回收, 仍然可被读写.
 
@@ -194,13 +194,13 @@ for (let i = 0; i < 3; i++) {
 
 代价与风险: 闭包会让外层变量常驻内存, 不使用时应注意解除引用; 在循环中创建大量闭包或闭包持有大对象, 会造成内存占用上升甚至泄漏.
 
-### Q9. 作用域 作用域链与变量提升
+### 作用域 作用域链与变量提升
 
 A: JavaScript 使用词法作用域( 静态作用域) , 作用域在代码书写时确定, 与调用位置无关. 函数创建时会保存对其外部词法环境的引用, 函数执行时再创建自己的变量环境, 层层向外引用形成作用域链, 标识符解析沿链由内向外查找, 找不到则抛 ReferenceError( 赋值形式在 sloppy 模式会创建全局变量) .
 
 变量提升的本质是执行上下文创建时先扫描声明: var 提升并初始化为 undefined、函数声明整体提升、let/const 提升但不初始化( 声明前的暂时性死区 TDZ 内访问抛 ReferenceError) , 而 let/const/class 额外具有块级作用域( for 循环头每次迭代新建绑定, 闭包因此能拿到正确索引) , 且全局 let/const 只存在于词法环境、不挂载到 window.
 
-### Q10. var let const 的区别
+### var let const 的区别
 
 A: 从五个维度对比:
 
@@ -212,7 +212,7 @@ A: 从五个维度对比:
 
 工程建议: 默认使用 const, 需要重新赋值时用 let, 避免使用 var. const 能向阅读者传达“这个绑定不会变”的意图, 也便于引擎和静态工具分析.
 
-### Q11. 深拷贝的实现方式与循环引用处理
+### 深拷贝的实现方式与循环引用处理
 
 A: 浅拷贝只复制第一层引用, 如 Object.assign、展开运算符、Array.prototype.slice. 深拷贝需要递归复制整个对象图.
 
@@ -253,7 +253,7 @@ function deepClone(obj, cache = new WeakMap()) {
 
 用 WeakMap 而不用 Map 的原因是不强引用源对象, 避免拷贝过程本身造成内存滞留. 生产环境一般推荐 lodash.cloneDeep 或原生 structuredClone.
 
-### Q12. 防抖与节流的区别与实现
+### 防抖与节流的区别与实现
 
 A: 防抖 debounce: 事件触发后等待 N 毫秒, 若期间再次触发则重新计时, 只在静默期满后执行一次. 适合搜索输入联想、窗口 resize 结束后的重算、表单自动保存.
 
@@ -284,7 +284,7 @@ function throttle(fn, interval) {
 
 延伸: leading/trailing 双触发的完整版实现( lodash 支持) ; 与时间戳版相比定时器版能保证最后一次也会执行; 动画场景可用 requestAnimationFrame 做“帧级节流”, 天然与渲染帧对齐; React 中注意防抖函数需用 useRef/useMemo 固定, 否则每次渲染生成新实例导致失效.
 
-### Q13. class 与原型继承的关系
+### class 与原型继承的关系
 
 A: ES6 class 本质是原型机制的语法糖, typeof Foo === 'function', 实例方法定义在 Foo.prototype 上. 但它不是简单等价物, 存在以下语义差异:
 
@@ -299,7 +299,7 @@ A: ES6 class 本质是原型机制的语法糖, typeof Foo === 'function', 实�
 
 静态方法、getter/setter、静态初始化块( static {}) 都是 class 的组成部分, 理解其底层仍是原型即可推导出全部行为.
 
-### Q14. CommonJS 与 ES Module 的区别
+### CommonJS 与 ES Module 的区别
 
 A: 核心区别:
 
@@ -312,7 +312,7 @@ A: 核心区别:
 
 互操作: Node 中 ESM 可以 default import CJS 模块( 整体作为默认导出) , CJS 不能 require ESM( 新版 Node 已在部分场景放开同步 require ESM) . 浏览器只原生支持 ESM, 需要 type="module" 的 script 标签, 模块默认 defer 且跨域受 CORS 约束.
 
-### Q15. Proxy 与 Reflect 是什么
+### Proxy 与 Reflect 是什么
 
 A: Proxy 可以创建一个对象的代理, 拦截并自定义对象的基本操作. 通过 new Proxy(target, handler) 定义, handler 支持 get、set、has、deleteProperty、ownKeys、getOwnPropertyDescriptor、defineProperty、apply( 拦截函数调用) 、construct( 拦截 new) 等 13 种 trap. 部分 trap 有不变量约束, 例如不可配置不可写的属性不能被 get 返回不同的值.
 
@@ -326,7 +326,7 @@ Reflect 是与 Proxy trap 一一对应的静态方法集合, 它把对象的内�
 
 局限: 不能代理原始值; 代理对象与原对象不相等( proxy !== target) 会影响 Map/Set 以对象为键的场景; 有一定性能开销.
 
-### Q16. 迭代器与生成器是什么
+### 迭代器与生成器是什么
 
 A: 迭代器协议约定: 对象实现 Symbol.iterator 方法, 返回一个带 next() 的对象, next() 返回 { value, done }. for...of、展开运算符、解构赋值、Promise.all、Array.from 都基于该协议工作. 数组、字符串、Map、Set、NodeList、arguments 都内置可迭代.
 
@@ -351,7 +351,7 @@ const range = {
 
 深层价值: async/await 就是“生成器 + Promise 自动执行器”的语法封装; 异步生成器( async function\*) 配合 for await...of 可以顺序消费异步数据流, 如分页拉取、流式读取.
 
-### Q17. JavaScript 的垃圾回收机制
+### JavaScript 的垃圾回收机制
 
 A: JS 引擎自动管理内存, 核心思想是可达性: 从根对象( 全局对象、当前调用栈、事件回调队列等) 出发能被访问到的对象是存活的, 其余视为垃圾.
 
@@ -372,7 +372,7 @@ V8 的分代回收( Orinoco) :
 
 ## 第二部分 异步编程与事件循环
 
-### Q18. 事件循环 Event Loop 的机制是什么
+### 事件循环 Event Loop 的机制是什么
 
 A: 浏览器遵循 HTML 规范定义的事件循环模型. 核心结构:
 
@@ -392,7 +392,7 @@ A: 浏览器遵循 HTML 规范定义的事件循环模型. 核心结构:
 - await 之后的代码是微任务; Promise 的 executor 是同步执行的, 只有回调进入微任务队列.
 - Node.js 的事件循环是 libuv 实现的阶段模型( timers、poll、check 等) , 与浏览器模型不同, Node 中还有 process.nextTick 这个比 Promise 更高的微任务队列. 浏览器场景与 Node 场景不要混答.
 
-### Q19. Promise 的原理与手写实现
+### Promise 的原理与手写实现
 
 A: Promise 是一个状态机, 三种状态: pending、fulfilled、rejected, 状态只能单向流转一次( pending → fulfilled 或 pending → rejected) , 不可逆. 核心语义:
 
@@ -456,7 +456,7 @@ class MyPromise {
 
 补充: unhandledrejection 事件可捕获未被 catch 的拒绝; Promise 无法取消, 常见取消方案是 AbortController + 包装 race.
 
-### Q20. Promise.all allSettled race any 的区别
+### Promise.all allSettled race any 的区别
 
 A: 四个静态组合方法的差异:
 
@@ -486,7 +486,7 @@ Promise.myAll = function (iterable) {
 
 典型应用: 并发请求聚合用 all/allSettled; 超时控制用 race( 请求与延时 reject 竞速) ; 多源容灾取最快成功用 any.
 
-### Q21. async await 的原理是什么
+### async await 的原理是什么
 
 A: async 函数本质上是“生成器函数 + 自动执行器( spawn) + Promise”的语法糖. 编译视角: 函数体在每个 await 处被切分, await 表达式相当于 yield 一个 Promise, 执行器把该 Promise 的落定结果通过 next(value)/throw(reason) 送回函数体继续执行, 直到函数 return, async 函数的返回值被包装成 Promise( 经 Promise.resolve 同化) .
 
@@ -498,7 +498,7 @@ A: async 函数本质上是“生成器函数 + 自动执行器( spawn) + Promis
 - 顶层 await: ESM 模块顶层可直接 await, 会阻塞该模块及其导入方的求值, 适合初始化异步资源, 但会延迟模块图执行.
 - async 函数并发模型: 每个 async 函数独立推进, 不存在抢占, 仍是单线程协作式调度.
 
-### Q22. 宏任务与微任务经典输出题
+### 宏任务与微任务经典输出题
 
 A: 经典题目:
 
@@ -541,7 +541,7 @@ setTimeout
 
 推理过程: 同步代码依次输出 script start、async1 start、async2( await 处暂停, 后续进入微任务队列) 、promise1( executor 同步) 、script end. 同步结束后清空微任务队列: 先 async1 end( 先注册的 await 续体) , 再 promise2. 最后进入下一个宏任务 setTimeout. 核心要点: executor 同步、await 切分、微任务清空优先于宏任务.
 
-### Q23. requestAnimationFrame 与 requestIdleCallback
+### requestAnimationFrame 与 requestIdleCallback
 
 A: requestAnimationFrame(cb): 告诉浏览器下一帧绘制前调用 cb, 回调收到高精度时间戳. 特点:
 
@@ -554,7 +554,7 @@ requestIdleCallback(cb, { timeout }): 在浏览器空闲时段调用, cb 收到 
 
 两者常配合做时间切片: rIC 做数据准备, rAF 做 DOM 更新.
 
-### Q24. setTimeout 为什么不准时
+### setTimeout 为什么不准时
 
 A: setTimeout(fn, delay) 的语义是“至少 delay 毫秒后把回调放入任务队列”, 实际执行时间受多重因素影响:
 
@@ -568,7 +568,7 @@ A: setTimeout(fn, delay) 的语义是“至少 delay 毫秒后把回调放入任
 
 ## 第三部分 DOM 与事件
 
-### Q25. DOM 事件流的三个阶段
+### DOM 事件流的三个阶段
 
 A: DOM Level 2 定义的事件流包含三个阶段:
 
@@ -584,7 +584,7 @@ A: DOM Level 2 定义的事件流包含三个阶段:
 - event.composedPath() 返回完整传播路径( 含 Shadow DOM 内部节点, 取决于 composed 与 shadow mode) .
 - 事件对象在传播中被复用, 异步读取其属性需先保存.
 
-### Q26. addEventListener 的三个参数分别是什么
+### addEventListener 的三个参数分别是什么
 
 A: 完整签名: target.addEventListener(type, listener, options), 第三个参数历史上是布尔值 useCapture, 现代规范扩展为 options 对象.
 
@@ -605,7 +605,7 @@ A: 完整签名: target.addEventListener(type, listener, options), 第三个参�
 - removeEventListener 需要 capture 标志匹配才能成功移除, once/passive/signal 不参与匹配.
 - 这是标准要点, 也是判断是否跟进现代 DOM API 的标准( once/passive/signal 三件套) .
 
-### Q27. 事件委托的原理与优缺点
+### 事件委托的原理与优缺点
 
 A: 原理: 利用事件冒泡, 把子元素的监听器统一挂到共同祖先上, 通过 event.target( 配合 closest 向上匹配选择器) 判断事件来源并分发处理.
 
@@ -630,7 +630,7 @@ list.addEventListener("click", (e) => {
 - 委托链条中若有人 stopPropagation, 祖先收不到事件, 混用时要小心.
 - closest 选择器写错、忘记校验 contains 会导致越权处理外部元素.
 
-### Q28. stopPropagation stopImmediatePropagation preventDefault 的区别
+### stopPropagation stopImmediatePropagation preventDefault 的区别
 
 A: 三者作用完全不同:
 
@@ -645,7 +645,7 @@ A: 三者作用完全不同:
 - 内联属性事件( onclick="...; return false") 中 return false 仅等价于 preventDefault( 取消默认行为, 不阻止传播) ; addEventListener 或 DOM0 赋值( element.onclick = fn) 的回调里 return false 没有任何效果; jQuery 事件回调里的 return false 则是框架自己封装的 preventDefault + stopPropagation 组合.
 - event.cancelBubble 是 stopPropagation 的旧式别名; event.defaultPrevented 可查询是否已被阻止默认行为, 多层组件协作时可据此决定是否再处理.
 
-### Q29. passive 事件监听器与滚动性能
+### passive 事件监听器与滚动性能
 
 A: 背景: touchstart/touchmove/wheel 事件的默认行为是滚动, 而监听器可能调用 preventDefault 取消滚动, 浏览器必须同步执行完监听器才能决定是否滚动, 主线程繁忙时滚动被阻塞, 表现为页面滚动卡顿.
 
@@ -658,7 +658,7 @@ passive: true 是开发者对浏览器的承诺: 这个监听器不会调用 pre
 - 除滚动类事件外, passive 对其他事件没有实际收益.
 - React 17 之前合成事件统一委托到 document, 恰好落入浏览器对 document/window 上 touchstart/touchmove/wheel 默认 passive 的干预, onTouchMove/onWheel 里 preventDefault 无效是常见坑; React 17 起事件挂到根容器, 这几类事件仍默认按 passive 注册, 需要阻止默认行为时应通过 ref 挂原生监听器并显式传 { passive: false }.
 
-### Q30. 如何创建与派发自定义事件
+### 如何创建与派发自定义事件
 
 A: 使用 CustomEvent 构造函数, detail 字段携带任意数据, dispatchEvent 派发:
 
@@ -681,7 +681,7 @@ node.dispatchEvent(evt);
 - 常见用途: 跨组件/跨框架解耦通信( 如微前端间广播) 、DOM 事件总线、Web Component 对外暴露语义化事件( shadow 内组件 detail 变化时派发自定义事件是对外通信的标准做法) .
 - 与原生事件一致, 自定义事件同样遵循捕获/冒泡, 可用事件委托统一处理.
 
-### Q31. 为什么 DOM 操作慢 如何优化
+### 为什么 DOM 操作慢 如何优化
 
 A: DOM 操作慢的原因:
 
@@ -698,7 +698,7 @@ A: DOM 操作慢的原因:
 - 动画用 transform/opacity, 走合成层不触发布局( 见 Q45) .
 - 避免频繁访问会强制布局的属性, 必要时用 ResizeObserver/IntersectionObserver 代替轮询.
 
-### Q32. Virtual DOM 的原理与 key 的作用
+### Virtual DOM 的原理与 key 的作用
 
 A: Virtual DOM 是用轻量 JS 对象描述 UI 结构的一层抽象. 渲染流程: 状态变化 → 重新执行渲染函数生成新 vdom 树 → 与旧树 diff → 计算最小 DOM 操作集 → patch 到真实 DOM.
 
@@ -715,7 +715,7 @@ key 的作用与 index 作 key 的坑: key 帮助框架建立稳定的节点身�
 - 价值在于声明式编程模型、批量更新、跨平台渲染( React Native/SSR) , 而不是“一定更快”——vdom diff 本身有 CPU 与内存开销, 极端性能场景手写 DOM 或细粒度响应式更快.
 - 细粒度响应式( Vue3 的 block tree + patch flag 编译时优化、Svelte/Solid 编译为精准 DOM 指令、preact signals 类方案) 正在绕过或缩小 vdom diff 的成本, 这是延伸.
 
-### Q33. Web Component 的原理是什么
+### Web Component 的原理是什么
 
 A: Web Component 是浏览器原生支持的组件化方案, 由三项技术组成:
 
@@ -738,7 +738,7 @@ A: Web Component 是浏览器原生支持的组件化方案, 由三项技术组�
 - Constructable Stylesheets( adoptedStyleSheets) 实现 Shadow 间共享样式表.
 - 生态: Lit 是最流行的开发库; 框架方面 Angular/Vue 可直接消费, React 19 起完善了对自定义元素属性与事件的支持. 浏览器原生、无框架锁定、可 SSR, 是其核心卖点.
 
-### Q34. Shadow DOM 的样式隔离与事件机制
+### Shadow DOM 的样式隔离与事件机制
 
 A: 样式隔离规则:
 
@@ -755,7 +755,7 @@ A: 样式隔离规则:
 - composedPath() 返回包含 Shadow 内部节点的完整路径( closed 模式下对外隐藏内部节点) .
 - slot 分发的元素在事件路径上同时包含“扁平树”位置, 理解事件路径要以扁平树而非原 DOM 树为准.
 
-### Q35. MutationObserver IntersectionObserver ResizeObserver
+### MutationObserver IntersectionObserver ResizeObserver
 
 A: 三者都是“观察者”模式的异步回调 API, 替代低效的轮询与同步事件.
 
@@ -774,7 +774,7 @@ IntersectionObserver: 异步监听目标元素与视口( 或指定 root 祖先) 
 
 ResizeObserver: 监听元素内容盒/边框盒尺寸变化( contentBoxSize、borderBoxSize、devicePixelContentBoxSize) , 解决 window resize 无法感知元素级尺寸变化的问题, 用于响应式组件、图表自适应、文本溢出检测. 回调在布局之后绘制之前执行, 回调内修改尺寸要小心“ResizeObserver loop completed with undelivered notifications”循环警告.
 
-### Q36. preact 的 signal 核心原理与浏览器的 Signal API
+### preact 的 signal 核心原理与浏览器的 Signal API
 
 A: preact signals( @preact/signals-core) 是细粒度响应式原语, 核心由三部分组成:
 
@@ -795,7 +795,7 @@ A: preact signals( @preact/signals-core) 是细粒度响应式原语, 核心由�
 
 ## 第四部分 BOM 与浏览器 API
 
-### Q37. BOM 包含哪些内容
+### BOM 包含哪些内容
 
 A: BOM( Browser Object Model) 是浏览器提供给 JS 操作浏览器窗口的一组对象模型, 核心是 window, 它同时是 JS 的全局对象. 主要包括:
 
@@ -809,7 +809,7 @@ A: BOM( Browser Object Model) 是浏览器提供给 JS 操作浏览器窗口的�
 
 BOM 与 DOM 的关系: DOM 是文档对象模型( document 及其节点树) , BOM 是围绕窗口的浏览器能力集合; window.document 是两者交汇点. BOM 长期没有统一标准, 由 HTML 规范中的 window 相关章节和各浏览器事实行为共同定义.
 
-### Q38. location history navigator 常用 API
+### location history navigator 常用 API
 
 A: location:
 
@@ -832,7 +832,7 @@ navigator:
 - sendBeacon(url, data): 页面卸载时也能可靠发送小数据, 埋点上报首选( POST、无响应回调、排队由浏览器保证) .
 - clipboard 读写( 需权限与安全上下文) 、geolocation、permissions.query、storage.persist() 申请持久存储、serviceWorker 注册入口.
 
-### Q39. 前端路由 hash 与 history 模式的实现
+### 前端路由 hash 与 history 模式的实现
 
 A: 两种模式都依赖“改变 URL 不刷新页面”的能力, 由 JS 接管渲染.
 
@@ -872,7 +872,7 @@ class Router {
 
 要点: 拦截内部链接点击、处理 popstate、处理锚点与滚动还原( history.scrollRestoration) 、404 兜底、服务端 rewrite 规则( nginx try_files $uri /index.html) .
 
-### Q40. 页面生命周期事件有哪些
+### 页面生命周期事件有哪些
 
 A: 加载阶段( document.readyState 经历 loading → interactive → complete) :
 
@@ -891,7 +891,7 @@ A: 加载阶段( document.readyState 经历 loading → interactive → complete
 
 实践建议: 埋点与状态持久化放在 visibilitychange( hidden) + pagehide, 而不是 beforeunload/unload; 发送用 navigator.sendBeacon 或 fetch keepalive.
 
-### Q41. 跨窗口与跨标签页通信方式
+### 跨窗口与跨标签页通信方式
 
 A: 常见方案:
 
@@ -904,7 +904,7 @@ A: 常见方案:
 
 选型: 跨源 iframe 用 postMessage; 同源多标签实时同步( 登录态广播、编辑锁) 首选 BroadcastChannel; 需要兼容旧浏览器退回 storage 事件.
 
-### Q42. Web Worker 与 Service Worker
+### Web Worker 与 Service Worker
 
 A: Web Worker:
 
@@ -925,7 +925,7 @@ Service Worker:
 
 ## 第五部分 浏览器渲染原理
 
-### Q43. 浏览器渲染流水线是怎样的
+### 浏览器渲染流水线是怎样的
 
 A: 从字节到像素的主线( 以 Blink 为例) :
 
@@ -939,7 +939,7 @@ A: 从字节到像素的主线( 以 Blink 为例) :
 
 JS 可以在解析阶段介入( 同步脚本阻塞解析器) , 也可以在渲染之后通过修改 DOM/样式使流水线部分阶段失效重跑. 理解这条流水线是分析重排重绘、层合成与性能优化的基础.
 
-### Q44. 重排与重绘是什么 如何减少
+### 重排与重绘是什么 如何减少
 
 A: 重排( reflow/layout) : 几何属性变化导致重新计算布局, 之后必然紧跟重绘. 触发源: 增删可见节点、改变尺寸/位置类样式( width、margin、font-size) 、窗口 resize、字体加载完成、读取会强制同步布局的属性( offsetTop、scrollTop、getBoundingClientRect 等, 在布局脏的情况下读取会强制立即布局) .
 
@@ -956,7 +956,7 @@ A: 重排( reflow/layout) : 几何属性变化导致重新计算布局, 之后�
 - 使用 CSS containment( contain: layout paint) 与 content-visibility 限定影响范围.
 - 列表局部更新代替整体重建; 必要时 virtual list.
 
-### Q45. 合成层是什么 为什么 transform 动画更流畅
+### 合成层是什么 为什么 transform 动画更流畅
 
 A: 现代浏览器把页面拆成多个合成层( GraphicsLayer) , 各层独立光栅化为位图, 最后由合成线程在 GPU 中按层的变换与透明度拼合成帧.
 
@@ -971,7 +971,7 @@ A: 现代浏览器把页面拆成多个合成层( GraphicsLayer) , 各层独立�
 - 某些样式会破坏层的独立性( 如父级 overflow 裁剪、filter 形成包含块) , 导致动画回落到主线程.
 - 用 DevTools 的 Layers 面板可直观查看层边界与提升原因.
 
-### Q46. CSS 与 JS 的渲染阻塞 async 与 defer 的区别
+### CSS 与 JS 的渲染阻塞 async 与 defer 的区别
 
 A: 阻塞行为:
 
@@ -989,7 +989,7 @@ script 加载方式对比:
 
 补充: preload scanner 会提前发现这些资源并行下载; 对关键第三方域名用 preconnect 预热连接; 内联关键脚本可省去一次 RTT 但失去缓存.
 
-### Q47. 关键渲染路径与 preload prefetch preconnect
+### 关键渲染路径与 preload prefetch preconnect
 
 A: 关键渲染路径( CRP) 是首屏渲染所必需的资源与处理步骤: HTML → CSSOM →( 阻塞渲染的) JS → 渲染树 → 布局 → 绘制. 优化目标是最小化关键资源数量、关键字节数与关键路径长度( RTT 次数) : 内联关键 CSS、拆分并延迟非关键 JS、给字体和首图最高优先级.
 
@@ -1002,7 +1002,7 @@ A: 关键渲染路径( CRP) 是首屏渲染所必需的资源与处理步骤: HT
 - fetchpriority="high/low": 直接提示浏览器某资源的相对优先级( 如 LCP 图片设 high) .
 - Speculation Rules API( prerender/prefetch 规则声明) : 现代 Chrome 对整页做推测性预渲染, 取代已废弃的 prerender 资源提示.
 
-### Q48. 浏览器多进程架构
+### 浏览器多进程架构
 
 A: 以 Chrome 为例的多进程模型:
 
@@ -1023,7 +1023,7 @@ A: 以 Chrome 为例的多进程模型:
 
 ## 第六部分 浏览器存储与缓存
 
-### Q49. cookie localStorage sessionStorage IndexedDB 的区别
+### cookie localStorage sessionStorage IndexedDB 的区别
 
 A: 四个维度对比:
 
@@ -1037,7 +1037,7 @@ API 与能力: cookie 操作是字符串解析, 繁琐; Web Storage 是同步 KV
 
 选型建议: 会话凭证用 HttpOnly cookie( 而非 localStorage, 防 XSS 窃取) ; 跨标签共享的小配置用 localStorage; 表单草稿等标签内状态用 sessionStorage; 大体积结构化数据、离线应用、文件缓存用 IndexedDB( 推荐 idb 等轻封装) ; 更大的响应缓存走 Cache API.
 
-### Q50. cookie 的重要属性有哪些
+### cookie 的重要属性有哪些
 
 A: 核心属性:
 
@@ -1052,7 +1052,7 @@ A: 核心属性:
 
 安全实践: 会话 cookie 组合使用 HttpOnly + Secure + SameSite=Lax/Strict + \_\_Host- 前缀; 敏感操作再叠加 CSRF Token.
 
-### Q51. HTTP 强缓存与协商缓存
+### HTTP 强缓存与协商缓存
 
 A: 浏览器请求一个资源时的决策链: 先查强缓存, 命中且未过期则直接使用( 不发请求, 状态码 200, 标注 from memory/disk cache) ; 否则发请求并带上协商缓存标识, 由服务器决定返回 304( 用缓存) 还是 200( 新内容) .
 
@@ -1071,7 +1071,7 @@ A: 浏览器请求一个资源时的决策链: 先查强缓存, 命中且未过�
 
 工程组合: HTML 用 no-cache( 每次验证) 保证及时更新; 带内容 hash 的静态资源用 max-age=31536000, immutable 长期强缓存; API 按需使用 ETag 减少传输.
 
-### Q52. ETag 与 Last-Modified 的区别
+### ETag 与 Last-Modified 的区别
 
 A: 工作机制: 两者都是协商缓存的验证器. Last-Modified 记录资源最后修改时间( 秒级) , 客户端用 If-Modified-Since 带回; ETag 是服务器生成的版本标识( 内容 hash 或版本号) , 客户端用 If-None-Match 带回. 请求同时带两者时, ETag 优先判定.
 
@@ -1083,7 +1083,7 @@ A: 工作机制: 两者都是协商缓存的验证器. Last-Modified 记录资�
 - 强/弱验证器: ETag 前缀 W/ 表示弱验证器, 只要求语义等价( 如 gzip 压缩后字节不同但内容等价) , 适用于不改变语义的转换; 强 ETag 要求字节级一致, Range 请求依赖强验证器.
 - If-None-Match: \* 用于“仅当资源不存在时”语义( 防止并发覆盖, 配合 PUT) .
 
-### Q53. Service Worker 缓存策略
+### Service Worker 缓存策略
 
 A: 常见运行时缓存策略( Workbox 中的同名策略) :
 
@@ -1122,7 +1122,7 @@ self.addEventListener("fetch", (e) => {
 
 ## 第七部分 网络基础与 HTTP
 
-### Q54. 从输入 URL 到页面展示发生了什么
+### 从输入 URL 到页面展示发生了什么
 
 A: 完整链路( 以 HTTPS 站点为例) :
 
@@ -1137,7 +1137,7 @@ A: 完整链路( 以 HTTPS 站点为例) :
 
 回答思路: 按“导航阶段( 1-4) → 请求响应( 5-6) → 解析渲染( 7-8) ”三段展开, 并把缓存、CDN、HTTP/2 多路复用、渲染流水线作为可深挖的延伸主动点出.
 
-### Q55. TCP 三次握手与四次挥手
+### TCP 三次握手与四次挥手
 
 A: 三次握手:
 
@@ -1158,7 +1158,7 @@ A: 三次握手:
 
 TIME_WAIT 存在的意义: 保证最后一个 ACK 若丢失, 对方重发 FIN 时还能再确认一次; 同时让本次连接的旧报文在 2MSL 内从网络中消逝, 避免污染下一次相同四元组的连接. 大量短连接导致 TIME_WAIT 堆积是经典后端问题( 可用连接复用/HTTP keep-alive 缓解) .
 
-### Q56. HTTPS 与 TLS 握手过程
+### HTTPS 与 TLS 握手过程
 
 A: HTTPS = HTTP over TLS, 提供机密性( 对称加密传输数据) 、完整性( MAC/AEAD 校验) 、身份认证( 证书链) .
 
@@ -1179,7 +1179,7 @@ TLS 1.3 的改进:
 
 常见延伸: 对称加密快用于数据、非对称加密用于认证与密钥协商的分工; 中间人为何无法伪造证书( CA 私钥签名 + 浏览器内置根证书) ; SNI 明文与 ECH 加密扩展.
 
-### Q57. HTTP/1.1 的队头阻塞问题
+### HTTP/1.1 的队头阻塞问题
 
 A: HTTP/1.1 中一个 TCP 连接上请求必须串行: 前一个响应完整返回后才能复用连接发下一个请求( keep-alive 只解决连接复用, 不解决并发) . 前一个响应慢, 后面全部排队, 这就是应用层队头阻塞.
 
@@ -1192,7 +1192,7 @@ A: HTTP/1.1 中一个 TCP 连接上请求必须串行: 前一个响应完整返�
 
 这些 workaround 带来新问题: 连接建立开销( TCP+TLS 握手成本×6) 、拥塞控制互相竞争、缓存粒度变粗( 合并文件一改全改) . HTTP/2 的多路复用从协议层解决了应用层队头阻塞( 见 Q58) , 于是合并与域名分片在 H2 时代反而变成反模式. 注意 H2 只解决了 HTTP 层队头阻塞, TCP 层的队头阻塞( 丢包导致后续数据等待重传) 由 HTTP/3 解决( 见 Q59) .
 
-### Q58. HTTP/2 的核心特性
+### HTTP/2 的核心特性
 
 A: HTTP/2 在保留 HTTP 语义( 方法、状态码、头部) 的前提下重写了传输层:
 
@@ -1205,7 +1205,7 @@ A: HTTP/2 在保留 HTTP 语义( 方法、状态码、头部) 的前提下重写
 
 部署事实: 浏览器只支持基于 TLS 的 h2( 通过 ALPN 协商) , 所以启用 H2 必须先上 HTTPS. 遗留短板: 单个 TCP 丢包会阻塞所有流( 传输层队头阻塞) , 这是 HTTP/3 的动机.
 
-### Q59. HTTP/3 与 QUIC 解决了什么问题
+### HTTP/3 与 QUIC 解决了什么问题
 
 A: QUIC 把传输层从 TCP 换成 UDP 之上的用户态可靠传输协议, HTTP/3 是跑在 QUIC 上的 HTTP 语义映射. 解决的问题:
 
@@ -1217,7 +1217,7 @@ A: QUIC 把传输层从 TCP 换成 UDP 之上的用户态可靠传输协议, HTT
 
 现状与挑战: 主流浏览器与大型 CDN 已广泛支持( 通过 Alt-Svc 头或 HTTPS DNS 记录发现) ; UDP 被部分企业网络限速/封锁、用户态协议栈 CPU 开销更高是主要落地障碍.
 
-### Q60. DNS 解析过程
+### DNS 解析过程
 
 A: 以解析 www.example.com 为例:
 
@@ -1234,7 +1234,7 @@ A: 以解析 www.example.com 为例:
 - 安全与隐私: 传统 DNS 明文可被劫持/监听, DoH( DNS over HTTPS, 443 端口) 与 DoT( 853 端口 TLS) 加密查询; DNSSEC 提供应答签名验证防篡改.
 - TTL 与故障切换的矛盾: TTL 短则切换快但查询频繁, 长则变更生效慢.
 
-### Q61. 常见 HTTP 方法与状态码
+### 常见 HTTP 方法与状态码
 
 A: 方法( 注意语义属性) :
 
@@ -1256,7 +1256,7 @@ A: 方法( 注意语义属性) :
 
 易混点: 401 vs 403( 认证 vs 授权) ; 301 vs 302 vs 307 vs 308( 永久性与方法保持) ; 502 vs 504( 上游响应非法 vs 上游超时) .
 
-### Q62. GET 与 POST 的区别
+### GET 与 POST 的区别
 
 A: 语义层面( 规范定义的区别, 也是最本质的) :
 
@@ -1269,7 +1269,7 @@ A: 语义层面( 规范定义的区别, 也是最本质的) :
 - 安全误区: GET 参数出现在 URL, 会留在浏览器历史、服务器日志、Referer 中, 不宜放敏感信息; 但 POST 在 HTTP 下同样是明文, 安全性取决于 HTTPS 而非方法.
 - 跨域角度: GET/POST( 满足简单请求条件) 不一定触发预检, 但携带 JSON 的 POST 会触发 OPTIONS 预检( 见 Q63) .
 
-### Q63. CORS 跨域机制
+### CORS 跨域机制
 
 A: CORS 是浏览器实施、服务器配合的跨源放行机制. 核心事实: 跨域请求通常已经发出去了( 非简单请求除外) , 浏览器拦截的是“把响应交给 JS 读取”这一步; 所以服务端不能靠 CORS 阻止请求到达, CSRF 防护不能依赖 CORS.
 
@@ -1286,7 +1286,7 @@ A: CORS 是浏览器实施、服务器配合的跨源放行机制. 核心事实:
 - Private Network Access 的后继方案 Local Network Access: 公网页面访问内网/本机地址需用户本地网络权限授权( fetch 可用 targetAddressSpace 提示目标地址空间; Chrome 已由预检方案转向权限提示, 自 142 起逐步推进) .
 - no-cors 模式得到的是 opaque 响应( 不可读、状态为 0) , 仅用于不依赖结果的场景.
 
-### Q64. 跨域解决方案有哪些
+### 跨域解决方案有哪些
 
 A: 生产环境方案:
 
@@ -1301,7 +1301,7 @@ A: 生产环境方案:
 
 相关补充: 跨源资源嵌入还有 CORP( Cross-Origin-Resource-Policy) 、COEP/COOP( 跨源隔离, SharedArrayBuffer 的前提) 等新机制, 属于站点加固而非跨域数据方案.
 
-### Q65. WebSocket 原理 与 SSE 的对比
+### WebSocket 原理 与 SSE 的对比
 
 A: WebSocket:
 
@@ -1319,7 +1319,7 @@ SSE( Server-Sent Events) :
 
 选型: 双向高频( 聊天、协作编辑、游戏) 用 WebSocket; 服务端单向推送( 通知、行情、日志流、AI 流式输出) 用 SSE 更简单且自带重连; 极端实时( 音视频、低延迟游戏) 考虑 WebTransport/WebRTC DataChannel.
 
-### Q66. 同源策略是什么
+### 同源策略是什么
 
 A: 同源策略( Same-Origin Policy) 规定: 只有当协议、域名( 主机) 、端口三者完全相同时, 两个文档才属于同源, 浏览器才允许它们不受限地互访. 它隔离的主要是“读”能力:
 
@@ -1339,7 +1339,7 @@ A: 同源策略( Same-Origin Policy) 规定: 只有当协议、域名( 主机) �
 
 ## 第八部分 网络安全
 
-### Q67. XSS 攻击类型与防御
+### XSS 攻击类型与防御
 
 A: XSS( 跨站脚本) 是攻击者把恶意脚本注入到受信页面中执行, 从而窃取凭证、伪造操作、篡改页面.
 
@@ -1358,7 +1358,7 @@ A: XSS( 跨站脚本) 是攻击者把恶意脚本注入到受信页面中执行,
 5. Trusted Types: 浏览器级约束危险 sink( innerHTML 等) 只接受经策略函数处理的对象, 从源头收敛 DOM XSS.
 6. 其他: X-XSS-Protection 已废弃且曾引入新问题, 应显式设 0; 对子域与上传内容做隔离域; 输入校验只是辅助, 不能替代输出编码.
 
-### Q68. CSRF 原理与防御
+### CSRF 原理与防御
 
 A: 原理: 浏览器对目标站点发起请求时会自动携带该站点的 Cookie( ambient authority ) . 攻击者在自己的页面上构造指向目标站点的请求( 自动提交的表单、img/fetch) , 用户若已登录目标站点, 请求就带着其凭证完成转账、改密等操作. 攻击者读不到响应( 受 SOP 限制) , 但攻击本身只需要“发出请求”.
 
@@ -1373,7 +1373,7 @@ A: 原理: 浏览器对目标站点发起请求时会自动携带该站点的 Co
 
 注意: HttpOnly 不防 CSRF( 请求自动带 Cookie, 与 JS 能否读无关) ; JSON 接口同样可能因 Content-Type 可被表单伪造( text/plain 拼 JSON) 而中招, 不能只靠“接口只收 JSON”假设.
 
-### Q69. 点击劫持与防御
+### 点击劫持与防御
 
 A: 点击劫持( UI Redressing) : 攻击者把目标站点用透明 iframe 覆盖在诱导按钮上, 用户以为点击的是“抽奖”, 实际点击的是目标站点的“确认转账”. 变种包括拖拽劫持、光标劫持( cursorjacking) .
 
@@ -1386,7 +1386,7 @@ A: 点击劫持( UI Redressing) : 攻击者把目标站点用透明 iframe 覆�
 
 相关场景: 第三方合法嵌入( 支付、地图) 需要在 frame-ancestors 中精确授权; 检测页面是否被嵌套也可用 window.self !== window.top 做埋点监控.
 
-### Q70. 中间人攻击与 HSTS
+### 中间人攻击与 HSTS
 
 A: 中间人攻击( MITM) : 攻击者位于通信路径上( 伪造 Wi-Fi、ARP 欺骗、受控代理、DNS 劫持) , 窃听或篡改双方流量. HTTPS 通过证书认证 + 加密传输抵御: 中间人无法伪造合法证书( 无法通过 CA 链校验) , 篡改密文会被完整性校验发现.
 
@@ -1406,7 +1406,7 @@ SSL Stripping 与 HSTS: 用户习惯输入裸域名, 首个请求常是 http://,
 
 ## 第九部分 性能优化
 
-### Q71. 核心 Web 指标 Core Web Vitals
+### 核心 Web 指标 Core Web Vitals
 
 A: Google 定义的用户体验量化指标, 也是搜索排名信号:
 
@@ -1416,7 +1416,7 @@ A: Google 定义的用户体验量化指标, 也是搜索排名信号:
 
 辅助指标: TTFB( 后端与 CDN 链路) 、FCP、TBT( 实验室环境近似 INP) . 采集方式: 真实用户监控用 web-vitals 库( 基于 PerformanceObserver) 上报; 实验室用 Lighthouse/WebPageTest; CrUX 与 Search Console 提供群体数据. 实践中强调“用 RUM 数据定位最差 75 分位, 再对症下药”.
 
-### Q72. 长列表渲染优化
+### 长列表渲染优化
 
 A: 核心思路是减少同时存在的 DOM 节点数与每帧工作量:
 
@@ -1430,7 +1430,7 @@ A: 核心思路是减少同时存在的 DOM 节点数与每帧工作量:
 
 注意虚拟列表的代价: Ctrl+F 页面内查找失效、SEO 不友好、动态高度与滚动锚定复杂, 需要按场景权衡.
 
-### Q73. 前端加载性能优化手段
+### 前端加载性能优化手段
 
 A: 按“减少体积 → 减少请求 → 加快传输 → 优化执行”四步梳理:
 
@@ -1461,7 +1461,7 @@ A: 按“减少体积 → 减少请求 → 加快传输 → 优化执行”四�
 
 ## 第十部分 工程化与框架进阶
 
-### Q74. Tree-shaking 的原理与失效场景
+### Tree-shaking 的原理与失效场景
 
 A: Tree-shaking 指打包器在构建期移除未被使用的导出代码( dead code elimination 的模块级形态) , 其前提是 ESM 的静态结构: import/export 在编译期即可确定依赖关系, 不需要执行代码就能画出"哪些导出被谁引用"的图. CJS 的 require 是运行时动态调用, 无法可靠静态分析, 因此基本不可 tree-shake.
 
@@ -1482,7 +1482,7 @@ A: Tree-shaking 指打包器在构建期移除未被使用的导出代码( dead 
 
 验证手段: 构建产物用 source-map-explorer/rsdoctor 分析; 对疑似未删除的模块检查其 sideEffects 声明与转译产物格式.
 
-### Q75. webpack 与 vite 的核心差异与 HMR 原理
+### webpack 与 vite 的核心差异与 HMR 原理
 
 A: 核心差异在开发模式的架构:
 
@@ -1499,7 +1499,7 @@ HMR( 热模块替换) 原理:
 
 延伸: esbuild 为什么快( Go 编写、并行、AST 一次遍历、不做类型检查) ; Rust 工具链( Rspack、Rolldown、Turbopack、oxc) 正在以兼容 API 重写这一层; babel/tsc 在链路中被降级为"只做语法降级/只做类型检查".
 
-### Q76. SSR 同构与 Hydration 的原理与常见问题
+### SSR 同构与 Hydration 的原理与常见问题
 
 A: SSR( 服务端渲染) 指在服务端把组件树渲染成 HTML 直出, 首屏无需等 JS 即可显示内容, 改善 FCP/LCP 与 SEO. 同构指同一套组件代码在服务端( renderToString/renderToPipeableStream) 与客户端各执行一次.
 
@@ -1512,7 +1512,7 @@ Hydration( 注水) : 客户端 JS 加载后不重建 DOM, 而是复用服务端 
 - 性能问题: TTI 滞后于 FCP( "能看不能点") , 大型页面 hydration 本身是长任务. 演进方案: 流式 SSR( renderToPipeableStream 边生成边下发) 、选择性/渐进 hydration( React 18 Suspense 分块, 交互优先) 、islands 架构( Astro, 只 hydrate 交互岛屿) 、React Server Components( 服务端组件的代码与数据不进客户端 bundle) .
 - 与 SSG/ISR 的取舍: 内容稳定用构建期静态化, 个性化强才用请求期 SSR, 中间态用增量静态再生.
 
-### Q77. 微前端的核心问题 JS 沙箱与样式隔离
+### 微前端的核心问题 JS 沙箱与样式隔离
 
 A: 微前端把多个可独立开发部署的子应用聚合到一个宿主页面, 核心难题是隔离与通信.
 
@@ -1530,7 +1530,7 @@ JS 沙箱方案:
 
 配套机制: 路由分发( 劫持 history 或基于 single-spa 的生命周期) 、应用间通信( CustomEvent/发布订阅/props 注入, 避免共享可变全局状态) 、公共依赖复用( externals、Module Federation 共享作用域) . Module Federation 是另一条路线: 构建期声明 remote/shared, 把"微应用"降维成"运行时按需加载的远程模块", 没有沙箱但共享一套运行时.
 
-### Q78. 前端错误监控体系与 sourcemap 还原
+### 前端错误监控体系与 sourcemap 还原
 
 A: 采集层需要覆盖的错误类型与手段:
 
@@ -1546,7 +1546,7 @@ sourcemap 还原: 生产代码经压缩混淆, 堆栈中的 (file.js:1:23456) �
 
 ## 第十一部分 服务降级 熔断与限流
 
-### Q79. 什么是服务降级 它和服务熔断有什么区别
+### 什么是服务降级 它和服务熔断有什么区别
 
 A: 服务降级( Degradation) 是在系统整体负载过高或下游服务不可用时, 主动放弃部分非核心功能, 保证核心链路可用的策略. 比如电商大促期间关闭评价、推荐等非核心接口, 只保留下单、支付链路.
 
@@ -1560,7 +1560,7 @@ A: 服务降级( Degradation) 是在系统整体负载过高或下游服务不�
 
 两者可以配合使用: 熔断触发后, 对调用方而言就是一次降级( 走 fallback 逻辑) .
 
-### Q80. 熔断器的三种状态是怎么流转的
+### 熔断器的三种状态是怎么流转的
 
 A: 经典熔断器有三个状态:
 
@@ -1576,7 +1576,7 @@ A: 经典熔断器有三个状态:
 - 最小请求数: 在窗口期内请求数不足时不触发熔断, 避免小样本误判.
 - 慢调用熔断: 除了错误率, 还可以对慢调用比例做熔断( 如 P99 超过 3s 的请求占比超过 30%) .
 
-### Q81. 常见的限流算法有哪些 各自适用什么场景
+### 常见的限流算法有哪些 各自适用什么场景
 
 A: 四种主流限流算法:
 
@@ -1606,7 +1606,7 @@ A: 四种主流限流算法:
 
 令牌桶 vs 漏桶的关键区别: 令牌桶允许突发( 桶中有令牌时可以快速处理多个请求) , 漏桶强制匀速( 不管桶中有多少请求, 都以固定速率处理) .
 
-### Q82. 前端如何实现服务降级
+### 前端如何实现服务降级
 
 A: 前端降级策略按层次:
 
@@ -1643,7 +1643,7 @@ interface DegradeConfig {
 
 前端在启动时拉取降级配置, 根据配置决定加载哪些模块、使用哪种渲染策略.
 
-### Q83. 限流在前端和后端分别怎么做
+### 限流在前端和后端分别怎么做
 
 A: 后端限流:
 
@@ -1679,7 +1679,7 @@ A: 后端限流:
    - 短时间内多次触发的请求合并为一次批量请求.
    - 如 React Query 的 queryClient 自动合并相同 key 的请求.
 
-### Q84. 分布式系统中如何做全链路降级
+### 分布式系统中如何做全链路降级
 
 A: 全链路降级的核心思想: 从入口到存储, 每一层都有降级预案, 在流量洪峰时逐级降级.
 
@@ -1719,7 +1719,7 @@ A: 全链路降级的核心思想: 从入口到存储, 每一层都有降级预�
 - 降级后要有监控告警, 知道哪些服务在降级状态.
 - 恢复时要有灰度策略, 避免流量突然全部涌入.
 
-### Q85. Sentinel 和 Hystrix 在熔断限流上的对比
+### Sentinel 和 Hystrix 在熔断限流上的对比
 
 A: Hystrix( Netflix, 已停维) :
 
@@ -1746,7 +1746,7 @@ Sentinel( Alibaba) :
 - 已有 Hystrix 的项目可以考虑迁移到 Resilience4j( Hystrix 的继任者) .
 - Go 生态可以用 go-zero 内置的限流熔断、或自研.
 
-### Q86. 如何设计一个自适应限流算法
+### 如何设计一个自适应限流算法
 
 A: 自适应限流( Adaptive Rate Limiting) 的核心: 根据系统实时负载自动调整限流阈值, 而不是使用固定的 QPS 上限.
 
@@ -1773,7 +1773,7 @@ A: 自适应限流( Adaptive Rate Limiting) 的核心: 根据系统实时负载�
 
 Sentinel 的系统自适应保护就是这个思路. 它的好处是能根据系统实际能力动态调整, 而不是依赖人工设定的固定阈值.
 
-### Q87. 前端监控 SDK 的上报限流怎么做
+### 前端监控 SDK 的上报限流怎么做
 
 A: 监控 SDK 的上报限流需要平衡两个目标: 不丢失关键错误信息, 同时不打爆后端.
 
@@ -1803,7 +1803,7 @@ A: 监控 SDK 的上报限流需要平衡两个目标: 不丢失关键错误信�
    - 上报失败的数据暂存 localStorage.
    - 网络恢复后分批刷盘, 避免瞬时洪峰.
 
-### Q88. 熔断和降级在 BFF 层如何落地
+### 熔断和降级在 BFF 层如何落地
 
 A: BFF 层作为前后端之间的中间层, 是熔断和降级落地的关键位置.
 
@@ -2384,7 +2384,7 @@ function createInfiniteObject(path = []) {
 
 ## 第十三部分 补充深入问答
 
-### Q89. TypeScript 转为 JS 的每一个过程
+### TypeScript 转为 JS 的每一个过程
 
 A: TypeScript 编译器( tsc) 本质是一个"带类型擦除的转译器", 从源码到 JS 产物经历 6 个阶段:
 
@@ -2419,7 +2419,7 @@ A: TypeScript 编译器( tsc) 本质是一个"带类型擦除的转译器", 从�
 - 增量编译: incremental: true 生成 .tsbuildinfo( 签名哈希 + 依赖图) , 二次编译跳过未变化文件.
 - Language Service: 同一套编译器 API 驱动 VS Code 的跳转/补全/重构——binder/checker 结果常驻内存, 编辑时增量重解析.
 
-### Q90. V8 性能优化 隐藏类 内联缓存 逃逸分析
+### V8 性能优化 隐藏类 内联缓存 逃逸分析
 
 A: 隐藏类( Hidden Class / Map / Shape) :
 
@@ -2446,7 +2446,7 @@ A: 隐藏类( Hidden Class / Map / Shape) :
 
 要点: 写"JIT 友好"代码 = 形状稳定 + 类型稳定 + 热点函数小而纯.
 
-### Q91. ES 新特性核心要点
+### ES 新特性核心要点
 
 A: 尾调用优化( PTC, ES6 规范) : 严格模式下 return f(...) 复用当前栈帧——理论上递归阶乘可 O(1) 栈. 现实: 只有 Safari/JSC 实现, V8 曾实现后移除——要记住"规范有、引擎没普及, 别依赖".
 
@@ -2464,7 +2464,7 @@ BigInt: 任意精度整数( 123n) ; 不能与 Number 混算( 显式转换) ; typ
 - ES2025 已落地: Set 集合方法( union/intersection/difference 等) 、Iterator Helpers( Iterator.prototype.map/filter/take 等) 、Promise.try、RegExp.escape、Float16Array、import attributes 与 JSON modules, 现代浏览器基本都已原生支持.
 - 在途提案: Temporal( 取代 Date, 仍处 Stage 3; Chrome 144+/Firefox 139+ 已原生提供, Safari 尚未) 、Record & Tuple( #{...} 深不可变 + 值相等 ===) 、Decorator( Stage 3, 已落地 TS 5) 、Pattern Matching.
 
-### Q92. 正则引擎与灾难性回溯
+### 正则引擎与灾难性回溯
 
 A: NFA 回溯模型: JS 正则是回溯式 NFA——贪婪量词先尽量多吃, 匹配失败按"后进先出"回溯让位.
 
@@ -2484,7 +2484,7 @@ A: NFA 回溯模型: JS 正则是回溯式 NFA——贪婪量词先尽量多吃,
 - v 标志( ES2024) : 字符集运算 [\p{ASCII}--[aeiou]].
 - 性能: 编译正则缓存( 字面量只编译一次) 、避免不必要捕获组( 用 (?:...)) .
 
-### Q93. fetch 与 XHR 的细节对比
+### fetch 与 XHR 的细节对比
 
 A: fetch 的坑( 高频) :
 

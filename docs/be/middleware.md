@@ -4,7 +4,7 @@
 
 ## 一、etcd 分布式键值存储
 
-### Q1: etcd 的 Raft 一致性协议是如何保证数据强一致的?
+### etcd 的 Raft 一致性协议是如何保证数据强一致的?
 
 etcd 使用 Raft 共识算法保证集群数据强一致性, 其核心机制分为 Leader 选举、日志复制和安全性保证三个层面.
 
@@ -59,7 +59,7 @@ etcd 中的 Raft 优化
 - Learner 角色: 非投票成员, 用于新节点加入时先同步数据再提升为 Voter
 - Joint Consensus: 成员变更采用两阶段 (C_old + C_new), 避免脑裂
 
-### Q2: etcd 的 MVCC 多版本并发控制是如何实现的?
+### etcd 的 MVCC 多版本并发控制是如何实现的?
 
 etcd 的 MVCC 基于 BoltDB 实现, 为每个 key 维护多个版本, 支持历史版本查询和 Watch 机制.
 
@@ -118,7 +118,7 @@ Compact(rev) 会:
 4. 早于 compactRev 的 Watch 会收到 ErrCompacted
 ```
 
-### Q3: etcd 的 Watch 机制底层是如何工作的?
+### etcd 的 Watch 机制底层是如何工作的?
 
 etcd 的 Watch 是基于 gRPC 流式通信和 MVCC revision 的增量事件推送机制.
 
@@ -170,7 +170,7 @@ watchChan := watcher.Watch(ctx, "prefix/", clientv3.WithPrefix(), clientv3.WithR
 - 大量 Watcher 监听同一 key 时, server 端使用 watcherGroup 批量分发
 - gRPC stream 的 `WithProgressNotify()` 用于检测静默断连 (无参调用; 通知间隔由服务端 `--experimental-watch-progress-notify-interval` 控制, 默认 10min)
 
-### Q4: etcd 的 Lease 和 KeepAlive 机制如何保证服务发现的可靠性?
+### etcd 的 Lease 和 KeepAlive 机制如何保证服务发现的可靠性?
 
 Lease 机制
 
@@ -215,7 +215,7 @@ for resp := range keepAliveCh {
   - 服务端重启: Lease 持久化在 BoltDB, 重启后恢复
 ```
 
-### Q5: etcd 的 BoltDB 存储引擎有什么特点? 为什么选择它?
+### etcd 的 BoltDB 存储引擎有什么特点? 为什么选择它?
 
 BoltDB 核心特点
 
@@ -246,7 +246,7 @@ BoltDB 的局限与应对
 局限 4: 大 value 性能差 -> etcd 限制 value 最大 1.5MB
 ```
 
-### Q6: etcd 集群的线性一致性读(Linearizable Read)是如何实现的?
+### etcd 集群的线性一致性读(Linearizable Read)是如何实现的?
 
 ReadIndex 机制
 
@@ -273,7 +273,7 @@ ReadIndex 机制
 resp, _ := client.Get(ctx, "key", clientv3.WithSerializable())
 ```
 
-### Q7: etcd 在生产环境中如何做性能调优和容量规划?
+### etcd 在生产环境中如何做性能调优和容量规划?
 
 关键性能指标
 
@@ -304,7 +304,7 @@ Watch 连接: 单节点 < 10k stream
 集群规模: 3 或 5 节点 (不超过 7)
 ```
 
-### Q8: etcd 的 Compact 和 Defrag 机制是什么? 为什么需要它们?
+### etcd 的 Compact 和 Defrag 机制是什么? 为什么需要它们?
 
 Compact: 逻辑删除指定 revision 之前的历史版本, 不释放磁盘空间.
 
@@ -320,7 +320,7 @@ etcdctl defrag --endpoints=https://node-1:2379  # 逐节点执行
 
 ## 二、Kafka 分布式消息队列
 
-### Q9: Kafka 的整体架构是怎样的? 各组件职责是什么?
+### Kafka 的整体架构是怎样的? 各组件职责是什么?
 
 核心架构
 
@@ -349,7 +349,7 @@ Producer -> Broker Cluster (Partition Leader/Follower) -> Consumer Group
 - 自定义 Partitioner: 实现 Partitioner 接口
 ```
 
-### Q10: Kafka 如何保证消息不丢失?
+### Kafka 如何保证消息不丢失?
 
 三端配合
 
@@ -367,7 +367,7 @@ Producer -> Broker Cluster (Partition Leader/Follower) -> Consumer Group
 | acks=all, auto.commit=false | At-least-once |
 | acks=all + 幂等 + 事务      | Exactly-once  |
 
-### Q11: Kafka 的 ISR 机制和 Leader 选举是如何工作的?
+### Kafka 的 ISR 机制和 Leader 选举是如何工作的?
 
 ISR (In-Sync Replicas)
 
@@ -389,7 +389,7 @@ Leader 选举
    - unclean.leader.election.enable=false: Partition 不可用
 ```
 
-### Q12: Kafka 如何实现高吞吐? 零拷贝和顺序写的作用是什么?
+### Kafka 如何实现高吞吐? 零拷贝和顺序写的作用是什么?
 
 五大核心设计
 
@@ -408,7 +408,7 @@ Leader 选举
 Kafka: Disk -> Kernel -> NIC (2 次 DMA 拷贝, 2 次切换)
 ```
 
-### Q13: Kafka Consumer Group 的 Rebalance 机制是怎样的?
+### Kafka Consumer Group 的 Rebalance 机制是怎样的?
 
 触发条件: Consumer 加入/离开、心跳超时、处理超时、Partition 数变化.
 
@@ -424,7 +424,7 @@ max.poll.interval.ms=600000
 partition.assignment.strategy=CooperativeStickyAssignor
 ```
 
-### Q14: Kafka 的 Exactly-Once 语义是如何实现的?
+### Kafka 的 Exactly-Once 语义是如何实现的?
 
 幂等 Producer: PID + Sequence Number, Broker 去重, 保证单 Partition 不重复.
 
@@ -441,7 +441,7 @@ producer.commitTransaction();
 
 Consumer 配合: `isolation.level=read_committed`, 只读已提交事务的消息.
 
-### Q15: Kafka 的日志存储结构是怎样的? Segment 和 Index 如何配合工作?
+### Kafka 的日志存储结构是怎样的? Segment 和 Index 如何配合工作?
 
 目录结构
 
@@ -456,7 +456,7 @@ topic-a-0/
 
 Segment 滚动: log.segment.bytes=1GB 或 log.roll.ms=7天, 满足任一触发.
 
-### Q16: Kafka 的 Controller 机制和元数据管理(KRaft)是怎样的?
+### Kafka 的 Controller 机制和元数据管理(KRaft)是怎样的?
 
 ZooKeeper 模式: Controller 通过 ZK 临时节点选举, 元数据存 ZK, 大集群瓶颈明显.
 
@@ -474,7 +474,7 @@ KRaft 模式 (3.3+): 去除 ZK, Controller Quorum 用 Raft 管理元数据, 存�
 
 ## 三、groupcache 分布式缓存
 
-### Q17: groupcache 的整体架构和设计哲学是什么?
+### groupcache 的整体架构和设计哲学是什么?
 
 设计哲学: 无中心节点、不可变数据 (只读 read-through)、自动填充、去中心化一致性哈希.
 
@@ -493,7 +493,7 @@ type Group struct {
 
 请求流程: 查 mainCache -> 查 hotCache -> singleflight 去重 -> 一致性哈希选节点 -> 本机则 Getter 加载, 远程则 RPC 获取 -> 写缓存 -> 返回.
 
-### Q18: groupcache 的一致性哈希是如何实现的?
+### groupcache 的一致性哈希是如何实现的?
 
 ```go
 // 每个真实节点映射 50 个虚拟节点, 排序后二分查找
@@ -507,7 +507,7 @@ type Map struct {
 // 节点变更只影响 1/N 的数据, 对比 hash%N 几乎全部重映射
 ```
 
-### Q19: groupcache 的 singleflight 机制如何防止缓存击穿?
+### groupcache 的 singleflight 机制如何防止缓存击穿?
 
 ```go
 // 同一 key 的并发请求合并为一个
@@ -518,7 +518,7 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 }
 ```
 
-### Q20: groupcache 的 LRU 缓存淘汰策略和内存管理是怎样的?
+### groupcache 的 LRU 缓存淘汰策略和内存管理是怎样的?
 
 经典 LRU: 双向链表 + 哈希表, 字节预算制 (非条目数限制).
 
@@ -527,7 +527,7 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 - `mainCache`: 缓存本机负责的数据 (占 7/8)
 - `hotCache`: 缓存远程热点数据 (占 1/8), 减少 RPC 次数
 
-### Q21: groupcache 与 Redis 等集中式缓存相比, 适用场景和优劣是什么?
+### groupcache 与 Redis 等集中式缓存相比, 适用场景和优劣是什么?
 
 | 维度   | groupcache         | Redis            |
 | ------ | ------------------ | ---------------- |
@@ -539,7 +539,7 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 
 适合: 读多写少的不可变数据、延迟敏感、不想引入额外中间件.
 
-### Q22: groupcache 的分布式请求流程是怎样的? 如何处理节点故障?
+### groupcache 的分布式请求流程是怎样的? 如何处理节点故障?
 
 故障处理: 远程请求失败时降级到本地 Getter. 原版 groupcache 不内置服务发现, 节点列表在启动时静态配置; 生产环境通常外接 etcd/ZooKeeper Watch 感知节点变化并更新哈希环 (如 swifty_cache 的做法); 节点恢复后重新加入, 缓存逐步预热.
 
@@ -547,13 +547,13 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 
 ## 四、gRPC 高性能 RPC 框架
 
-### Q23: gRPC 的整体架构和调用流程是怎样的?
+### gRPC 的整体架构和调用流程是怎样的?
 
 分层: Application -> Generated Code -> Interceptors -> Channel/Transport (HTTP/2) -> Serialization (Protobuf) -> Network (TCP/TLS).
 
 调用流程: Client Stub 序列化 -> Interceptor 链 -> HTTP/2 HEADERS+DATA 帧 -> Server 路由 -> Interceptor 链 -> 反序列化 -> Handler -> 响应.
 
-### Q24: HTTP/2 协议为 gRPC 带来了哪些关键能力?
+### HTTP/2 协议为 gRPC 带来了哪些关键能力?
 
 ```
 1. 多路复用: 单连接并行多 stream, 避免队头阻塞
@@ -562,13 +562,13 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 4. 流控: 连接级 + stream 级双层 WINDOW_UPDATE
 ```
 
-### Q25: Protocol Buffers 的编码原理是什么? 为什么比 JSON 高效?
+### Protocol Buffers 的编码原理是什么? 为什么比 JSON 高效?
 
 编码: Tag(field_number << 3 | wire_type) + Value, Varint 变长编码, ZigZag 处理负数.
 
 对比 JSON: 无字段名、二进制编码, 体积小 3-5 倍, 编解码快 5-20 倍, 编译时类型安全, field number 保证向后兼容.
 
-### Q26: gRPC 的四种通信模式分别适用什么场景?
+### gRPC 的四种通信模式分别适用什么场景?
 
 | 模式             | 适用场景                   |
 | ---------------- | -------------------------- |
@@ -577,19 +577,19 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (v interface{}, e
 | Client Streaming | 文件上传、批量提交         |
 | Bidi Streaming   | 聊天、实时协作             |
 
-### Q27: gRPC 的拦截器(Interceptor)机制是如何实现的?
+### gRPC 的拦截器(Interceptor)机制是如何实现的?
 
 洋葱模型: 请求方向 Interceptor1 -> 2 -> 3 -> Handler, 响应方向反向. 通过链式包装实现.
 
 生产常用: 日志、认证、Panic Recovery、限流、链路追踪.
 
-### Q28: gRPC 的负载均衡和服务发现是如何集成的?
+### gRPC 的负载均衡和服务发现是如何集成的?
 
 架构: Name Resolver (服务发现) -> Load Balancer (选地址) -> SubConn (实际连接).
 
 etcd 集成: Resolver Watch etcd 前缀, 实时更新地址列表; 配合 round_robin 负载均衡.
 
-### Q29: gRPC 的 KeepAlive、超时和重试机制如何保证调用可靠性?
+### gRPC 的 KeepAlive、超时和重试机制如何保证调用可靠性?
 
 ```
 KeepAlive: HTTP/2 PING 帧检测死连接
@@ -597,7 +597,7 @@ KeepAlive: HTTP/2 PING 帧检测死连接
 重试: Service Config 配置, 指数退避, 只重试幂等请求
 ```
 
-### Q30: gRPC 的流控(Flow Control)和连接管理是怎样的?
+### gRPC 的流控(Flow Control)和连接管理是怎样的?
 
 双层流控: 连接级 + stream 级, WINDOW_UPDATE 帧控制发送速率. 高吞吐场景调大 InitialWindowSize (1MB+).
 
@@ -607,7 +607,7 @@ KeepAlive: HTTP/2 PING 帧检测死连接
 
 ## 五、Prometheus 监控系统
 
-### Q31: Prometheus 的整体架构和数据流是怎样的?
+### Prometheus 的整体架构和数据流是怎样的?
 
 ```
 Service Discovery -> Prometheus Server (Pull -> TSDB -> HTTP API) -> Alertmanager / Grafana
@@ -616,7 +616,7 @@ Pushgateway (短生命周期任务) -> Prometheus
 Remote Write -> Thanos/Cortex (长期存储)
 ```
 
-### Q32: Prometheus 的四种指标类型有什么区别?
+### Prometheus 的四种指标类型有什么区别?
 
 | 类型      | 特点               | 适用                      |
 | --------- | ------------------ | ------------------------- |
@@ -625,7 +625,7 @@ Remote Write -> Thanos/Cortex (长期存储)
 | Histogram | 分桶 + sum + count | 延迟分布 (推荐)           |
 | Summary   | 客户端分位数       | 单实例精确 P99 (不可聚合) |
 
-### Q33: PromQL 的核心概念和常用查询模式有哪些?
+### PromQL 的核心概念和常用查询模式有哪些?
 
 ```promql
 rate(http_requests_total[5m])                          # 速率
@@ -635,7 +635,7 @@ predict_linear(disk_avail[1h], 4*3600) < 0             # 磁盘预测
 absent(up{job="svc"})                                  # 存活检测
 ```
 
-### Q34: Prometheus 的存储引擎(TSDB)是如何设计的?
+### Prometheus 的存储引擎(TSDB)是如何设计的?
 
 ```
 写入: Samples -> WAL -> Head Block (内存, 2h) -> Persistent Block (磁盘)
@@ -643,7 +643,7 @@ absent(up{job="svc"})                                  # 存活检测
 压缩: 2h -> 6h -> 18h -> 54h -> ... (严格 3 倍递增, 上限 min(31d, retention 的 10%))
 ```
 
-### Q35: Prometheus 的服务发现机制是如何工作的?
+### Prometheus 的服务发现机制是如何工作的?
 
 抓取目标不写死在配置里, 而是 SD 机制动态生成 target 列表, 每个 scrape_interval 重新评估:
 
@@ -686,14 +686,14 @@ relabel_configs:
 
 与 Spring Cloud/Consul 这类"注册中心推送"的区别: Prometheus 是拉模型, SD 只是回答"该去哪里抓", 服务本身不感知监控; target 消失( Pod 删除) 后 instance 自动从 target 列表移除, up 指标随之消失, `absent(up{job=...})` 可用于"目标整个不见了"的告警.
 
-### Q36: Prometheus 的告警规则和 Alertmanager 是如何协作的?
+### Prometheus 的告警规则和 Alertmanager 是如何协作的?
 
 ```
 告警状态: Inactive -> Pending (for 计时) -> Firing -> Resolved
 Alertmanager: 分组 -> 抑制 -> 静默 -> 路由 -> 通知 (Email/Slack/PagerDuty)
 ```
 
-### Q37: Prometheus 在高基数场景下如何优化?
+### Prometheus 在高基数场景下如何优化?
 
 ```
 - Relabeling 丢弃高基数标签 (user_id, trace_id)
@@ -707,27 +707,27 @@ Alertmanager: 分组 -> 抑制 -> 静默 -> 路由 -> 通知 (Email/Slack/PagerD
 
 ## 六、Grafana 可视化平台
 
-### Q38: Grafana 的架构设计和插件体系是怎样的?
+### Grafana 的架构设计和插件体系是怎样的?
 
 架构: Frontend (React) + Backend (Go) + Storage (SQLite/MySQL/PG).
 
 三类插件: Data Source (对接数据源)、Panel (可视化组件)、App (完整应用扩展). 后端插件通过 gRPC 通信, 数据格式 Apache Arrow.
 
-### Q39: Grafana 的 Dashboard 数据查询和渲染流程是怎样的?
+### Grafana 的 Dashboard 数据查询和渲染流程是怎样的?
 
 ```
 打开 Dashboard -> 解析 JSON Model -> 每个 Panel 替换变量 -> POST /api/ds/query
 -> Data Source Plugin 转换查询 -> 执行 -> 返回 DataFrame -> 前端渲染
 ```
 
-### Q40: Grafana 的告警系统(Unified Alerting)是如何工作的?
+### Grafana 的告警系统(Unified Alerting)是如何工作的?
 
 ```
 Alert Rules -> Scheduler (定期评估) -> State Manager -> Notification -> Contact Points
 支持跨数据源查询, Reduce/Math/Threshold 表达式, for 持续时间
 ```
 
-### Q41: 如何设计一个生产级的 Grafana 监控大盘?
+### 如何设计一个生产级的 Grafana 监控大盘?
 
 分层: L0 全局概览 (Golden Signals: Traffic/Latency/Errors/Saturation) -> L1 服务详情 -> L2 基础设施.
 
@@ -737,25 +737,25 @@ Alert Rules -> Scheduler (定期评估) -> State Manager -> Notification -> Cont
 
 ## 七、OpenTelemetry 可观测性
 
-### Q42: OpenTelemetry 的整体架构和核心概念是什么?
+### OpenTelemetry 的整体架构和核心概念是什么?
 
 三大支柱: Metrics + Traces + Logs, 统一采集/处理/导出.
 
 核心概念: API (接口定义) -> SDK (实现) -> Collector (独立进程) -> OTLP (标准协议).
 
-### Q43: OpenTelemetry 的 Trace 数据模型和上下文传播是怎样的?
+### OpenTelemetry 的 Trace 数据模型和上下文传播是怎样的?
 
 数据模型: Trace (128-bit trace_id) -> Span (64-bit span_id, parent, attributes, events, status).
 
 上下文传播: W3C Trace Context (`traceparent` header), Go 通过 propagation.TraceContext{} 注入/提取.
 
-### Q44: OpenTelemetry Collector 的架构和 Pipeline 是怎样的?
+### OpenTelemetry Collector 的架构和 Pipeline 是怎样的?
 
 Pipeline: Receiver (输入) -> Processor (处理: batch/filter/attributes) -> Exporter (输出).
 
 部署模式: Agent (DaemonSet) -> Gateway (集中处理) -> Backend. 推荐混合模式.
 
-### Q45: OpenTelemetry 的采样策略有哪些? 生产环境如何选择?
+### OpenTelemetry 的采样策略有哪些? 生产环境如何选择?
 
 ```
 Head Sampling: TraceIDRatioBased(0.1), ParentBased
@@ -764,7 +764,7 @@ Tail Sampling: 错误全采 + 慢请求全采 + 正常 1-5%
 低流量: 100% | 中流量: 10% + 错误全采 | 高流量: Tail Sampling
 ```
 
-### Q46: 如何在 Go 微服务中落地 OpenTelemetry?
+### 如何在 Go 微服务中落地 OpenTelemetry?
 
 ```go
 // 初始化: otlptracegrpc Exporter + Resource + TracerProvider + Propagator
@@ -774,7 +774,7 @@ Tail Sampling: 错误全采 + 慢请求全采 + 正常 1-5%
 // 手动: tracer.Start(ctx, "operation") + span.RecordError + span.SetStatus
 ```
 
-### Q47: OpenTelemetry 的 Metrics 和 Logs 信号是如何与 Trace 关联的?
+### OpenTelemetry 的 Metrics 和 Logs 信号是如何与 Trace 关联的?
 
 ```
 Metrics -> Trace: Exemplar (Histogram 样本中嵌入 trace_id)
@@ -787,7 +787,7 @@ Grafana: 指标图表点击 Exemplar -> Trace 详情 -> 关联 Logs
 
 ## 八、Redis Stack 向量存储
 
-### Q48: Redis Stack 的向量搜索(RedisSearch)架构是怎样的?
+### Redis Stack 的向量搜索(RedisSearch)架构是怎样的?
 
 Redis Stack 在 Redis 核心之上集成了 RediSearch (全文搜索 + 向量搜索)、RedisJSON、RedisTimeSeries、RedisBloom 等模块.
 
@@ -821,7 +821,7 @@ FT.CREATE idx:docs ON HASH PREFIX 1 "doc:" SCHEMA
     DISTANCE_METRIC COSINE
 ```
 
-### Q49: Redis 向量索引的 HNSW 和 FLAT 算法有什么区别?
+### Redis 向量索引的 HNSW 和 FLAT 算法有什么区别?
 
 FLAT (暴力搜索)
 
@@ -863,7 +863,7 @@ HNSW (Hierarchical Navigable Small World)
 | 增量更新   | 天然支持   | 支持 (但可能降低质量) |
 | 适用规模   | < 10 万    | > 10 万               |
 
-### Q50: Redis 向量搜索的查询语法和 KNN 检索是如何工作的?
+### Redis 向量搜索的查询语法和 KNN 检索是如何工作的?
 
 基本 KNN 查询
 
@@ -910,7 +910,7 @@ L2: 欧氏距离, 适合图像特征
 IP: 内积 (Inner Product), 适合已归一化的向量
 ```
 
-### Q51: Redis 向量存储与其他专用向量数据库(Milvus/Pinecone)相比有何优劣?
+### Redis 向量存储与其他专用向量数据库(Milvus/Pinecone)相比有何优劣?
 
 对比分析
 
@@ -968,7 +968,7 @@ Redis 向量存储的劣势
   - 按需付费
 ```
 
-### Q52: 如何在生产环境中设计基于 Redis 的 RAG 检索增强生成系统?
+### 如何在生产环境中设计基于 Redis 的 RAG 检索增强生成系统?
 
 RAG 系统架构
 
@@ -1077,7 +1077,7 @@ func retrieve(ctx context.Context, question string, topK int) ([]Chunk, error) {
 7. 降级策略: Embedding 服务不可用时降级到全文搜索
 ```
 
-### Q53: Redis 向量索引的内存优化和性能调优策略有哪些?
+### Redis 向量索引的内存优化和性能调优策略有哪些?
 
 内存优化
 
@@ -1136,7 +1136,7 @@ func retrieve(ctx context.Context, question string, topK int) ([]Chunk, error) {
 
 ## 九、综合与生产实践
 
-### Q54: 如何设计一个完整的微服务可观测性体系?
+### 如何设计一个完整的微服务可观测性体系?
 
 三大支柱统一架构
 
@@ -1180,7 +1180,7 @@ Phase 4: 持续优化
   - 故障复盘驱动指标补充
 ```
 
-### Q55: 分布式系统中如何选型消息队列? Kafka vs etcd Watch vs Redis Pub/Sub?
+### 分布式系统中如何选型消息队列? Kafka vs etcd Watch vs Redis Pub/Sub?
 
 对比分析
 
@@ -1219,7 +1219,7 @@ Phase 4: 持续优化
 支持 Consumer Group、消息确认、持久化, 适合中等吞吐场景.
 ```
 
-### Q56: 如何设计一个高可用的服务注册与发现体系?
+### 如何设计一个高可用的服务注册与发现体系?
 
 基于 etcd 的方案
 
@@ -1263,7 +1263,7 @@ func (sd *ServiceDiscovery) GetInstances(service string) []string {
 // 降级: etcd 全部不可用时, 使用本地缓存 + 告警
 ```
 
-### Q57: 中间件的容量规划和故障演练方法论是什么?
+### 中间件的容量规划和故障演练方法论是什么?
 
 容量规划方法论
 

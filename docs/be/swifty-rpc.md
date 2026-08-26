@@ -6,7 +6,7 @@
 
 ## 一、整体架构与设计哲学
 
-### Q1: 请介绍 swifty_rpc 的整体架构分层
+### 请介绍 swifty_rpc 的整体架构分层
 
 swifty_rpc 采用严格的分层架构, 从上到下分为:
 
@@ -39,7 +39,7 @@ ClientConn.Invoke
     -> OnComplete -> breaker.RecordSuccess/RecordFailure
 ```
 
-### Q2: 为什么所有实现放在 internal/ 下? pkg/rpc 如何暴露能力?
+### 为什么所有实现放在 internal/ 下? pkg/rpc 如何暴露能力?
 
 Go 编译器强制 `internal/` 目录下的包只能被同一模块内的代码导入. 这确保了:
 
@@ -58,7 +58,7 @@ type Future       = transport.Future
 
 type alias (`=`) 而非 type definition 意味着 `rpc.Future` 和 `transport.Future` 是同一个类型, 用户可以直接调用 Future 的所有导出方法而无需额外适配.
 
-### Q3: internal/stream 包存在的意义是什么?
+### internal/stream 包存在的意义是什么?
 
 `internal/server` 需要 `ServerStream` 接口做反射类型匹配 (判断方法第二参数是否为流), `internal/client` 需要 `ClientStream` 接口作为 `InvokeStream` 的返回类型. 如果 `ServerStream` 定义在 server 包, 而 client 或 pkg/rpc 需要引用它, 就必须导入 server 包, 导致不必要的耦合:
 
@@ -80,7 +80,7 @@ transport 的 ClientStreamConn 隐式实现 ClientStream (无需导入 stream)
 
 ## 二、线协议与编解码
 
-### Q4: 请描述 swifty_rpc 的线协议帧格式
+### 请描述 swifty_rpc 的线协议帧格式
 
 ```
 +--------+-----------+---------+----------------+--------------+
@@ -99,7 +99,7 @@ transport 的 ClientStreamConn 隐式实现 ClientStream (无需导入 stream)
 
 StreamFlag 使用 `json:",omitempty"`, 值为 0 (StreamNone) 时不出现在序列化结果中, 减少 unary 帧的 header 体积.
 
-### Q5: 为什么 Header 始终使用 JSON 编码而 Body 可以切换 Codec?
+### 为什么 Header 始终使用 JSON 编码而 Body 可以切换 Codec?
 
 设计考量:
 
@@ -109,7 +109,7 @@ StreamFlag 使用 `json:",omitempty"`, 值为 0 (StreamNone) 时不出现在序�
 
 代价是每个帧都有一次 JSON Marshal/Unmarshal, 但由于 Header 体积小且使用 `encoding/json` 标准库, 实测开销在微秒级.
 
-### Q6: PacketBuffer 如何处理粘包和脏数据?
+### PacketBuffer 如何处理粘包和脏数据?
 
 `PacketBuffer` 内部维护一个 `[]byte` 缓冲区, `Read()` 方法的核心逻辑:
 
@@ -137,7 +137,7 @@ return packet
 
 TCP 是字节流, 一次 `Read` 可能包含多个完整帧 (粘包) 或半个帧 (拆包). 外层 `TCPConnection.Read()` 循环调用 `PacketBuffer.Read()`, 每次提取一个完整帧; 缓冲区不够时从 `bufio.Reader` (4096 字节) 补充数据. 脏数据 (如连接建立前的随机字节) 通过 Magic 跳跃循环自动恢复.
 
-### Q7: 为什么 Body 强制 Gzip 压缩? 有什么代价?
+### 为什么 Body 强制 Gzip 压缩? 有什么代价?
 
 所有发送路径 (unary、stream、error response) 都硬编码 `Compression: codec.CompressionGzip`:
 
@@ -161,7 +161,7 @@ msg := &protocol.Message{
 
 改进方向: 增加阈值判断 (如 Body < 256 字节时不压缩) 或暴露 `WithCompression(None)` 选项.
 
-### Q8: Codec 注册机制是怎样的? Protobuf Codec 有什么约束?
+### Codec 注册机制是怎样的? Protobuf Codec 有什么约束?
 
 Codec 通过全局工厂注册表实现插件化:
 
@@ -188,7 +188,7 @@ Protobuf 约束: `Marshal`/`Unmarshal` 内部做类型断言 `v.(proto.Message)`
 
 ## 三、传输层
 
-### Q9: TCPClient 如何在单连接上实现请求多路复用?
+### TCPClient 如何在单连接上实现请求多路复用?
 
 `TCPClient` 封装一个 TCP 连接, 核心数据结构:
 
@@ -213,7 +213,7 @@ type TCPClient struct {
 
 多个 goroutine 可以并发调用 `SendAsyncWithCodec`, 各自拿到独立的 Future, 互不阻塞. 所有响应由一个 readLoop 统一分用, 避免了每请求一个 goroutine 的开销.
 
-### Q10: readLoop 的分用逻辑是怎样的? 如何区分 unary 和 stream 帧?
+### readLoop 的分用逻辑是怎样的? 如何区分 unary 和 stream 帧?
 
 ```go
 func (c *TCPClient) readLoop() {
@@ -254,7 +254,7 @@ func (c *TCPClient) readLoop() {
 
 区分依据是 `Header.StreamFlag`: 0=unary, 1=流数据, 2=流结束, 3=流错误. unary 响应走 `pending` map, stream 帧走 `streams` map, 两个 map 完全隔离.
 
-### Q11: shutdown 机制如何保证所有阻塞调用者被唤醒?
+### shutdown 机制如何保证所有阻塞调用者被唤醒?
 
 ```go
 func (c *TCPClient) shutdown(err error) {
@@ -286,7 +286,7 @@ func (c *TCPClient) shutdown(err error) {
 
 这确保了连接断开时, 所有阻塞在 `Wait()`、`GetResult()`、`Recv()` 上的 goroutine 都能在有限时间内返回.
 
-### Q12: SendAsyncWithCodec 中 Store 之后的二次 closed 检查解决什么竞态?
+### SendAsyncWithCodec 中 Store 之后的二次 closed 检查解决什么竞态?
 
 ```go
 func (c *TCPClient) SendAsyncWithCodec(msg, cc) (*Future, error) {
@@ -315,7 +315,7 @@ func (c *TCPClient) SendAsyncWithCodec(msg, cc) (*Future, error) {
 
 如果 shutdown 在二次检查之后才发生, 那么 shutdown 的遍历会覆盖到这个 Future 并 Done 它, 同样安全.
 
-### Q13: ConnectionPool 的设计有什么特点? 存在什么瓶颈?
+### ConnectionPool 的设计有什么特点? 存在什么瓶颈?
 
 ```go
 type ConnectionPool struct {
@@ -340,7 +340,7 @@ type ConnectionPool struct {
 2. Context 不约束拨号: ctx 只在 Acquire 入口做非阻塞检查, 不传入 DialTimeout, 调用者取消后拨号仍在进行.
 3. 单连接瓶颈: 所有 unary + stream 共享一个 readLoop, 一个慢 stream 填满 64 帧缓冲后会阻塞 readLoop 的 Push, 进而阻塞该连接上所有其他请求的响应分用.
 
-### Q14: TCPConnection.Close 为什么调用 SetLinger(0)?
+### TCPConnection.Close 为什么调用 SetLinger(0)?
 
 ```go
 func (tc *TCPConnection) Close() error {
@@ -363,7 +363,7 @@ func (tc *TCPConnection) Close() error {
 
 ## 四、Future 异步调用模型
 
-### Q15: Future 的 Done 幂等性是如何实现的? 为什么需要幂等?
+### Future 的 Done 幂等性是如何实现的? 为什么需要幂等?
 
 ```go
 func (f *Future) Done(res []byte, err error) {
@@ -389,7 +389,7 @@ func (f *Future) Done(res []byte, err error) {
 
 幂等性由 `mu + complete flag` 保证, 无需 atomic (因为还需要保护 res/err 的写入).
 
-### Q16: Future 的 OnComplete 回调与断路器如何协作?
+### Future 的 OnComplete 回调与断路器如何协作?
 
 注册模式客户端在发送后注册回调:
 
@@ -410,7 +410,7 @@ future.OnComplete(func(err error) {
 3. 即时触发: 如果注册 `OnComplete` 时 Future 已经完成, 回调立即执行, 不会丢失.
 4. 完整覆盖: 响应错误、超时 (通过强制 Done) 都会触发回调; 发送失败( 连接池 Acquire 失败或 `SendAsyncWithCodec` 返回 err) 时 Future 尚未创建, 直接在 `invokeAsync` 中调用 `br.RecordFailure()` (invoke.go:163-166, 183-186), 不经回调. 断路器统计基本不遗漏, 唯一盲区是 `codec.Marshal(args)` 序列化失败( invoke.go:169-172, InvokeStream 同理) : 既不 RecordFailure 也不创建 Future, 该次已通过 `breaker.Allow()` 的调用不会计入窗口.
 
-### Q17: InvokeAsync 的超时看门狗是如何工作的?
+### InvokeAsync 的超时看门狗是如何工作的?
 
 ```go
 func (c *Client) InvokeAsync(ctx, service, method, args) (*Future, error) {
@@ -442,7 +442,7 @@ func (c *Client) InvokeAsync(ctx, service, method, args) (*Future, error) {
 
 ## 五、服务端
 
-### Q18: 服务端如何通过反射支持三种方法签名?
+### 服务端如何通过反射支持三种方法签名?
 
 `Handler.invoke` 按优先级匹配:
 
@@ -480,7 +480,7 @@ Method(req *T, stream ServerStream) error
 
 注意: 方法签名验证发生在调用时而非注册时. 注册一个方法形状不合法的服务不会报错, 直到客户端实际调用才返回 `"unsupported method signature"`.
 
-### Q19: safeCall 的 panic 恢复机制是怎样的?
+### safeCall 的 panic 恢复机制是怎样的?
 
 ```go
 func safeCall(method reflect.Value, args []reflect.Value) (results []reflect.Value, err error) {
@@ -502,7 +502,7 @@ func safeCall(method reflect.Value, args []reflect.Value) (results []reflect.Val
 - 连接处理 goroutine 继续服务后续请求.
 - 流式 handler 的 panic 同样被恢复, 通过 `sendError` 发送 StreamError 帧.
 
-### Q20: GracefulStop 和 Stop 的区别是什么? 各自如何保证正确性?
+### GracefulStop 和 Stop 的区别是什么? 各自如何保证正确性?
 
 | 维度         | GracefulStop                                    | Stop                          |
 | ------------ | ----------------------------------------------- | ----------------------------- |
@@ -526,7 +526,7 @@ beginShutdown() [once: close(closing), close(listener)]
 
 Stop 在 GracefulStop 之后仍有效: 只有 listener 关闭由 `shutdownOnce` 保护, 连接遍历和关闭不受 once 限制.
 
-### Q21: 为什么 unary 请求在单连接上串行处理而 stream 可以并发?
+### 为什么 unary 请求在单连接上串行处理而 stream 可以并发?
 
 服务端每个连接一个 `Handle` goroutine:
 
@@ -560,7 +560,7 @@ return (nil, true, nil)  // Process 立即返回, 继续 Read 循环
 
 影响: 一个耗时 10s 的 unary handler 会阻塞该连接上后续所有 unary 请求 10s. 改进方向是为每个 unary 请求也启动 goroutine, 但需要处理并发写和背压.
 
-### Q22: 服务端的 Codec 协商是如何工作的?
+### 服务端的 Codec 协商是如何工作的?
 
 ```go
 func (h *Handler) Process(conn, msg, service, streamWg) {
@@ -586,7 +586,7 @@ func (h *Handler) Process(conn, msg, service, streamWg) {
 
 ## 六、流式 RPC
 
-### Q23: 服务端流 (Server Streaming) 的完整生命周期是怎样的?
+### 服务端流 (Server Streaming) 的完整生命周期是怎样的?
 
 服务端:
 
@@ -609,7 +609,7 @@ func (h *Handler) Process(conn, msg, service, streamWg) {
 
 终结保证: 无论 handler 正常返回、panic、还是连接断开, 客户端的 Recv 最终都会返回 (io.EOF 或 error), 不会永久阻塞.
 
-### Q24: ClientStreamConn 的 64 帧缓冲和带外终结状态是如何设计的?
+### ClientStreamConn 的 64 帧缓冲和带外终结状态是如何设计的?
 
 ```go
 type ClientStreamConn struct {
@@ -652,7 +652,7 @@ func (s *ClientStreamConn) Push(body []byte) {
 }
 ```
 
-### Q25: Recv 的 drain-before-terminal 语义是什么? 为什么需要?
+### Recv 的 drain-before-terminal 语义是什么? 为什么需要?
 
 ```go
 func (s *ClientStreamConn) Recv(msg any) error {
@@ -687,7 +687,7 @@ readLoop 处理帧是顺序的: 先 Push 数据帧, 再 End/Error. 但由于 `ch
 
 drain 语义保证: 在 StreamEnd 之前发送的所有数据帧, 客户端都能收到, 不会丢失任何一帧.
 
-### Q26: 为什么只支持 Server Streaming 而不支持 Client/Bidirectional Streaming?
+### 为什么只支持 Server Streaming 而不支持 Client/Bidirectional Streaming?
 
 协议层面的限制: `StreamFlag` 只有 4 个值 (None/Data/End/Error), 且所有流帧都是服务端 -> 客户端方向. 没有定义客户端发送流数据帧的 codepoint.
 
@@ -710,7 +710,7 @@ Server Streaming 的简化假设:
 
 ## 七、客户端治理
 
-### Q27: 注册模式客户端的调用管线 (pipeline) 是怎样的?
+### 注册模式客户端的调用管线 (pipeline) 是怎样的?
 
 每次 `Invoke`/`InvokeAsync`/`InvokeStream` 都经过完整的治理管线:
 
@@ -743,7 +743,7 @@ Server Streaming 的简化假设:
 - `breaker` (sync.Map): 每个 "service|addr" 一个 CircuitBreaker, 懒创建.
 - `Close()`: 停止 limiter, 遍历关闭所有 pool.
 
-### Q28: 静态模式和注册模式的区别是什么?
+### 静态模式和注册模式的区别是什么?
 
 | 维度     | 静态模式 (Dial with target)            | 注册模式 (Dial with WithRegistry) |
 | -------- | -------------------------------------- | --------------------------------- |
@@ -756,7 +756,7 @@ Server Streaming 的简化假设:
 
 静态模式适合开发测试或已知固定地址的场景; 注册模式适合生产环境多实例部署.
 
-### Q29: 断路器的三态状态机是如何工作的?
+### 断路器的三态状态机是如何工作的?
 
 ```
          失败率 >= 60%
@@ -793,7 +793,7 @@ HalfOpen 状态:
 
 同步: 单个 `sync.Mutex` 保护所有状态转换, 无 atomic.
 
-### Q30: 断路器在流式调用中如何记录成功/失败?
+### 断路器在流式调用中如何记录成功/失败?
 
 通过 `observedStream` 装饰器:
 
@@ -826,7 +826,7 @@ func (s *observedStream) Recv(msg any) error {
 - 其他错误 (网络断开、服务端错误) -> 记录失败.
 - `sync.Once` 保证每个流最多记录一次, 避免一个流的多次 Recv 错误重复计入.
 
-### Q31: 令牌桶限流器的实现有什么特点?
+### 令牌桶限流器的实现有什么特点?
 
 ```go
 type TokenBucket struct {
@@ -854,7 +854,7 @@ type TokenBucket struct {
 
 ## 八、负载均衡
 
-### Q32: 三种负载均衡策略的实现细节和适用场景?
+### 三种负载均衡策略的实现细节和适用场景?
 
 RoundRobin (轮询):
 
@@ -907,7 +907,7 @@ return list[maxIdx]
 - 产出平滑交错分布: weights=[1,2,3] 在 6 次调用中精确产出 1:2:3 比例, 不会连续命中同一实例.
 - 适用: 实例配置不均匀 (如 4C8G 和 8C16G 混部).
 
-### Q33: WeightedRR 与 etcd Registry 组合使用会有什么问题?
+### WeightedRR 与 etcd Registry 组合使用会有什么问题?
 
 `WeightedRR.Select` 按位置 (index) 匹配 weights 和 instances:
 
@@ -938,7 +938,7 @@ func (r *Registry) copyInstances(service string) []Instance {
 
 ## 九、服务注册与发现
 
-### Q34: etcd 注册发现的完整流程是怎样的?
+### etcd 注册发现的完整流程是怎样的?
 
 注册 (服务端):
 
@@ -977,7 +977,7 @@ watch(service):
   }
 ```
 
-### Q35: KeepAlive 的设计有什么隐患? 如何改进?
+### KeepAlive 的设计有什么隐患? 如何改进?
 
 当前实现:
 
@@ -1020,7 +1020,7 @@ go func() {
 }()
 ```
 
-### Q36: Discover 的缓存与 Watch 机制是如何协作的?
+### Discover 的缓存与 Watch 机制是如何协作的?
 
 首次 Discover (冷启动):
 
@@ -1049,7 +1049,7 @@ Watch 持续更新:
 
 ## 十、并发模型与同步原语
 
-### Q37: 整个框架使用了哪些同步原语? 各自解决什么问题?
+### 整个框架使用了哪些同步原语? 各自解决什么问题?
 
 | 原语               | 位置                         | 解决的问题                               |
 | ------------------ | ---------------------------- | ---------------------------------------- |
@@ -1082,7 +1082,7 @@ Watch 持续更新:
 | `chan struct{}`    | TokenBucket.stop             | 停止补充 goroutine                       |
 | `chan streamFrame` | ClientStreamConn.ch (cap=64) | 流帧生产者-消费者缓冲                    |
 
-### Q38: sync.Map 在框架中的使用场景和选择理由?
+### sync.Map 在框架中的使用场景和选择理由?
 
 使用场景:
 
@@ -1102,7 +1102,7 @@ Watch 持续更新:
 
 ## 十一、设计权衡与已知局限
 
-### Q39: 框架有哪些已知的设计局限? 如何改进?
+### 框架有哪些已知的设计局限? 如何改进?
 
 | 局限                             | 影响                       | 改进方向                       |
 | -------------------------------- | -------------------------- | ------------------------------ |
@@ -1120,7 +1120,7 @@ Watch 持续更新:
 | 注册时不验证方法签名             | 调用时才发现错误           | Register 时反射检查            |
 | NewServer panic                  | 不安全的初始化             | 返回 error                     |
 
-### Q40: 错误为什么以字符串形式跨线传输? 有什么影响?
+### 错误为什么以字符串形式跨线传输? 有什么影响?
 
 实现:
 

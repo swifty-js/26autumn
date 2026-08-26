@@ -4,7 +4,7 @@
 
 ## 一、架构与 SQL 执行流程
 
-### Q1: 执行一条 select 语句, MySQL 内部发生了什么?
+### 执行一条 select 语句, MySQL 内部发生了什么?
 
 MySQL 架构分为两层: Server 层和存储引擎层.
 
@@ -25,7 +25,7 @@ MySQL 架构分为两层: Server 层和存储引擎层.
 
 追问: 权限校验发生在哪一步? 连接时校验库表级权限缓存, 精确的表/列权限校验发生在执行器执行之前 (precheck) 以及执行过程中.
 
-### Q2: 执行一条 update 语句, MySQL 内部发生了什么?
+### 执行一条 update 语句, MySQL 内部发生了什么?
 
 update 会经过与 select 相同的连接器、解析器、优化器、执行器流程, 差异在于执行阶段涉及三种日志:
 
@@ -38,7 +38,7 @@ update 会经过与 select 相同的连接器、解析器、优化器、执行�
 
 追问: 更新一行也会加载整页吗? 会. InnoDB 以页 (默认 16KB) 为读写单位, 即使只更新 1 行也会将整页读入 Buffer Pool.
 
-### Q3: MySQL 的长连接和短连接如何取舍? 长连接内存暴涨怎么办?
+### MySQL 的长连接和短连接如何取舍? 长连接内存暴涨怎么办?
 
 - 建立连接需要 TCP 三次握手 + 权限校验, 成本较高, 因此生产环境几乎都使用长连接 + 连接池
 - 长连接的问题: MySQL 执行过程中临时使用的内存挂在连接对象上, 只有断连才释放, 长连接长期不断开可能导致内存持续增长, 甚至 OOM 被系统 kill
@@ -56,7 +56,7 @@ show variables like 'wait_timeout';      -- 空闲连接最大存活时间, 默�
 show variables like 'max_connections';   -- 最大连接数
 ```
 
-### Q4: 为什么 MySQL 8.0 移除了查询缓存?
+### 为什么 MySQL 8.0 移除了查询缓存?
 
 - 查询缓存以 SQL 文本为 key, 大小写、空格不同都无法命中, 命中率天然低
 - 失效粒度太粗: 只要表上有任何更新, 该表所有查询缓存全部清空. 对写多读少或读写混合的业务, 缓存刚建立就被清掉, 反而增加维护开销
@@ -64,7 +64,7 @@ show variables like 'max_connections';   -- 最大连接数
 
 因此 MySQL 8.0 直接移除了 Server 层查询缓存. 注意这与 InnoDB 的 Buffer Pool 无关——Buffer Pool 缓存的是数据页, 不是查询结果, 依然存在且至关重要. 需要结果级缓存时应使用 Redis 等外部缓存.
 
-### Q5: InnoDB 和 MyISAM 的核心区别?
+### InnoDB 和 MyISAM 的核心区别?
 
 | 维度      | InnoDB                                 | MyISAM                                             |
 | --------- | -------------------------------------- | -------------------------------------------------- |
@@ -82,7 +82,7 @@ show variables like 'max_connections';   -- 最大连接数
 
 ## 二、InnoDB 存储结构
 
-### Q6: 表空间、段、区、页、行分别是什么? 为什么要按区分配空间?
+### 表空间、段、区、页、行分别是什么? 为什么要按区分配空间?
 
 InnoDB 是行式存储. 开启 `innodb_file_per_table` 后每张表对应一个 `.ibd` 表空间文件 (可通过 `show variables like 'datadir'` 查看数据目录).
 
@@ -100,7 +100,7 @@ InnoDB 是行式存储. 开启 `innodb_file_per_table` 后每张表对应一个 
 
 为什么按页而不是按行读写? 若按行读写, 一次 I/O 只能处理一行; 按 16KB 的页读写, 一次 I/O 至少处理 16KB 数据, 且利用了局部性原理 (访问某行后, 邻近行大概率也会被访问).
 
-### Q7: 详述 compact 行格式, null 值和变长字段是如何存储的?
+### 详述 compact 行格式, null 值和变长字段是如何存储的?
 
 InnoDB 行格式分为不紧凑的 redundant (古老) 和紧凑的 compact、dynamic (5.7+ 默认)、compressed. dynamic/compressed 基于 compact 改进.
 
@@ -121,7 +121,7 @@ compact 格式下, 一条记录 = 记录的额外信息 + 记录的真实数据.
 - `trx_id` (6 字节, 必需): 最近一次创建/修改该记录的事务 ID, MVCC 的关键
 - `roll_pointer` (7 字节, 必需): 指向该记录上一个版本 (undo log 中) 的指针, 构成版本链
 
-### Q8: varchar(n) 中 n 的最大值是多少? 行溢出如何处理?
+### varchar(n) 中 n 的最大值是多少? 行溢出如何处理?
 
 MySQL 规定一行记录除 TEXT/BLOB 外的所有列总字节数不能超过 65535. 因此单个 varchar 列的上限:
 
@@ -136,7 +136,7 @@ MySQL 规定一行记录除 TEXT/BLOB 外的所有列总字节数不能超过 65
 - compact: 真实数据区保留该列前 768 字节 + 20 字节指向溢出页的指针, 其余数据放溢出页
 - dynamic / compressed (默认): 真实数据区只存 20 字节溢出页指针, 完整数据全部放溢出页——这样一个数据页能容纳更多行, B+ 树扇出更大
 
-### Q9: 数据页的内部结构是怎样的? 页目录如何加速页内查找?
+### 数据页的内部结构是怎样的? 页目录如何加速页内查找?
 
 16KB 数据页由 7 部分组成: 文件头 (File Header, 含前后页指针, 构成双向链表)、页头 (Page Header)、最大最小记录 (Infimum + Supremum, 虚拟伪记录)、用户记录 (User Records)、空闲空间 (Free Space)、页目录 (Page Directory)、文件尾 (File Trailer, 校验页完整性).
 
@@ -149,7 +149,7 @@ MySQL 规定一行记录除 TEXT/BLOB 外的所有列总字节数不能超过 65
 
 页间查找则依赖 B+ 树: 非叶节点存 (主键, 页号) 索引项, 逐层定位到目标数据页; 同层页之间双向链表支持范围扫描.
 
-### Q10: 为什么 InnoDB 选择 B+ 树? 对比 B 树、哈希、跳表、红黑树
+### 为什么 InnoDB 选择 B+ 树? 对比 B 树、哈希、跳表、红黑树
 
 数据库索引的核心约束: 数据在磁盘上, 磁盘 I/O 次数决定查询性能, 因此要让树尽可能"矮胖".
 
@@ -165,7 +165,7 @@ B+ 树 vs 红黑树: 红黑树是二叉树, 千万级数据高度约 20+ 层, �
 
 B+ 树 vs 跳表: 跳表 (Redis zset 使用) 是链表 + 多级索引, 层高不可控且节点分散, 不利于按页组织磁盘数据; B+ 树节点天然对应磁盘页, 扇出大、高度稳定. 跳表适合内存场景.
 
-### Q11: 一棵 3 层 B+ 树能存多少行数据?
+### 一棵 3 层 B+ 树能存多少行数据?
 
 经典估算 (重点):
 
@@ -180,7 +180,7 @@ B+ 树 vs 跳表: 跳表 (Redis zset 使用) 是链表 + 多级索引, 层高不
 
 ## 三、索引
 
-### Q12: MySQL 索引有哪些分类?
+### MySQL 索引有哪些分类?
 
 - 按数据结构: B+ 树索引、哈希索引、全文索引. InnoDB 支持 B+ 树与全文索引, 不支持显式哈希索引
 - 按存储形式: 聚簇索引 (叶子节点存整行数据)、二级索引 (叶子节点存主键值)
@@ -204,7 +204,7 @@ create table t (
 create index idx_a_b on t (a, b);        -- 联合索引
 ```
 
-### Q13: 聚簇索引和二级索引的区别? 什么是回表和覆盖索引?
+### 聚簇索引和二级索引的区别? 什么是回表和覆盖索引?
 
 - 聚簇索引: B+ 树叶子节点存储完整行数据, "索引即数据". 一张表只能有一个
 - 二级索引: B+ 树叶子节点存储 (索引列值, 主键值). 可以有多个
@@ -222,7 +222,7 @@ select * from users where name = 'Alice';             -- 需要回表查其余�
 
 实战优化: 高频查询可将 select 的列纳入联合索引形成覆盖索引, 减少回表 I/O.
 
-### Q14: 详述联合索引的最左匹配原则, 范围查询为什么会停止匹配?
+### 详述联合索引的最左匹配原则, 范围查询为什么会停止匹配?
 
 联合索引 (a, b, c) 的 B+ 树排序规则: 先按 a 排序, a 相同按 b 排序, b 相同按 c 排序. 因此 a 全局有序; b 仅在 a 相同的分组内局部有序; c 仅在 (a, b) 相同的分组内局部有序. 索引能被使用的前提是索引键有序, 所以查询必须从最左列开始、且不能跳列:
 
@@ -237,7 +237,7 @@ select * from users where name = 'Alice';             -- 需要回表查其余�
 
 追问: order by 也遵循最左匹配吗? 是. `where a = 1 order by b, c` 可利用索引免排序; `order by b` 单独出现则需要 filesort.
 
-### Q15: 什么是索引下推 (ICP)?
+### 什么是索引下推 (ICP)?
 
 索引下推 (Index Condition Pushdown, MySQL 5.6 引入): 将本应在 Server 层做的 where 过滤, 下推到存储引擎层, 在遍历二级索引时直接用索引中包含的列过滤, 减少回表次数. explain 的 Extra 显示 `Using index condition`.
 
@@ -246,7 +246,7 @@ select * from users where name = 'Alice';             -- 需要回表查其余�
 - 5.6 之前: 存储引擎按 a > 1 找到每个主键值就回表, 回表后由 Server 层判断 b = 2, 大量无效回表
 - 5.6 之后: 存储引擎遍历二级索引时, 索引里就有 b 的值, 先判断 b = 2, 不满足直接跳过, 只对满足的记录回表
 
-### Q16: 哪些情况会导致索引失效?
+### 哪些情况会导致索引失效?
 
 1. 违反最左匹配: 联合索引缺最左列或跳列 (见 Q14)
 2. 左模糊/左右模糊匹配: `like '%xxx'`、`like '%xxx%'` 失效, 因为索引按前缀有序; `like 'xxx%'` 有效
@@ -266,7 +266,7 @@ select * from users where phone = 15395377789;     -- 失效 (varchar 列隐式�
 select * from users where id = 1 or age = 7;       -- age 无索引则失效
 ```
 
-### Q17: 如何解读 explain 执行计划?
+### 如何解读 explain 执行计划?
 
 核心字段:
 
@@ -289,7 +289,7 @@ select * from users where id = 1 or age = 7;       -- age 无索引则失效
   - `Using filesort`: 无法利用索引排序, 需额外排序, 差
   - `Using temporary`: 使用临时表 (常见于 group by/distinct 无索引), 差
 
-### Q18: count(\*)、count(1)、count(主键)、count(字段) 的区别与优化
+### count(\*)、count(1)、count(主键)、count(字段) 的区别与优化
 
 语义: `count(expr)` 统计 expr 不为 null 的行数. `count(*)` 被优化器直接优化为 `count(0)`, 与 count(1) 等价.
 
@@ -306,7 +306,7 @@ select * from users where id = 1 or age = 7;       -- age 无索引则失效
 1. 近似值: `explain select count(*) from t` 的 rows 估算, 或 `show table status`
 2. 精确值: 用额外的计数表 (与业务操作放在同一事务中维护), 或 Redis 计数 (需容忍不一致)
 
-### Q19: limit 深分页为什么慢? 如何优化?
+### limit 深分页为什么慢? 如何优化?
 
 `select * from t order by id limit 1000000, 10` 慢的原因: MySQL 必须扫描并丢弃前 100 万行 (若走二级索引还要回表 100 万次), 只返回最后 10 行.
 
@@ -323,7 +323,7 @@ on t.id = tmp.id;
 
 3. 业务上限制最大页码 (如只允许翻 100 页), 深度检索改用搜索引擎 (ES)
 
-### Q20: 什么是前缀索引和索引区分度?
+### 什么是前缀索引和索引区分度?
 
 区分度 (selectivity) = `distinct(column) / count(*)`, 越接近 1 越好. gender 这类区分度极低的列不适合建索引 (扫描一半索引还要大量回表, 优化器可能直接放弃); 建联合索引时区分度高的列放前面, 能被更多查询命中且过滤更快.
 
@@ -337,13 +337,13 @@ create index idx_name_5 on users (name(5));
 
 前缀索引的局限: 无法用于 order by 排序消除, 也无法作为覆盖索引 (索引里只有前缀, 必须回表拿完整值).
 
-### Q21: 为什么推荐自增主键而不是 UUID?
+### 为什么推荐自增主键而不是 UUID?
 
 1. 插入性能: 自增主键插入是追加写, 页写满就开新页; UUID 无序, 插入位置随机, 频繁触发页分裂 (把一页数据挪一半到新页), 产生内存碎片、页空洞, 索引不紧凑, 插入性能和空间利用率都差
 2. 主键长度: 二级索引叶子节点存的是主键值, 主键越短 (bigint 8 字节 vs UUID 字符串 36 字节), 所有二级索引越小, 扇出越大
 3. 自增主键的缺点: 分库分表下全局不唯一 (需雪花算法等分布式 ID, 见 Q57); 高并发插入时自增锁与聚簇索引右侧热点; 会泄露业务量
 
-### Q22: 什么时候需要索引, 什么时候不需要? 索引的代价是什么?
+### 什么时候需要索引, 什么时候不需要? 索引的代价是什么?
 
 需要建索引:
 
@@ -365,7 +365,7 @@ create index idx_name_5 on users (name(5));
 - 降低写入性能: 每次增删改都要同步维护所有索引树
 - 优化器选择索引也有成本, 冗余索引还可能误导优化器
 
-### Q23: 什么是 Change Buffer? 它和唯一索引的关系?
+### 什么是 Change Buffer? 它和唯一索引的关系?
 
 Change Buffer 是 Buffer Pool 中的一块区域: 当更新的二级索引页不在内存中时, InnoDB 不立刻从磁盘读入该页, 而是把变更缓存在 Change Buffer 中; 之后该页被读取时再合并 (merge) 变更, 后台线程也会定期 merge. 它把"随机读磁盘 + 修改"变成了"先记账后合并", 显著减少随机 I/O.
 
@@ -379,14 +379,14 @@ Change Buffer 是 Buffer Pool 中的一块区域: 当更新的二级索引页不
 
 ## 四、事务与 MVCC
 
-### Q24: ACID 分别是什么? InnoDB 如何实现?
+### ACID 分别是什么? InnoDB 如何实现?
 
 - 原子性 (Atomicity): 事务中的操作要么全部完成, 要么全部不完成; 出错则回滚到事务开始前的状态. 实现: undo log——每次修改前记录旧值/反向操作, 回滚时逆向执行
 - 持久性 (Durability): 事务一旦提交, 修改是永久的, 即使宕机也不丢. 实现: redo log (WAL)——提交时保证 redo log 落盘, 崩溃后重放
 - 隔离性 (Isolation): 并发事务互不干扰. 实现: MVCC (快照读) + 锁机制 (当前读)
 - 一致性 (Consistency): 事务前后数据处于合法状态. 它是目的而非手段, 由原子性 + 隔离性 + 持久性共同保证, 外加应用层约束
 
-### Q25: 并发事务会引发哪些问题?
+### 并发事务会引发哪些问题?
 
 严重程度: 脏读 > 不可重复读 > 幻读.
 
@@ -396,7 +396,7 @@ Change Buffer 是 Buffer Pool 中的一块区域: 当更新的二级索引页不
 
 区别记忆: 不可重复读针对同一行的值变化, 幻读针对结果集的行数变化.
 
-### Q26: 四种隔离级别及其实现原理?
+### 四种隔离级别及其实现原理?
 
 | 隔离级别                         | 脏读   | 不可重复读 | 幻读       | 实现原理                                     |
 | -------------------------------- | ------ | ---------- | ---------- | -------------------------------------------- |
@@ -415,7 +415,7 @@ set session transaction isolation level repeatable read;
 
 追问: 为什么互联网公司有些会把隔离级别改成 RC? RC 下不加间隙锁 (只有记录锁), 锁冲突和死锁概率更低, 并发写入吞吐更高; 代价是必须用 row 格式 binlog 保证主从一致.
 
-### Q27: 详述 MVCC 与 Read View 的可见性判断规则
+### 详述 MVCC 与 Read View 的可见性判断规则
 
 MVCC (Multi-Version Concurrency Control): 通过 undo log 版本链 + Read View 让读写不互相阻塞——快照读不加锁, 读的是历史版本.
 
@@ -472,7 +472,7 @@ return m_ids.includes(trx_id)
 
 不可见时沿 `roll_pointer` 找上一个版本重复判断, 直到可见或版本链尽头.
 
-### Q28: 可重复读级别下, 幻读被完全解决了吗?
+### 可重复读级别下, 幻读被完全解决了吗?
 
 InnoDB 在 RR 下很大程度上避免了幻读, 但没有完全避免.
 
@@ -488,14 +488,14 @@ InnoDB 在 RR 下很大程度上避免了幻读, 但没有完全避免.
 
 规避方法: 事务一开始就对目标范围执行 `select ... for update` 加临键锁, 从头阻止其他事务插入.
 
-### Q29: begin 和 start transaction with consistent snapshot 的区别?
+### begin 和 start transaction with consistent snapshot 的区别?
 
 - `begin` / `start transaction`: 只是"开启"事务, 并不立刻启动; 事务真正启动 (分配事务 ID、RR 下创建 Read View) 发生在其后第一条操作 InnoDB 表的语句执行时
 - `start transaction with consistent snapshot`: 执行后立刻启动事务并创建 Read View
 
 易错点: "RR 下事务启动时创建 Read View" 严格说是"执行第一条快照读语句时", 用 begin 开启事务后到第一条 select 之间, 其他事务提交的修改是能被看到的.
 
-### Q30: 长事务有哪些危害? 如何排查和治理?
+### 长事务有哪些危害? 如何排查和治理?
 
 危害:
 
@@ -519,7 +519,7 @@ where TIME_TO_SEC(timediff(now(), trx_started)) > 60;
 
 ## 五、锁
 
-### Q31: MySQL 的锁如何分类?
+### MySQL 的锁如何分类?
 
 按范围从大到小:
 
@@ -537,7 +537,7 @@ where TIME_TO_SEC(timediff(now(), trx_started)) > 60;
 
 共享锁 S 与排他锁 X 的兼容矩阵: 读读共享, 读写互斥, 写写互斥.
 
-### Q32: 全局锁的使用场景? 备份为什么可以不加全局锁?
+### 全局锁的使用场景? 备份为什么可以不加全局锁?
 
 ```sql
 flush tables with read lock;  -- 全库只读
@@ -554,7 +554,7 @@ mysqldump -u root -p --single-transaction db0 > backup.sql
 
 前提是所有表都是支持事务的 InnoDB; MyISAM 表没有 MVCC, 仍必须全局锁.
 
-### Q33: 什么是 MDL 元数据锁? 为什么改表结构会阻塞全部查询?
+### 什么是 MDL 元数据锁? 为什么改表结构会阻塞全部查询?
 
 MDL (Metadata Lock) 保护表结构, 无需显式申请, 事务提交时才释放:
 
@@ -573,7 +573,7 @@ MDL (Metadata Lock) 保护表结构, 无需显式申请, 事务提交时才释�
 - alter table 加超时: `alter table t wait 100 add column ...` (MariaDB) 或 MySQL 设置 `lock_wait_timeout`
 - 使用 gh-ost / pt-online-schema-change 做在线变更 (见 Q60)
 
-### Q34: 为什么需要意向锁?
+### 为什么需要意向锁?
 
 意向锁 (Intention Lock) 是表级锁, 用于快速声明"本事务将在表内某些行上加行锁":
 
@@ -589,7 +589,7 @@ select ... lock in share mode;  -- 表 IS + 行 S
 select ... for update;          -- 表 IX + 行 X
 ```
 
-### Q35: AUTO-INC 锁的原理与 innodb_autoinc_lock_mode
+### AUTO-INC 锁的原理与 innodb_autoinc_lock_mode
 
 自增主键的值由 AUTO-INC 锁保证: 插入时对表加该锁, 语句执行完立即释放 (不等事务提交). 大批量插入 (insert...select) 时锁持有时间长, 并发插入吞吐差.
 
@@ -599,7 +599,7 @@ MySQL 5.1.22 起提供轻量级互斥量, 由 `innodb_autoinc_lock_mode` 控制:
 - `1`: 简单 insert (可预知行数) 用轻量锁申请完 id 立即释放; 批量 insert 仍用 AUTO-INC 锁
 - `2` (8.0 默认): 全部用轻量锁, 并发最好; 但批量插入的自增值可能不连续, 且 statement 格式 binlog 下主从可能不一致, 必须搭配 row 格式 binlog
 
-### Q36: 记录锁、间隙锁、临键锁、插入意向锁分别是什么?
+### 记录锁、间隙锁、临键锁、插入意向锁分别是什么?
 
 行级锁加在索引记录上 (设表中已有 id = 1, 5, 10 三条记录):
 
@@ -617,7 +617,7 @@ MySQL 5.1.22 起提供轻量级互斥量, 由 `innodb_autoinc_lock_mode` 控制:
 | select ... for update / update / delete | X 型临键锁                         |
 | insert                                  | 插入的记录加 X 记录锁 (隐式锁机制) |
 
-### Q37: 详述行级锁的加锁规则 (唯一索引/非唯一索引, 等值/范围)
+### 详述行级锁的加锁规则 (唯一索引/非唯一索引, 等值/范围)
 
 原则: RR 下加锁基本单位是临键锁 (左开右闭), 加在扫描过程中访问到的索引上; 满足特定条件时退化. 设表记录 id = 1, 5, 10, 15.
 
@@ -652,7 +652,7 @@ from performance_schema.data_locks;
 -- lock_mode: X (临键锁) / X,REC_NOT_GAP (记录锁) / X,GAP (间隙锁) / X,INSERT_INTENTION
 ```
 
-### Q38: update 语句没有命中索引, 会锁全表吗?
+### update 语句没有命中索引, 会锁全表吗?
 
 会——效果上等价于锁全表, 但机制上不是表锁: where 条件没有索引 (或索引失效) 时, 只能全表扫描, InnoDB 对扫描到的每条聚簇索引记录都加 X 型临键锁 (记录 + 间隙全锁), 其他事务的任何插入、更新都被阻塞, 事故等级极高.
 
@@ -662,7 +662,7 @@ from performance_schema.data_locks;
 - 开启 `sql_safe_updates = 1`: 拒绝执行不带索引条件的 update/delete
 - 大范围 update 分批执行, 缩短锁持有时间
 
-### Q39: 举一个 MySQL 死锁的真实案例, 如何避免死锁?
+### 举一个 MySQL 死锁的真实案例, 如何避免死锁?
 
 经典案例 (间隙锁 + 插入意向锁): 表 t 有 id = 1, 5, 10, RR 级别, 两个事务并发执行"不存在则插入":
 
@@ -692,7 +692,7 @@ insert into t values (7);
 - 隔离级别降为 RC (去掉间隙锁), 或为查询条件建合适索引缩小锁范围
 - 排查: `show engine innodb status` 查看 LATEST DETECTED DEADLOCK
 
-### Q40: 乐观锁和悲观锁在 MySQL 中如何落地?
+### 乐观锁和悲观锁在 MySQL 中如何落地?
 
 - 悲观锁: 假设冲突必然发生, 先加锁再操作. 落地: `select ... for update` (X 锁) / `lock in share mode` (S 锁). 适合写冲突激烈场景; 代价是锁等待、死锁风险
 - 乐观锁: 假设冲突少, 不加锁, 提交时校验. 落地: 版本号 / CAS
@@ -711,7 +711,7 @@ where id = 1 and version = #{oldVersion};
 
 ## 六、日志与 Buffer Pool
 
-### Q41: undo log、redo log、binlog 三种日志的对比
+### undo log、redo log、binlog 三种日志的对比
 
 | 维度     | undo log                        | redo log                         | binlog                            |
 | -------- | ------------------------------- | -------------------------------- | --------------------------------- |
@@ -726,7 +726,7 @@ undo log 细节:
 - 每条 undo log 带 trx_id 与 roll_pointer, 串成版本链支撑 MVCC
 - undo 页本身的修改也写 redo log, 因此 undo log 同样是持久的
 
-### Q42: 为什么需要 Buffer Pool? 其内部结构与 LRU 改进?
+### 为什么需要 Buffer Pool? 其内部结构与 LRU 改进?
 
 磁盘 I/O 慢, InnoDB 启动时申请一块连续内存作为 Buffer Pool (默认 128MB, 生产通常设为物理内存 60%~80%), 按 16KB 划分缓存页:
 
@@ -744,7 +744,7 @@ undo log 细节:
 1. 预读失效: 相邻页被预读进来却从未被访问, 污染 LRU 头部. 改进: LRU 链表分 young (热数据, 默认 5/8) 和 old (冷数据, 3/8) 两区, 新读入的页先插入 old 区头部, 真正被访问后才晋升 young 区
 2. 全表扫描导致缓存污染: 大扫描一次性把热点页全部挤出. 改进: 晋升门槛 `innodb_old_blocks_time` (默认 1000ms)——页在 old 区停留超过该时间后再次被访问, 才进入 young 区; 全表扫描的页通常在 1s 内被快速访问一次即弃, 无法晋升
 
-### Q43: 为什么需要 redo log? WAL 的本质是什么?
+### 为什么需要 redo log? WAL 的本质是什么?
 
 问题: 脏页在内存中, 若刷盘前宕机, 已提交事务的修改就丢了, 违反持久性.
 
@@ -758,7 +758,7 @@ redo log 与直接刷数据页相比的优势:
 
 redo log 写满了怎么办? redo log 是固定大小的环形结构 (write pos 追 checkpoint), 写满时所有更新阻塞, 强制把脏页刷盘、推进 checkpoint 腾出空间——这是线上"写入周期性抖动"的常见原因, 需调大 redo log 或优化刷脏速度.
 
-### Q44: redo log 的刷盘时机与 innodb_flush_log_at_trx_commit
+### redo log 的刷盘时机与 innodb_flush_log_at_trx_commit
 
 redo log 先写 redo log buffer (内存), 再落盘. 刷盘时机:
 
@@ -775,7 +775,7 @@ redo log 先写 redo log buffer (内存), 再落盘. 刷盘时机:
 
 金融等强一致场景用 1; 日志类可容忍丢失的高吞吐场景用 2 或 0.
 
-### Q45: binlog 的三种格式? statement 格式有什么坑?
+### binlog 的三种格式? statement 格式有什么坑?
 
 binlog 记录所有表结构变更与数据修改 (不记录 select), 追加写、全量保留, 用于备份恢复与主从复制.
 
@@ -793,7 +793,7 @@ binlog 刷盘: 事务执行中先写线程私有的 binlog cache (保证一个�
 
 "双 1" (`innodb_flush_log_at_trx_commit = 1` + `sync_binlog = 1`) 是不丢数据的标准配置.
 
-### Q46: 为什么需要两阶段提交? 崩溃恢复时如何决策?
+### 为什么需要两阶段提交? 崩溃恢复时如何决策?
 
 问题根源: redo log (引擎层) 与 binlog (Server 层) 是两个独立的写入动作, 若中间宕机, 两份日志可能不一致:
 
@@ -840,7 +840,7 @@ binlog 刷盘: 事务执行中先写线程私有的 binlog cache (保证一个�
 
 这样无论在哪个点崩溃, redo log 与 binlog 最终对该事务的"生效与否"结论一致.
 
-### Q47: 什么是组提交 (Group Commit)?
+### 什么是组提交 (Group Commit)?
 
 双 1 配置下每个事务提交都要两次 fsync (redo + binlog), 高并发下 fsync 成为瓶颈. 组提交: 多个并发提交的事务合并成一组, 由组内 leader 执行一次 fsync, 其余 follower 等待搭车, 将 N 次 fsync 摊薄为 1 次.
 
@@ -850,13 +850,13 @@ MySQL 5.7+ 将 commit 细分为三个阶段, 每阶段一个队列, 各阶段可
 2. sync 阶段: 一次 fsync 刷组内所有 binlog. `binlog_group_commit_sync_delay` (等待微秒数) 与 `binlog_group_commit_sync_no_delay_count` (攒够事务数) 控制"多攒一点再刷"以提高组员数量
 3. commit 阶段: 按顺序完成引擎层 commit
 
-### Q48: 什么是双写缓冲 (Doublewrite Buffer)? redo log 为什么救不了半个页?
+### 什么是双写缓冲 (Doublewrite Buffer)? redo log 为什么救不了半个页?
 
 部分页写问题 (partial page write): InnoDB 页 16KB, 而磁盘原子写单位通常是 4KB, 刷脏刷到一半宕机, 页就"半新半旧"损坏了. redo log 记录的是基于完好页的增量修改, 页本身损坏时 redo 无从重放.
 
 Doublewrite Buffer: 刷脏页时先把页顺序写到共享表空间的 doublewrite 区域 (2MB), fsync 后再写到真正的表空间位置. 崩溃恢复时若发现某页校验失败 (File Trailer 校验), 就用 doublewrite 中的完整副本还原该页, 再重放 redo log. 代价是每页写两次, 但第一次是顺序写, 开销约 5%~10%.
 
-### Q49: 误删数据后如何恢复? redo log 为什么不能用于恢复被删的库?
+### 误删数据后如何恢复? redo log 为什么不能用于恢复被删的库?
 
 redo log 是固定大小循环写, 边写边擦除, 只保证"未刷盘的脏页不丢", 已刷盘的数据对应的 redo 会被覆盖——它不是历史归档, 无法回放出被删的数据.
 
@@ -872,7 +872,7 @@ binlog 是追加写的全量逻辑日志, 恢复方案:
 
 ## 七、主从复制与高可用
 
-### Q50: 详述 MySQL 主从复制的原理
+### 详述 MySQL 主从复制的原理
 
 主从复制基于 binlog, 涉及三个线程:
 
@@ -907,13 +907,13 @@ binlog 是追加写的全量逻辑日志, 恢复方案:
 
 作用: 读写分离扩展读能力、数据热备、高可用故障切换、大查询/统计分流到从库.
 
-### Q51: 异步复制、半同步复制、组复制的区别?
+### 异步复制、半同步复制、组复制的区别?
 
 - 异步复制 (默认): 主库提交后立即返回客户端, 不等从库. 性能最好; 主库宕机时未同步的 binlog 丢失, 切换后丢数据
 - 半同步复制 (semi-sync): 主库提交后, 至少等 1 个从库把事件写入 relay log 并 ACK 才返回客户端 (`rpl_semi_sync_master_wait_for_slave_count`). 折中方案; 注意从库只是收到、还没回放; 超时 (`rpl_semi_sync_master_timeout`, 默认 10s) 会退化为异步. 5.7 的 AFTER_SYNC (无损半同步) 在写 binlog 后、引擎 commit 前等 ACK, 避免了 AFTER_COMMIT 下"主库已提交但 ACK 未达即宕机"的幻读窗口
 - 组复制 (MGR, Group Replication): 基于 Paxos 变体的多数派协议, 事务提交需组内多数节点认证通过, 提供强一致与自动故障切换 (单主/多主模式), 是 InnoDB Cluster 的基础. 性能低于异步, 网络要求高
 
-### Q52: 主从延迟的原因有哪些? 如何解决?
+### 主从延迟的原因有哪些? 如何解决?
 
 延迟 = 从库回放完成时间 - 主库提交时间 (`show slave status` 的 `Seconds_Behind_Master`).
 
@@ -931,7 +931,7 @@ binlog 是追加写的全量逻辑日志, 恢复方案:
 3. 从库升配、控制单主挂载的从库数量、读流量分散
 4. 业务侧容忍或规避 (见 Q53)
 
-### Q53: 读写分离下如何保证读到最新数据?
+### 读写分离下如何保证读到最新数据?
 
 "写后立即读"打到延迟的从库会读到旧数据. 方案按成本从低到高:
 
@@ -941,7 +941,7 @@ binlog 是追加写的全量逻辑日志, 恢复方案:
 4. 等 GTID / 位点: 写请求返回主库 GTID, 读请求在从库执行 `wait_for_executed_gtid_set(gtid, timeout)`, 等从库回放到该事务再读, 超时则退回主库——精确但实现复杂
 5. 缓存兜底: 写完同步写 Redis, 读先查缓存
 
-### Q54: 什么是 GTID? 相比 binlog 位点复制的优势?
+### 什么是 GTID? 相比 binlog 位点复制的优势?
 
 GTID (Global Transaction Identifier) = `server_uuid:transaction_id`, 全局唯一标识一个事务, 随事务写入 binlog.
 
@@ -957,7 +957,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 
 ## 八、分库分表
 
-### Q55: 什么时候需要分库分表? 垂直拆分与水平拆分的区别?
+### 什么时候需要分库分表? 垂直拆分与水平拆分的区别?
 
 触发信号 (经验值, 非绝对):
 
@@ -977,7 +977,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 - 水平分表: 同库内按规则拆成多张结构相同的表 (解决单表过大, 不解决单库瓶颈)
 - 水平分库分表: 数据按分片键分布到多个库的多张表 (同时解决存储与并发瓶颈), 是通常语境下的"分库分表"
 
-### Q56: 分片键如何选择? 常见的分片算法有哪些?
+### 分片键如何选择? 常见的分片算法有哪些?
 
 分片键选择原则:
 
@@ -996,7 +996,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 
 中间件形态: 客户端 SDK (ShardingSphere-JDBC, 无代理开销) vs 代理层 (MyCat / ShardingSphere-Proxy, 对应用透明、跨语言).
 
-### Q57: 分库分表后的分布式 ID 如何生成?
+### 分库分表后的分布式 ID 如何生成?
 
 自增主键在分片间不再全局唯一, 常见方案:
 
@@ -1005,7 +1005,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 3. UUID: 全局唯一但无序, 作为聚簇索引主键会频繁页分裂 (见 Q21), 不推荐
 4. Redis incr: 依赖 Redis 可用性与持久化
 
-### Q58: 分库分表带来了哪些问题? 如何解决跨分片查询和分布式事务?
+### 分库分表带来了哪些问题? 如何解决跨分片查询和分布式事务?
 
 1. 跨分片查询: 不带分片键的查询需广播所有分片再归并 (排序、聚合、分页在中间件内存中合并). 跨分片深分页尤其恐怖 (`limit 1000000, 10` 要求每个分片都返回 1000010 行). 解法: 强制业务带分片键、异构索引、ES 承接复杂查询、游标分页
 2. 跨分片 join: 尽量避免. 解法: 字段冗余 (订单表冗余用户昵称)、广播表 (小字典表每个分片全量一份)、绑定表 (订单与订单明细用同一分片键, join 不跨片)、应用层两次查询内存组装
@@ -1015,7 +1015,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 4. 全局唯一 ID: 见 Q57
 5. 运维复杂度: 扩容迁移 (Q59)、多分片 DDL、监控备份成本翻倍
 
-### Q59: 如何平滑地做分库分表数据迁移与扩容?
+### 如何平滑地做分库分表数据迁移与扩容?
 
 标准的双写迁移方案 (不停机):
 
@@ -1028,7 +1028,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 
 扩容技巧: 分片数按 2 的幂设计, 成倍扩容时每个旧分片的数据只会迁移到一个固定新分片 (`hash % 2N` 的结果要么不变要么 +N), 迁移量减半且可并行; 范围分片则直接追加新分片零迁移.
 
-### Q60: 亿级大表如何做 Online DDL?
+### 亿级大表如何做 Online DDL?
 
 直接 `alter table` 的风险: MDL 写锁排队引发雪崩 (Q33)、拷贝表期间磁盘翻倍、主从延迟巨大.
 
@@ -1044,7 +1044,7 @@ GTID 复制 (`gtid_mode = on`, `master_auto_position = 1`):
 
 ## 九、性能优化与实战
 
-### Q61: 一条 SQL 突然变慢, 你的完整排查思路?
+### 一条 SQL 突然变慢, 你的完整排查思路?
 
 第一步: 确认现场
 
@@ -1077,7 +1077,7 @@ show engine innodb status;                     -- 死锁、IO、Buffer Pool 状�
 
 第五步: 修复: 加/改索引、改写 SQL (覆盖索引、延迟关联、拆大事务)、参数调优、缓存/分表等架构手段.
 
-### Q62: 如何防止 SQL 注入?
+### 如何防止 SQL 注入?
 
 注入原理: 拼接字符串使输入改变 SQL 语义:
 
@@ -1095,7 +1095,7 @@ const sql = `SELECT username, email FROM member WHERE id = '${id}'`;
 3. 输入校验与白名单 (尤其 order by 列名、表名这类无法参数化的位置, 必须白名单枚举)
 4. WAF、SQL 审计、错误信息不回显数据库细节
 
-### Q63: 单表数据量多大需要优化? 2000 万行是硬性上限吗?
+### 单表数据量多大需要优化? 2000 万行是硬性上限吗?
 
 "2000 万行"不是硬性上限, 它来自 B+ 树层高估算 (Q11): 行大小 1KB、bigint 主键时, 3 层 B+ 树约容纳 2000 万行; 超过则层高变 4, 每次查询多一次磁盘 I/O.
 
@@ -1107,7 +1107,7 @@ const sql = `SELECT username, email FROM member WHERE id = '${id}'`;
 
 治理顺序: SQL 与索引优化 → 冷热分离/历史归档 → 读写分离 → 分区表 → 分库分表.
 
-### Q64: MySQL 有哪些性能分析工具?
+### MySQL 有哪些性能分析工具?
 
 ```sql
 -- 1. CRUD 频率画像 (判断读多写多)

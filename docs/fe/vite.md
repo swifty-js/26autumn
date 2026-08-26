@@ -2,7 +2,7 @@
 
 ## 一、构建工具核心原理
 
-### Q1: Vite 为什么比 Webpack 快? dev 冷启动的本质区别是什么?
+### Vite 为什么比 Webpack 快? dev 冷启动的本质区别是什么?
 
 本质区别是打包时机: Webpack 是"先打包再启动", Vite 是"先启动再按需编译".
 
@@ -35,7 +35,7 @@ Vite 快的三个关键点:
 
 在阿里妈妈的项目中, 我推动从 Webpack 迁移到 Vite 后, 开发服务器启动时间从 4 分钟降至 8 秒, HMR 响应从 2 秒降至 200ms.
 
-### Q2: Webpack 的完整构建流程是怎样的? Loader 和 Plugin 的区别?
+### Webpack 的完整构建流程是怎样的? Loader 和 Plugin 的区别?
 
 ```
   初始化              编译 (make)              封装 (seal)           产出 (emit)
@@ -61,7 +61,7 @@ Loader 和 Plugin 的区别:
 
 一句话概括: Loader 解决"这个文件怎么变成模块", Plugin 解决"整个构建过程中我要做什么".
 
-### Q3: esbuild 和 Rollup 在 Vite 中各自承担什么角色? 为什么生产构建不直接用 esbuild?
+### esbuild 和 Rollup 在 Vite 中各自承担什么角色? 为什么生产构建不直接用 esbuild?
 
 分工:
 
@@ -76,7 +76,7 @@ Loader 和 Plugin 的区别:
 
 补充趋势: Vite 团队用 Rust 编写的 Rolldown 目标是统一 dev 和 build 的引擎, 兼具 esbuild 的速度与 Rollup 的能力, 这正说明"双引擎"是历史权衡而非理想终态.
 
-### Q4: Vite 依赖预构建 (optimizeDeps) 的原理是什么? 遇到过哪些坑?
+### Vite 依赖预构建 (optimizeDeps) 的原理是什么? 遇到过哪些坑?
 
 原理: Vite 启动时扫描源码中的裸模块导入 (bare import, 如 `import React from 'react'`), 用 esbuild 将这些 node_modules 依赖打包成 ESM 并输出到 node_modules/.vite. 目的有两个:
 
@@ -92,7 +92,7 @@ Loader 和 Plugin 的区别:
 3. monorepo 内部包: workspace 链接的内部包默认不做预构建 (被视为源码), 如果内部包是 CJS 产物就会报错, 需要将其加入 `optimizeDeps.include` 并在 `build.commonjsOptions.include` 同步配置.
 4. 模块联邦场景: 在给 @module-federation/vite 提 PR 时发现, 原实现对每个 shared 依赖单独执行一次 optimizeDeps, 依赖多时预构建耗时很长, 我将多个 shared 依赖合并为一次调用, 预构建时间从约 12 秒降到 3 秒.
 
-### Q5: Webpack HMR 和 Vite HMR 的实现原理有何不同?
+### Webpack HMR 和 Vite HMR 的实现原理有何不同?
 
 Webpack HMR:
 
@@ -112,7 +112,7 @@ Vite HMR:
 
 排查 HMR 失效的思路 (两个工具通用): 确认变更模块到边界之间没有被 `accept` 遗漏; 检查循环依赖 (会导致边界查找失败退化为整页刷新); 检查导出是否满足框架刷新约束 (如 react-refresh 要求文件只导出组件).
 
-### Q6: Tree Shaking 的原理是什么? 哪些写法会导致失效?
+### Tree Shaking 的原理是什么? 哪些写法会导致失效?
 
 原理: 基于 ESM 的静态结构. ESM 的 import/export 必须出现在顶层且不可动态拼接, 构建工具因此能在编译期静态分析出每个导出是否被使用, 未使用的导出标记为 unused, 在压缩阶段由 DCE (Dead Code Elimination) 删除. CJS 的 `require` 是运行时行为, 无法静态分析, 所以 CJS 模块基本不可 shake.
 
@@ -131,7 +131,7 @@ Vite HMR:
 
 验证手段: `webpack --stats` 看 usedExports、Rollup 的 `treeshake` 日志、用 rsdoctor / webpack-bundle-analyzer 对比前后产物.
 
-### Q7: 代码分割怎么做? splitChunks 和 manualChunks 的策略如何设计?
+### 代码分割怎么做? splitChunks 和 manualChunks 的策略如何设计?
 
 代码分割的三个来源: 多入口、动态 `import()` (最主要手段, 天然分割点)、公共依赖提取.
 
@@ -191,7 +191,7 @@ build: {
 
 注意点: manualChunks 手动分组容易引入循环加载问题 (chunk A 的初始化依赖 chunk B 中的模块), Rollup 会警告 circular chunk, 需要保证分组边界与依赖方向一致.
 
-### Q8: Source Map 有哪些类型? 生产环境如何选择与管理?
+### Source Map 有哪些类型? 生产环境如何选择与管理?
 
 Webpack devtool 的常见取值本质是三个维度的组合: 是否独立文件、是否含列信息、是否含源码内容.
 
@@ -214,7 +214,7 @@ Vite 对应 `build.sourcemap: true | 'hidden' | 'inline'`, 语义一致.
 
 ## 二、工程化实践
 
-### Q9: Webpack 和 Vite 的模块联邦有什么本质差异? 你给 @module-federation/vite 贡献了什么?
+### Webpack 和 Vite 的模块联邦有什么本质差异? 你给 @module-federation/vite 贡献了什么?
 
 ```
   Host (消费方)                          Remote (提供方)
@@ -249,7 +249,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 
 生产实践要点: React 必须 `singleton: true` 防止多实例导致 hooks 报错; remoteEntry 加载失败要有重试 + ErrorBoundary fallback + 兜底版本 URL 三层降级.
 
-### Q10: 从 Webpack 迁移到 Vite 的完整过程? 遇到了哪些兼容性问题?
+### 从 Webpack 迁移到 Vite 的完整过程? 遇到了哪些兼容性问题?
 
 在阿里妈妈的项目中主导过这次迁移, 整体分四步:
 
@@ -269,7 +269,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 
 收益: dev 启动 4 分钟降到 8 秒, HMR 从 2 秒降到 200ms, 新人本地环境搭建时间明显缩短.
 
-### Q11: monorepo 的工程化怎么做? 内部包如何构建和消费?
+### monorepo 的工程化怎么做? 内部包如何构建和消费?
 
 我在个人项目 (swifty-sentry、swifty-cli 均为多包结构) 和公司项目中都使用 pnpm workspace 组织 monorepo.
 
@@ -285,7 +285,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 
 常见坑: 内部包源码直连时 Vite 不会对 workspace 包做预构建, 若该包引用了 CJS 依赖需手动加入 optimizeDeps.include; TS 的 paths 与包 exports 需要保持一致, 否则 IDE 跳转与构建解析不同步.
 
-### Q12: 环境变量与多环境配置在两个工具中如何管理?
+### 环境变量与多环境配置在两个工具中如何管理?
 
 机制差异:
 
@@ -299,7 +299,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 3. 类型安全: 用 Zod 在应用入口校验 `import.meta.env`, 为环境变量补充 `env.d.ts` 类型声明, 配置缺失在启动时立即报错而不是运行时静默出错.
 4. 安全底线: 任何进入前端 bundle 的变量都是公开的, 密钥类配置只能放在 BFF/服务端.
 
-### Q13: 构建产物如何做体积优化和浏览器兼容?
+### 构建产物如何做体积优化和浏览器兼容?
 
 体积优化按收益排序:
 
@@ -316,7 +316,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 3. Vite 的现代/传统双产物: `@vitejs/plugin-legacy` 生成带 polyfill 的 legacy chunk, 通过 `<script type="module">` 与 `nomodule` 让新浏览器加载小的现代产物、老浏览器加载兼容产物.
 4. 兼容成本要有边界: 与业务方确认最低支持版本, 每往下兼容一档都有体积与维护成本, 不做无限兼容.
 
-### Q14: 大型项目的构建性能优化手段有哪些?
+### 大型项目的构建性能优化手段有哪些?
 
 先度量再优化: Webpack 用 `--profile` + speed-measure-plugin / rsdoctor 定位耗时在哪个 loader/plugin; Vite 用 `vite --profile`、`DEBUG=vite:*` 观察预构建与转译耗时.
 
@@ -336,7 +336,7 @@ Vite 侧:
 
 组织级手段: monorepo 任务缓存 (Turborepo 远程缓存) 让 CI 只构建受影响的包; 产物增量发布, 未变更的 chunk 命中 CDN 缓存. 终极手段是换 Rust 工具链 (Rspack/Rolldown), 对存量 Webpack 项目 Rspack 基本兼容配置且构建速度提升 5-10 倍.
 
-### Q15: CI/CD 中如何保障构建产物质量?
+### CI/CD 中如何保障构建产物质量?
 
 我把产物质量保障分为四道关卡:
 

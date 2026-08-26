@@ -2,9 +2,7 @@
 
 > 本机器路径 `$HOME/github/swifty-sentry/sentry`
 
-## Q1: 项目整体架构设计是怎样的? 核心模块有哪些?
-
-答:
+## 项目整体架构设计是怎样的? 核心模块有哪些?
 
 @swifty.js/sentry 是一个框架无关的浏览器端监控与分析 SDK, 采用分层架构设计, 核心模块如下:
 
@@ -57,9 +55,7 @@
 
 ---
 
-## Q2: SDK 的初始化流程是怎样的? 有哪些防护机制?
-
-答:
+## SDK 的初始化流程是怎样的? 有哪些防护机制?
 
 初始化入口为 `init(options)` 函数( `core/sdk-lifecycle.ts`) , 完整流程:
 
@@ -99,9 +95,7 @@ setup() 的清理函数设计:
 
 ---
 
-## Q3: 事件总线( Pub/Sub) 是如何设计的? 为什么选择这种模式?
-
-答:
+## 事件总线( Pub/Sub) 是如何设计的? 为什么选择这种模式?
 
 事件总线实现在 `core/bus.ts`, 核心数据结构为 `Map<EventType, Set<TEventHandler>>`:
 
@@ -147,9 +141,7 @@ function sub(type: EventType, handler: TEventHandler): Cleanup {
 
 ---
 
-## Q4: HTTP 请求监控是如何实现的? XHR 和 Fetch 的拦截有什么区别?
-
-答:
+## HTTP 请求监控是如何实现的? XHR 和 Fetch 的拦截有什么区别?
 
 HTTP 监控通过猴子补丁( Monkey Patching) 实现, 位于 `core/decorate-http.ts`.
 
@@ -232,9 +224,7 @@ const cleanup = decorateProp(globalThis, "fetch", (oldFetch) => {
 
 ---
 
-## Q5: 错误捕获体系包含哪些类型? 如何做到去重和批量聚合?
-
-答:
+## 错误捕获体系包含哪些类型? 如何做到去重和批量聚合?
 
 错误类型覆盖:
 
@@ -307,9 +297,7 @@ class BatchErrorManager {
 
 ---
 
-## Q6: 数据上报管道的完整流程是怎样的?
-
-答:
+## 数据上报管道的完整流程是怎样的?
 
 DataReporter 的上报管道分为 send( 入队) 和 flush( 发送) 两个阶段:
 
@@ -373,9 +361,7 @@ scheduleNextFlush() ─── 队列仍有数据则 100ms 后继续 flush
 
 ---
 
-## Q7: 上报传输层如何选择通道? 为什么需要多通道策略?
-
-答:
+## 上报传输层如何选择通道? 为什么需要多通道策略?
 
 传输选择逻辑在 `sendBatch()` 方法中:
 
@@ -419,9 +405,7 @@ fetch 通道的特殊处理:
 
 ---
 
-## Q8: 离线缓存和断网恢复机制是如何实现的?
-
-答:
+## 离线缓存和断网恢复机制是如何实现的?
 
 离线容错由三个模块协作完成:
 
@@ -507,9 +491,7 @@ offline 事件 ──> isOnline = false
 
 ---
 
-## Q9: 白屏检测算法的原理是什么? 如何处理骨架屏场景?
-
-答:
+## 白屏检测算法的原理是什么? 如何处理骨架屏场景?
 
 白屏检测实现在 `core/white-screen.ts`, 核心思想是视口采样点检测.
 
@@ -589,9 +571,7 @@ if (hasSkeleton) {
 
 ---
 
-## Q10: 首屏渲染时间( FSP) 是如何计算的? 与 LCP 有什么区别?
-
-答:
+## 首屏渲染时间( FSP) 是如何计算的? 与 LCP 有什么区别?
 
 FSP( First Screen Paint) 实现在 `plugins/performance/first-screen-paint.ts`, 是一个自定义指标.
 
@@ -667,9 +647,7 @@ LCP 只关注单个最大元素, 对于 SPA 首屏由多个小组件组成的场
 
 ---
 
-## Q11: 性能监控插件采集了哪些指标? Web Vitals 是如何集成的?
-
-答:
+## 性能监控插件采集了哪些指标? Web Vitals 是如何集成的?
 
 PerformancePlugin 是 SDK 最重的插件, 采集以下指标类别:
 
@@ -730,9 +708,7 @@ PerformancePlugin 是 SDK 最重的插件, 采集以下指标类别:
 
 ---
 
-## Q12: 面包屑( Breadcrumb) 为什么使用最小堆? 相比数组有什么优势?
-
-答:
+## 面包屑( Breadcrumb) 为什么使用最小堆? 相比数组有什么优势?
 
 面包屑使用容量受限的最小堆( MinHeap) 实现, 位于 `utils/data-structures.ts`.
 
@@ -787,9 +763,7 @@ dump() 的调用时机:
 
 ---
 
-## Q13: 屏幕录制插件的滚动窗口机制是如何实现的?
-
-答:
+## 屏幕录制插件的滚动窗口机制是如何实现的?
 
 屏幕录制基于 `@rrweb/record`, 实现在 `plugins/screen-record/`.
 
@@ -866,9 +840,7 @@ base64 字符串 → Uint8Array → pako.ungzip() → JSON.parse() → rrweb eve
 
 ---
 
-## Q14: 插件体系是如何设计的? 如何做到可插拔?
-
-答:
+## 插件体系是如何设计的? 如何做到可插拔?
 
 抽象基类定义( types/plugin.ts) :
 
@@ -940,9 +912,7 @@ enablePlugin(new PerformancePlugin(), new ScreenRecordPlugin());
 
 ---
 
-## Q15: 框架集成( React/Vue) 是如何实现的?
-
-答:
+## 框架集成( React/Vue) 是如何实现的?
 
 框架集成通过独立入口文件实现, 不侵入核心代码.
 
@@ -988,9 +958,7 @@ export const vuePlugin: Plugin = (app, options: InitOptions) => {
 
 ---
 
-## Q16: 采样率和数据过滤机制是如何工作的?
-
-答:
+## 采样率和数据过滤机制是如何工作的?
 
 采样和过滤分布在多个层级:
 
@@ -1068,9 +1036,7 @@ init({
 
 ---
 
-## Q17: Reporter 单例为什么使用 Proxy 实现懒加载?
-
-答:
+## Reporter 单例为什么使用 Proxy 实现懒加载?
 
 Reporter 的导出使用了一个巧妙的 Proxy 模式:
 
@@ -1121,9 +1087,7 @@ static reset(): void {
 
 ---
 
-## Q18: 声明式点击埋点的实现原理是什么?
-
-答:
+## 声明式点击埋点的实现原理是什么?
 
 点击埋点采用声明式方案, 通过 DOM 属性标记需要追踪的元素.
 
@@ -1195,9 +1159,7 @@ function pubClick(): Cleanup {
 
 ---
 
-## Q19: 设备指纹和用户身份体系是如何设计的?
-
-答:
+## 设备指纹和用户身份体系是如何设计的?
 
 身份体系分为三层, 实现在 `core/identity.ts` 和 `utils/sentry.ts`.
 
@@ -1291,9 +1253,7 @@ constructor() {
 
 ---
 
-## Q20: 项目的构建方案和工程化实践有哪些?
-
-答:
+## 项目的构建方案和工程化实践有哪些?
 
 构建工具:
 
@@ -1350,9 +1310,7 @@ Monorepo 结构:
 
 ---
 
-## Q21: BoundedSet 的实现原理是什么? 为什么用 Map 而不是 Set?
-
-答:
+## BoundedSet 的实现原理是什么? 为什么用 Map 而不是 Set?
 
 ```typescript
 class BoundedSet<T> {
@@ -1396,9 +1354,7 @@ LRU 语义:
 
 ---
 
-## Q22: CallbackQueue 的设计意图是什么? 为什么使用 requestIdleCallback?
-
-答:
+## CallbackQueue 的设计意图是什么? 为什么使用 requestIdleCallback?
 
 ```typescript
 class CallbackQueue {
@@ -1448,9 +1404,7 @@ isFlushing 的作用:
 
 ---
 
-## Q23: 路由监听是如何同时支持 History 和 Hash 模式的?
-
-答:
+## 路由监听是如何同时支持 History 和 Hash 模式的?
 
 路由监听分为两处: History 模式在 `core/decorate-route.ts`, Hash 模式在 `core/decorates.ts`.
 
@@ -1563,9 +1517,7 @@ handleHistory / handleHashChange 分别订阅 EventType.History / EventType.Hash
 
 ---
 
-## Q24: PV 和页面停留时长是如何追踪的?
-
-答:
+## PV 和页面停留时长是如何追踪的?
 
 实现在 `core/pv-lifecycle.ts`. PV 和停留时长不是独立的事件类型, 二者都是 `type: EventType.PV`, 通过 `name` 字段区分.
 
@@ -1653,9 +1605,7 @@ globalThis.addEventListener("beforeunload", () => {
 
 ---
 
-## Q25: 如果让你优化这个 SDK, 你会从哪些方面入手?
-
-答:
+## 如果让你优化这个 SDK, 你会从哪些方面入手?
 
 基于对源码的深入理解, 可以从以下维度优化:
 
@@ -1698,9 +1648,7 @@ globalThis.addEventListener("beforeunload", () => {
 
 ---
 
-## Q26: 上报数据模型( IReportData) 的完整结构是怎样的? 一条错误日志最终携带哪些信息?
-
-答:
+## 上报数据模型( IReportData) 的完整结构是怎样的? 一条错误日志最终携带哪些信息?
 
 一条事件从采集到上报经历两次数据组装: `getBaseData()`( 采集时) 和 `payloadToReportData()`( 入队时) .
 
@@ -1774,9 +1722,7 @@ IReportData
 
 ---
 
-## Q27: Source Map 堆栈反解是如何实现的? 为什么生产环境用 hidden sourcemap?
-
-答:
+## Source Map 堆栈反解是如何实现的? 为什么生产环境用 hidden sourcemap?
 
 反解能力实现在 `source-map/` 目录, 是 Node-only 模块, 不会打入浏览器 SDK. 分为三层:
 
@@ -1838,9 +1784,7 @@ export default defineConfig({
 
 ---
 
-## Q28: Vite dev-server mock 插件( @swifty.js/sentry/vite) 是做什么的?
-
-答:
+## Vite dev-server mock 插件( @swifty.js/sentry/vite) 是做什么的?
 
 `sentry/src/vite.ts` 导出 `sentryPlugin`( vite) 和 `sentryPlugin7`( vite 7, 通过 `vite7@npm:vite@7.3.3` 别名同时兼容两个大版本) , 是开发环境的「mock 上报服务端」, 解决本地开发没有日志服务的问题.
 
@@ -1881,9 +1825,7 @@ export function sentryPlugin({ dsn }: ISentryPluginOptions): Plugin {
 
 ---
 
-## Q29: 曝光( Exposure) 插件的实现原理是什么?
-
-答:
+## 曝光( Exposure) 插件的实现原理是什么?
 
 ExposurePlugin( plugins/exposure/index.ts) 基于 IntersectionObserver 统计元素曝光时长, 用于广告/推荐场景的曝光归因.
 
@@ -1948,9 +1890,7 @@ exposure.unobserve(bannerEl);
 
 ---
 
-## Q30: 设备 ID 与会话 ID 是如何生成和持久化的?
-
-答:
+## 设备 ID 与会话 ID 是如何生成和持久化的?
 
 实现在 `utils/session.ts`, 采用「存储介质区分生命周期」的经典方案:
 
@@ -1994,9 +1934,7 @@ export function getSessionId(): string {
 
 ---
 
-## Q31: demo client 的文件路由改造是如何实现的?
-
-答:
+## demo client 的文件路由改造是如何实现的?
 
 monorepo 中的 `client` 包是 SDK 的 React demo, 它将 react-router 的配置式路由改造为文件路由( 约定式路由) , 由自研构建插件 `plugins/vite-plugin-page-routes.ts`( 另有 webpack 版本) 实现.
 
@@ -2066,9 +2004,7 @@ export const routes: RouteObject[] = [
 
 ---
 
-## Q32: getIPs 和 SDK 自身的调试日志是如何实现的?
-
-答:
+## getIPs 和 SDK 自身的调试日志是如何实现的?
 
 这是两个容易被忽略但公开导出的辅助能力.
 

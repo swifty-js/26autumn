@@ -35,9 +35,9 @@ Tiktok 搜索推荐平台是一个 React SPA, 页面报错后排查链路长: �
 
 监控与现场还原能力的实现参考自研项目 @swifty.js/sentry (github.com/hangtiancheng/swifty-sentry), 下文知识点均结合该项目的真实实现展开.
 
-### Q1: JSError 上报应该携带哪些错误信息?
+### JSError 上报应该携带哪些错误信息?
 
-答: 原则是「能定位、能归因、能复现」, 信息分四层组织.
+原则是「能定位、能归因、能复现」, 信息分四层组织.
 
 第一层: 错误本身 (定位到代码行)
 
@@ -826,11 +826,11 @@ sourcemap 的还原能力边界:
 
 补充: componentStack 与 CodeGraph 的配合 (运行时组件栈 + 静态代码图)
 
-本节分析 componentStack 与本地代码知识图谱 CodeGraph (见 docs/docs/codegraph.md) 的互补关系. 结论: 两者结构性互补, 不是简单的「能接上」.
+本节分析 componentStack 与本地代码知识图谱 CodeGraph (见 docs/docs/codegraph) 的互补关系. 结论: 两者结构性互补, 不是简单的「能接上」.
 
 1. 信息形态同构: 组件栈字符串本身就是图上的一条路径
 
-componentStack 的本质是「出错组件一路向上到 ErrorBoundary 的组件名序列」. CodeGraph 恰好把组件建模为一等节点 (NodeKind 含 component 节点), 且 callback-synthesizer 专门生成 JSX 子组件边 (见 docs/docs/codegraph.md). 因此 componentStack 里的每一行都能映射成图上一个节点和一条父链边——两者是同一结构信息的两种表示: 一个是运行时 React 打印的文本, 一个是静态图里可查询的路径. agent 拿到 componentStack, 等于拿到一条现成的图遍历起点序列, 不需要再 grep 找入口.
+componentStack 的本质是「出错组件一路向上到 ErrorBoundary 的组件名序列」. CodeGraph 恰好把组件建模为一等节点 (NodeKind 含 component 节点), 且 callback-synthesizer 专门生成 JSX 子组件边 (见 docs/docs/codegraph). 因此 componentStack 里的每一行都能映射成图上一个节点和一条父链边——两者是同一结构信息的两种表示: 一个是运行时 React 打印的文本, 一个是静态图里可查询的路径. agent 拿到 componentStack, 等于拿到一条现成的图遍历起点序列, 不需要再 grep 找入口.
 
 2. 查询入口互补: 覆盖 CodeGraph 的多种命中方式
 
@@ -911,9 +911,9 @@ return {
 1. 错误去重: 用 base64 编码的 `type-message-filename-line-column` 作为错误签名, 放入容量 1000 的 LRU Set, 相同错误只上报一次, 防止循环报错打爆上报通道
 2. 批量聚合: 每条错误入队都会重置 2000ms 的防抖窗口, 窗口内无新错误后批量 flush; 按 type-name-message 分组的同一错误达到 5 次及以上时, 折叠为一条带 batchErrorLength 和最后发生时间的聚合记录
 
-### Q2: rrweb 是什么? 有什么作用?
+### rrweb 是什么? 有什么作用?
 
-答: rrweb (record and replay the web) 是一个录制/回放用户浏览器操作的开源库, 由 record、replay、snapshot 三部分组成.
+rrweb (record and replay the web) 是一个录制/回放用户浏览器操作的开源库, 由 record、replay、snapshot 三部分组成.
 
 工作原理:
 
@@ -958,9 +958,9 @@ recordWindow = getRollingWindow([...recordWindow, event], event.timestamp);
 3. 按需附带: 只有命中触发类型的事件才附带录屏, 常规 PV/点击事件不携带
 4. checkout 机制: rrweb 的 checkoutEveryNms 定期生成新的全量快照, 保证任意滚动窗口都能独立回放, 不依赖更早的事件
 
-### Q3: react-router 改造为文件路由, 怎么做?
+### react-router 改造为文件路由, 怎么做?
 
-答: 背景是配置式路由在页面多了以后维护成本高: 路由表与页面文件两处维护、新增页面要手动注册、容易漏配懒加载. 改造目标是约定式 (文件) 路由: 目录结构即路由结构.
+背景是配置式路由在页面多了以后维护成本高: 路由表与页面文件两处维护、新增页面要手动注册、容易漏配懒加载. 改造目标是约定式 (文件) 路由: 目录结构即路由结构.
 
 swifty-sentry 的 client demo 给出了完整实现, 核心是自研构建插件 vite-plugin-page-routes (另有 webpack 版本).
 
@@ -1042,9 +1042,7 @@ export const routes: RouteObject[] = [
 
 为什么不用运行时方案 (如 import.meta.glob 动态构建路由表): 代码生成的产物是纯静态 import, 打包工具的 tree-shaking、chunk 命名、依赖分析都最完整; 运行时方案需要额外的路由表构建代码且类型推导更弱.
 
-### Q4: 跨域脚本错误只有 Script error, 如何解决?
-
-答:
+### 跨域脚本错误只有 Script error, 如何解决?
 
 问题成因:
 
@@ -1092,9 +1090,9 @@ init({ dsn: "/api/log", ignoreErrors: ["Script error."] });
 
 4. 资源加载错误不受此限制: img/script/link 加载失败走 capture 阶段的 error 事件, 能拿到 target.src/href, 可以直接定位是哪个资源挂了
 
-### Q5: rrweb 引入导致包体积膨胀, 如何解决?
+### rrweb 引入导致包体积膨胀, 如何解决?
 
-答: rrweb 全量引入约 100KB+ (gzip 后), 对一个目标体积只有几 KB 的监控 SDK 来说不可接受. 解决思路按优先级:
+rrweb 全量引入约 100KB+ (gzip 后), 对一个目标体积只有几 KB 的监控 SDK 来说不可接受. 解决思路按优先级:
 
 1. 插件化解耦 (架构层)
 
@@ -1141,9 +1139,9 @@ const [{ record }, pako] = await Promise.all([
 
 总结: 插件化保证「不用就不打包」, 动态导入保证「用了也不进首屏」, 滚动窗口与压缩保证「产生了也不大」, 三层叠加后录屏能力对首屏体积的影响为零.
 
-### Q6: monaco editor 发版后资源加载错误, 如何分析与解决?
+### monaco editor 发版后资源加载错误, 如何分析与解决?
 
-答: 真实业务场景: Tiktok 搜索推荐平台内有大量基于 monaco editor 的 web 编辑器页面 (规则配置、DSL 编辑等). monaco 的运行时资源分两部分: 编辑器本体 (editor.main, 提供 UI 与编辑能力) 和各语言的 web worker (editor.worker 基础 worker、ts.worker/json.worker/css.worker 等语言服务 worker, 承载语法高亮、代码补全、类型检查). 这些脚本平时命中浏览器缓存, 体验无感; 但前端发版后集中出现资源加载错误, 且问题集中在一种路径上: 用户不是从 / 根路径跳转进来, 而是直接访问 /path/to/web/editor 直连进入编辑器页面, 此时语法高亮等 worker 脚本尚未就绪, monaco 抛出资源加载错误.
+真实业务场景: Tiktok 搜索推荐平台内有大量基于 monaco editor 的 web 编辑器页面 (规则配置、DSL 编辑等). monaco 的运行时资源分两部分: 编辑器本体 (editor.main, 提供 UI 与编辑能力) 和各语言的 web worker (editor.worker 基础 worker、ts.worker/json.worker/css.worker 等语言服务 worker, 承载语法高亮、代码补全、类型检查). 这些脚本平时命中浏览器缓存, 体验无感; 但前端发版后集中出现资源加载错误, 且问题集中在一种路径上: 用户不是从 / 根路径跳转进来, 而是直接访问 /path/to/web/editor 直连进入编辑器页面, 此时语法高亮等 worker 脚本尚未就绪, monaco 抛出资源加载错误.
 
 这类错误的本质是「懒加载资源在需要的那一刻还没下载完」: 文件都存在 (版本一致), 但 monaco 的 worker 是按需创建的独立请求, 直连进入编辑器页面时脚本还没下载完就被 monaco 调用, 抛出 worker 不可用错误. 发版后缓存失效需要重新请求, 把这个竞态暴露得更明显.
 
@@ -1334,9 +1332,9 @@ monaco 体积大 (几百 KB), 拆成独立 chunk 后跨多个编辑器页面共�
 
 总结: 竞态型错误靠「预加载 + worker 容错降级」缓解, 其余错误靠监控 SDK 的资源错误捕获与现场还原兜底. 这类问题无法百分之百消除 (用户可能离线、CDN 可能故障), 最终依赖 Q1 到 Q5 的上报与还原能力闭环排查.
 
-### Q7: SPA 首屏渲染时间 (FSP) 如何计算?
+### SPA 首屏渲染时间 (FSP) 如何计算?
 
-答: 真实业务场景: Tiktok 搜索推荐平台是 React SPA, 首屏内容由 JS 执行后动态渲染, 不是 HTML 直出的. 传统的 DOMContentLoaded 只表示 HTML 解析完成, load 事件表示所有资源 (包括非首屏图片、iframe) 加载完毕, 都不能准确反映用户看到首屏内容的时间. LCP (Largest Contentful Paint) 虽然更接近, 但浏览器按元素面积自动选“最大内容元素”, 候选元素仅限视口内 (视口外的大图不会成为候选), 仍可能选到骨架屏占位等不代表首屏真正完成的元素. swifty-sentry 用 MutationObserver 自行计算 FSP (First Screen Paint), 只关心首屏视口内可见元素的出现时间.
+真实业务场景: Tiktok 搜索推荐平台是 React SPA, 首屏内容由 JS 执行后动态渲染, 不是 HTML 直出的. 传统的 DOMContentLoaded 只表示 HTML 解析完成, load 事件表示所有资源 (包括非首屏图片、iframe) 加载完毕, 都不能准确反映用户看到首屏内容的时间. LCP (Largest Contentful Paint) 虽然更接近, 但浏览器按元素面积自动选“最大内容元素”, 候选元素仅限视口内 (视口外的大图不会成为候选), 仍可能选到骨架屏占位等不代表首屏真正完成的元素. swifty-sentry 用 MutationObserver 自行计算 FSP (First Screen Paint), 只关心首屏视口内可见元素的出现时间.
 
 #### FSP 的计算原理
 
@@ -1439,9 +1437,9 @@ export function getFirstScreenPaint(callback: Callback): void {
 
 总结: FSP 用 MutationObserver 自行统计首屏视口内元素的出现时间, 取最后一批元素出现的时间作为首屏完成时间, 比浏览器自动选的 LCP 更贴近用户真实体验. 代价是实现复杂度高, 且对 SSR 和骨架屏场景有局限. 核心取舍是“用更精确的统计换取更复杂的实现”.
 
-### Q8: Sourcemap 反解与堆栈聚合策略是怎样的?
+### Sourcemap 反解与堆栈聚合策略是怎样的?
 
-答: 这两个问题分别解决「定位到源码行」和「把同类错误归为一组」, 是 JSError 监控从「能捕获」到「能消费」的关键环节. 以下整理自字节 Slardar 前端监控的实践.
+这两个问题分别解决「定位到源码行」和「把同类错误归为一组」, 是 JSError 监控从「能捕获」到「能消费」的关键环节. 以下整理自字节 Slardar 前端监控的实践.
 
 #### Sourcemap 反解
 
@@ -1493,9 +1491,9 @@ Slardar 参考 Sentry 的策略, 利用 stack 信息做更精确的聚合:
 
 与 swifty-sentry 的对比: swifty-sentry 在 SDK 侧用 `type-message-filename-line-column` 的 base64 编码做错误签名 (Q1 中提到的 LRU 去重), 这是客户端侧的轻量去重; Slardar/Sentry 的 fingerprint 是服务端侧的聚合, 基于反解后的完整 Frame 信息, 粒度更细. 两者解决不同层面的问题: 客户端去重防止循环报错打爆上报通道, 服务端聚合把同类错误归组供人消费.
 
-### Q9: 异常报警机制如何设计?
+### 异常报警机制如何设计?
 
-答: 异常反解和聚合完成后, 用户访问监控平台可以看到错误, 但问题的发现仍依赖人工「走查」. 对严重线上问题这不够, 需要主动通知. Slardar 的报警分宏观和微观两类.
+异常反解和聚合完成后, 用户访问监控平台可以看到错误, 但问题的发现仍依赖人工「走查」. 对严重线上问题这不够, 需要主动通知. Slardar 的报警分宏观和微观两类.
 
 #### 宏观报警 (数量/比率报警)
 
@@ -1533,9 +1531,9 @@ Slardar 参考 Sentry 的策略, 利用 stack 信息做更精确的聚合:
 
 落地方式: 通过 CLI 工具在发布脚本中提供当前版本和关联的代码仓库信息 (Sentry-CLI 也提供此能力). 数据采集侧携带相同版本. 线上异常发生后, 通过版本找到对应时期的源文件, 调用 Gitlab/Github 的 open-api 获取 blame 历史, 确定 author/committer, 自动分配.
 
-### Q10: 性能监控的瓶颈定位与品质度量怎么做?
+### 性能监控的瓶颈定位与品质度量怎么做?
 
-答: 采集到性能指标只是第一步, 关键问题是: 如何找出性能瓶颈的根因? 如何判断指标好不好? 以下整理自 Slardar 的实践.
+采集到性能指标只是第一步, 关键问题是: 如何找出性能瓶颈的根因? 如何判断指标好不好? 以下整理自 Slardar 的实践.
 
 #### 瓶颈定位: 慢会话 + 性能时序分析
 
@@ -1574,9 +1572,9 @@ Slardar 参考 Sentry 的策略, 利用 stack 信息做更精确的聚合:
 
 达标率: 给整体性能分数制定基准分数线, 超过分数线才认为「达标」. 整站达标水平 = 达标子页面数 / 全站页面数. 通过达标率, 不熟悉技术的运营、产品同学也可以定期巡检页面品质状况.
 
-### Q11: 请求与静态资源监控的两种采集方案?
+### 请求与静态资源监控的两种采集方案?
 
-答: 页面能否正常响应用户操作、信息能否正确展示, 和 API 请求、静态资源息息相关. 主流监控方案有两种: 手动 hook 和 ResourceTiming.
+页面能否正常响应用户操作、信息能否正确展示, 和 API 请求、静态资源息息相关. 主流监控方案有两种: 手动 hook 和 ResourceTiming.
 
 #### 方案一: 手动 hook
 
@@ -1624,9 +1622,9 @@ observer.observe({ type: "resource", buffered: false });
 
 Slardar 以标准方案为主、Chrome 方案为辅. 与服务端对齐耗时: 标准方案的 request 阶段减去 serverTiming 中的 CDN、网关部分耗时.
 
-### Q12: 监控 SDK 的插件化架构如何设计?
+### 监控 SDK 的插件化架构如何设计?
 
-答: 字节存在大量移动端页面, 对首包体积和主线程占用极为苛刻; 同时有 node、小程序、electron 等多平台场景. 如果每种场景重新开发一套 SDK, 人力损耗大. 解决思路: 框架平台无关, 数据采集以插件形式存在, 可插拔.
+字节存在大量移动端页面, 对首包体积和主线程占用极为苛刻; 同时有 node、小程序、electron 等多平台场景. 如果每种场景重新开发一套 SDK, 人力损耗大. 解决思路: 框架平台无关, 数据采集以插件形式存在, 可插拔.
 
 #### 整体架构
 
@@ -1661,9 +1659,9 @@ Slardar 以标准方案为主、Chrome 方案为辅. 与服务端对齐耗时: �
 
 经过插件化和体积改造, Slardar SDK 首包从 63KB 降到 34KB.
 
-### Q13: 监控 SDK 体积优化的具体手段有哪些?
+### 监控 SDK 体积优化的具体手段有哪些?
 
-答: 监控 SDK 通常作为第一个脚本加载, 体积膨胀不仅增加下载时间, 还增加浏览器解析脚本的时间. 以下整理自 Slardar SDK 的体积优化实践, 分微观和宏观两个层面.
+监控 SDK 通常作为第一个脚本加载, 体积膨胀不仅增加下载时间, 还增加浏览器解析脚本的时间. 以下整理自 Slardar SDK 的体积优化实践, 分微观和宏观两个层面.
 
 #### 微观: 精简代码表达
 
@@ -1726,9 +1724,9 @@ c[ADD](LOAD, cb);
 
 注意: 这个方法在 Web 端收益有限, 因为浏览器传输时做 gzip 压缩, 已经将重复信息高效压缩了. 但对嵌入移动端 app 的监控 SDK (不走 gzip), 能减少约 10-15% 产物体积. 可用 TSTransformer 或 babel plugin 自动完成提取.
 
-### Q14: 监控 SDK 性能如何衡量与优化?
+### 监控 SDK 性能如何衡量与优化?
 
-答: 监控 SDK 影响数以亿计用户的体验, 自身性能必须达到极致水准. 以下整理自 Slardar 的性能衡量与优化实践.
+监控 SDK 影响数以亿计用户的体验, 自身性能必须达到极致水准. 以下整理自 Slardar 的性能衡量与优化实践.
 
 #### 性能衡量: Benchmark + Puppeteer
 
@@ -2364,7 +2362,7 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 - React 18 的 useDeferredValue、Suspense 都不解决"请求早于 bundle"的问题
 - header 内联 fetch 加 window 挂载 promise, 是接口数据预加载的最直接形态, SWR 消费机制让它能被框架代码无缝认领
 
-### 5. 延伸与回答要点
+### 5. 延伸要点
 
 追问一: 缓存挂 window 上不怕污染全局吗?
 

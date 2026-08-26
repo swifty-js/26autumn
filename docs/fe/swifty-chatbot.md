@@ -4,9 +4,7 @@
 
 ## 一、项目概述与架构设计
 
-### Q1: 请介绍 swifty-chatbot 项目的整体架构
-
-答:
+### 请介绍 swifty-chatbot 项目的整体架构
 
 swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用前后端分离架构:
 
@@ -25,9 +23,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 模型端点均通过环境变量配置: LLM 模型名取 `OPENAI_MODE_NAME` (默认 qwen3), `ChatOpenAI` 只传 model 名, baseURL/apiKey 遵循 OpenAI SDK 的环境变量约定 (`OPENAI_BASE_URL`/`OPENAI_API_KEY`); Embedding 取 `EMBEDDING_MODEL` (默认 nomic-embed-text) 与 `EMBEDDING_BASE_URL`/`EMBEDDING_API_KEY`, 指向 OpenAI 兼容服务 (server/src/config/index.ts:89-97, server/.env.example). qwen3、nomic-embed-text 这类模型名通常对应 Ollama 等 OpenAI 兼容推理服务.
 
-### Q2: 为什么选择 pnpm monorepo 而非独立仓库?
-
-答:
+### 为什么选择 pnpm monorepo 而非独立仓库?
 
 选择 pnpm monorepo 的核心原因:
 
@@ -38,9 +34,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 `pnpm-workspace.yaml` 声明了 `client` 和 `server` 两个 workspace package, 根目录脚本统一编排开发、构建流程.
 
-### Q3: 前后端如何通信? 开发环境和生产环境有何区别?
-
-答:
+### 前后端如何通信? 开发环境和生产环境有何区别?
 
 开发环境: Vite dev server 配置了代理, 将 `/api/*` 请求转发到 `http://localhost:8088/api/v1/*`, 通过 path rewrite 去掉 `/api` 前缀并添加 `/api/v1` 版本前缀. 前端代码中统一使用 `/api/` 开头的相对路径.
 
@@ -56,9 +50,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 ## 二、前端架构与状态管理
 
-### Q4: 前端状态管理方案是如何设计的?
-
-答:
+### 前端状态管理方案是如何设计的?
 
 前端采用三层状态管理策略:
 
@@ -70,9 +62,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 这种分层设计确保了: 低频全局状态用 atom 共享, 服务端数据用 Query 自动同步, 高频渲染状态局部隔离.
 
-### Q5: 为什么同时使用 Jotai 和 TanStack React Query?
-
-答:
+### 为什么同时使用 Jotai 和 TanStack React Query?
 
 两者解决的是不同维度的问题:
 
@@ -85,9 +75,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 如果只用 Jotai, 需要手动实现缓存失效、loading/error 状态管理、请求去重等逻辑. 如果只用 React Query, 纯客户端状态 (如主题) 没有合适的缓存键和失效策略. 两者互补, 各取所长.
 
-### Q6: HTTP 请求层是如何封装的? 401 如何统一处理?
-
-答:
+### HTTP 请求层是如何封装的? 401 如何统一处理?
 
 普通请求统一走 axios 实例 `fetchClient` (api/fetch-client.ts:3-6):
 
@@ -127,9 +115,7 @@ fetchClient.interceptors.response.use(
 
 React Query 全局默认值在 api/query-client.ts:3-11 配置: retry: 1、refetchOnWindowFocus: false、staleTime 5 分钟. 流式请求则完全绕开 axios, 用原生 fetch 消费 SSE (hooks/queries/use-stream-message.ts:30-38), 因为需要手动控制 body 的 ReadableStream.
 
-### Q7: 路由和权限控制是如何实现的?
-
-答:
+### 路由和权限控制是如何实现的?
 
 使用 react-router-dom v7 的 `createBrowserRouter` + `RouterProvider`, 定义了 5 条路由: `/` (loader 中 `redirect("/login")`)、`/login`、`/register`、`/menu`、`/ai-chat`. 页面组件均通过 `lazy` + `withLazy` 懒加载, `/menu` 和 `/ai-chat` 额外包裹 `withAuth`.
 
@@ -159,9 +145,7 @@ function withAuth<P extends object>(WrappedComponent: ComponentType<P>) {
 
 补充: `components/protected-route/index.tsx` 中还有一个逻辑相同的 `ProtectedRoute` 组件 (同样基于 `isAuthenticatedAtom` + `useEffect` 跳转), 但路由表实际挂载的是 `withAuth` HOC, 该组件目前未被引用.
 
-### Q8: 登录/注册表单的校验是如何实现的?
-
-答:
+### 登录/注册表单的校验是如何实现的?
 
 前端使用 TanStack Form + zod, schema 挂在 form 的 validators.onChange 上, 每次输入即时校验:
 
@@ -189,9 +173,7 @@ const form = useForm({
 
 ## 三、SSE 流式渲染与性能优化
 
-### Q9: 流式响应的完整数据链路是怎样的?
-
-答:
+### 流式响应的完整数据链路是怎样的?
 
 完整链路如下:
 
@@ -211,9 +193,7 @@ const form = useForm({
 
 关键设计: 服务端每产生一个 token 就立即 `res.write()`, 客户端通过 `ReadableStream` 逐块读取, 解析后写入 ref 而非 state, 由独立的 rAF 循环节流渲染.
 
-### Q10: 流式会话的页面级编排是怎样的? session_id 何时拿到? 流结束后消息如何落定?
-
-答:
+### 流式会话的页面级编排是怎样的? session_id 何时拿到? 流结束后消息如何落定?
 
 AiChat 页面用 `currentSessionId = "temp"` + `tempSession = true` 表示尚未落库的临时会话 (pages/ai-chat/index.tsx:24-27). 发送第一条消息的时序:
 
@@ -225,9 +205,7 @@ AiChat 页面用 `currentSessionId = "temp"` + `tempSession = true` 表示尚未
 
 页面顶部提供流式开关 checkbox, 勾选走 handleStreaming (流式端点), 不勾选走 handleNormal (非流式端点, 等待完整 answer 一次性返回) (ai-chat/index.tsx:352-356). 历史消息接口 get-chat-history-list 直接从内存中的 AiAgent 读取 (service/session.ts:115-130), 不查数据库, 能查到历史依赖的正是启动时 loadDataFromDb 的重建 (见 Q21).
 
-### Q11: 为什么使用 Fetch API 而非 EventSource 消费 SSE?
-
-答:
+### 为什么使用 Fetch API 而非 EventSource 消费 SSE?
 
 三个核心原因:
 
@@ -239,9 +217,7 @@ AiChat 页面用 `currentSessionId = "temp"` + `tempSession = true` 表示尚未
 
 实现上使用 `body.getReader()` 获取 `ReadableStreamDefaultReader`, 配合 `TextDecoder` 逐块解码, 手动按行分割解析 SSE 协议.
 
-### Q12: StreamingMarkdown 组件如何实现零渲染热路径?
-
-答:
+### StreamingMarkdown 组件如何实现零渲染热路径?
 
 核心思想是将数据写入与 React 渲染解耦:
 
@@ -276,9 +252,7 @@ function StreamingMarkdown({ sourceRef }: Props) {
 
 3. 长度比较去重: 通过 `lastLengthRef` 记录上次渲染的文本长度, 长度未变则跳过 setState, 避免无意义的 reconciliation.
 
-### Q13: 消息列表的虚拟化和自动滚动是如何实现的?
-
-答:
+### 消息列表的虚拟化和自动滚动是如何实现的?
 
 使用 `@tanstack/react-virtual` 实现窗口化渲染:
 
@@ -303,9 +277,7 @@ const virtualizer = useVirtualizer({
 
 性能保障: `MessageItem` 使用 `React.memo` 包裹, 流式输出期间只有最后一条消息在渲染, 已定型的消息不会因父组件更新而重渲染.
 
-### Q14: Streamdown 的增量 Markdown 解析原理是什么?
-
-答:
+### Streamdown 的增量 Markdown 解析原理是什么?
 
 Streamdown (Vercel 出品的流式 Markdown 渲染器) 的核心优化:
 
@@ -323,9 +295,7 @@ Streamdown (Vercel 出品的流式 Markdown 渲染器) 的核心优化:
 
 ## 四、后端分层架构
 
-### Q15: 后端的分层架构是怎样的? 各层职责是什么?
-
-答:
+### 后端的分层架构是怎样的? 各层职责是什么?
 
 ```
 Router (@koa/router)
@@ -348,9 +318,7 @@ Router (@koa/router)
 
 响应格式统一: 所有接口返回 `{code: number, message: string, ...data}` 结构, 通过 `success()` 和 `codeOf()` 工具函数生成.
 
-### Q16: SSE 流式接口在服务端是如何实现的?
-
-答:
+### SSE 流式接口在服务端是如何实现的?
 
 以 `createStreamSessionAndSendMessageStream` 为例:
 
@@ -395,9 +363,7 @@ export async function createStreamSessionAndSendMessageStream(ctx: Context) {
 
 Service 层内部调用 `AiAgent.responseStream()`, 该方法接收一个 `StreamCallback`, 每产生一个 token 就执行 `res.write(`data: ${JSON.stringify(chunk)}\n\n`)`, 即 token 以 JSON 字符串编码写入 (客户端 `JSON.parse` 还原, 避免特殊字符破坏 SSE 帧). 全部完成后发送 `data: [DONE]\n\n` 作为结束哨兵.
 
-### Q17: 为什么 SSE 要绕过 Koa 的响应处理直接操作 res?
-
-答:
+### 为什么 SSE 要绕过 Koa 的响应处理直接操作 res?
 
 1. Koa 的响应模型是一次性的: Koa 在中间件链执行完毕后, 将 `ctx.body` 一次性序列化发送. SSE 需要在请求生命周期内持续写入数据, 与 Koa 的 "设置 body -> 自动响应" 模型根本冲突.
 
@@ -411,9 +377,7 @@ Service 层内部调用 `AiAgent.responseStream()`, 该方法接收一个 `Strea
 
 ## 五、AI Agent 系统设计
 
-### Q18: AiAgent、AiAgentManager、AiModelFactory 三者的关系和职责?
-
-答:
+### AiAgent、AiAgentManager、AiModelFactory 三者的关系和职责?
 
 ```
 AiModelFactory (工厂 + 注册表)
@@ -436,9 +400,7 @@ AiAgent (单个会话实例)
 
 设计原则: Factory 负责 "如何创建", Manager 负责 "在哪里、给谁", Agent 负责 "如何对话". 三者职责单一, 通过组合协作.
 
-### Q19: 对话上下文是如何管理的? 为什么选择内存存储?
-
-答:
+### 对话上下文是如何管理的? 为什么选择内存存储?
 
 每个 `AiAgent` 实例在内存中维护一个 `messages: Message[]` 数组, 记录完整对话历史. 每次调用 LLM 时, 通过 `toAiMessages()` 将历史转换为 LangChain 的消息格式传入.
 
@@ -452,9 +414,7 @@ AiAgent (单个会话实例)
 
 代价: 服务重启后内存丢失, 需要从 MySQL 重建 (见 Q21).
 
-### Q20: 模型热切换是如何实现的?
-
-答:
+### 模型热切换是如何实现的?
 
 在 `AiAgentManager.getOrCreateAiAgent()` 中:
 
@@ -478,9 +438,7 @@ if (agent) {
 
 这实现了无缝切换: 用户切换模型后, 对话不中断, 历史上下文完整保留.
 
-### Q21: 服务重启后如何恢复对话上下文?
-
-答:
+### 服务重启后如何恢复对话上下文?
 
 服务启动时 `main.ts` 中的 `loadDataFromDb()` 执行上下文重建:
 
@@ -494,9 +452,7 @@ if (agent) {
 
 ## 六、RAG 检索增强生成
 
-### Q22: RAG 管线的完整流程是怎样的?
-
-答:
+### RAG 管线的完整流程是怎样的?
 
 ```
 用户上传文件 (.md/.txt/.json)
@@ -530,9 +486,7 @@ User Question: {原始问题}
 Please provide an accurate and complete answer:
 ```
 
-### Q23: 文件上传链路是如何实现的? 前后端文件类型白名单一致吗?
-
-答:
+### 文件上传链路是如何实现的? 前后端文件类型白名单一致吗?
 
 完整链路:
 
@@ -563,9 +517,7 @@ unlinkSync(file.path);
 3. 白名单不一致是事实: 服务端 `ALLOWED_EXTENSIONS` 为 {".md", ".txt", ".json"} (utils/fs.ts:14-23), 但前端 input 的 accept 与 useFileUpload 的校验只放行 .md/.txt (chat-header/index.tsx:126, use-file-upload.ts:19-24), .json 文件实际传不进来. 服务端白名单是最终防线, 前端校验只是第一道体验过滤
 4. multer 先落临时目录 uploads/tmp/, 校验通过后再拷贝到用户目录并删除临时文件, 失败请求不会污染用户目录
 
-### Q24: 为什么选择 MemoryVectorStore 而非持久化向量数据库?
-
-答:
+### 为什么选择 MemoryVectorStore 而非持久化向量数据库?
 
 当前选择的合理性:
 
@@ -581,9 +533,7 @@ unlinkSync(file.path);
 
 改进方向: 引入持久化向量库 + 增量索引, 仅在文档变更时重新向量化, 查询时直接检索.
 
-### Q25: 文档分块策略的参数选择依据是什么?
-
-答:
+### 文档分块策略的参数选择依据是什么?
 
 使用 `RecursiveCharacterTextSplitter`, 参数为 `chunkSize=1000, chunkOverlap=200`:
 
@@ -597,9 +547,7 @@ unlinkSync(file.path);
 
 ## 七、认证与安全
 
-### Q26: JWT 认证流程是怎样的? SSE 场景下如何处理鉴权?
-
-答:
+### JWT 认证流程是怎样的? SSE 场景下如何处理鉴权?
 
 标准流程:
 
@@ -626,9 +574,7 @@ if (authHeader?.startsWith("Bearer ")) {
 
 SSE 使用 Fetch API (非 EventSource), 因此可以直接设置 Authorization header. 但中间件同时支持 `?token=` query param 作为后备方案, 兼容 EventSource 等无法自定义 header 的场景.
 
-### Q27: 当前安全方案有哪些已知弱点和改进方向?
-
-答:
+### 当前安全方案有哪些已知弱点和改进方向?
 
 | 弱点              | 风险                       | 改进方向                             |
 | ----------------- | -------------------------- | ------------------------------------ |
@@ -643,9 +589,7 @@ SSE 使用 Fetch API (非 EventSource), 因此可以直接设置 Authorization h
 
 ## 八、数据层设计
 
-### Q28: 数据库 Schema 是如何设计的?
-
-答:
+### 数据库 Schema 是如何设计的?
 
 三张核心表, 服务启动时通过 Knex 自动建表 (hasTable 检查):
 
@@ -676,9 +620,7 @@ messages 表:
 - 软删除 (deleted_at) 用于 users 和 sessions 两张表, 查询统一加 `whereNull("deleted_at")`; messages 表无软删除字段
 - username 冗余存储在 messages 中, 避免跨表 JOIN
 
-### Q29: 缓存层的抽象设计是怎样的? Redis 不可用时如何降级?
-
-答:
+### 缓存层的抽象设计是怎样的? Redis 不可用时如何降级?
 
 `db/cache.ts` 提供统一的缓存抽象层. 实现上没有抽象类/接口, 而是导出模块级函数 `cacheGet` / `cacheSet` / `cacheDelete`, 内部通过 `isRedisEnabled()` 布尔分发:
 
@@ -701,9 +643,7 @@ db/cache.ts
 
 ## 九、工程化与构建
 
-### Q30: 前后端的构建方案分别是什么? 为什么服务端用 Rollup?
-
-答:
+### 前后端的构建方案分别是什么? 为什么服务端用 Rollup?
 
 | 端   | 构建工具                                          | 输出                   |
 | ---- | ------------------------------------------------- | ---------------------- |
@@ -719,9 +659,7 @@ db/cache.ts
 
 开发模式: 使用 `tsx watch` 直接运行 TypeScript, 无需构建步骤, 文件变更自动重启.
 
-### Q31: 开发环境是如何组织的?
-
-答:
+### 开发环境是如何组织的?
 
 根目录 `package.json` 使用 `concurrently` 并行启动:
 
@@ -747,9 +685,7 @@ db/cache.ts
 
 ## 十、设计模式与扩展性
 
-### Q32: 项目中用到了哪些设计模式? 解决了什么问题?
-
-答:
+### 项目中用到了哪些设计模式? 解决了什么问题?
 
 | 模式        | 应用位置                                    | 解决的问题                                         |
 | ----------- | ------------------------------------------- | -------------------------------------------------- |
@@ -770,9 +706,7 @@ factory.registerModel("my-model", (config) => new MyModel(config));
 
 无需修改 Agent、Manager、Controller 的任何代码.
 
-### Q33: 如果要支持水平扩展, 当前架构需要做哪些改造?
-
-答:
+### 如果要支持水平扩展, 当前架构需要做哪些改造?
 
 当前架构的水平扩展瓶颈及解决方案:
 
@@ -798,9 +732,7 @@ factory.registerModel("my-model", (config) => new MyModel(config));
 
 ## 十一、UI 与国际化
 
-### Q34: UI 组件体系是如何构建的?
-
-答:
+### UI 组件体系是如何构建的?
 
 采用 shadcn/ui 模式 (非 npm 依赖, 而是源码拷贝到项目中):
 
@@ -816,9 +748,7 @@ factory.registerModel("my-model", (config) => new MyModel(config));
 3. Tailwind 原子化样式避免 CSS 命名冲突
 4. CVA 提供类型安全的变体管理
 
-### Q35: 国际化方案是如何实现的?
-
-答:
+### 国际化方案是如何实现的?
 
 使用 i18next + react-i18next:
 
@@ -830,9 +760,7 @@ factory.registerModel("my-model", (config) => new MyModel(config));
 
 支持中文和英文两种语言, 覆盖所有用户可见文本 (按钮、提示、空状态等).
 
-### Q36: 主题系统 (亮色/暗色/跟随系统) 是如何实现的?
-
-答:
+### 主题系统 (亮色/暗色/跟随系统) 是如何实现的?
 
 状态层 (stores/settings.ts):
 

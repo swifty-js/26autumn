@@ -12,7 +12,7 @@ protected: true
 
 ## 一、系统架构设计
 
-### Q1: 请描述 Swiftx 的整体架构分层和核心模块职责
+### 请描述 Swiftx 的整体架构分层和核心模块职责
 
 A:
 
@@ -36,7 +36,7 @@ A:
 
 ---
 
-### Q2: 程序入口有哪几种运行模式? 各自如何工作?
+### 程序入口有哪几种运行模式? 各自如何工作?
 
 A:
 
@@ -51,7 +51,7 @@ A:
 
 ---
 
-### Q3: Agent Loop 的核心循环是如何设计的? 为什么选择这种模式?
+### Agent Loop 的核心循环是如何设计的? 为什么选择这种模式?
 
 A:
 
@@ -91,7 +91,7 @@ func (a *Agent) Run(ctx context.Context, conv *conversation.Manager) <-chan Agen
 
 ---
 
-### Q4: 为什么 Agent 和 TUI 之间用 channel 而不是回调/observer 模式?
+### 为什么 Agent 和 TUI 之间用 channel 而不是回调/observer 模式?
 
 A:
 
@@ -113,7 +113,7 @@ A:
 
 ## 二、LLM 集成与流式处理
 
-### Q5: 如何设计一个支持多 Provider 的 LLM 抽象层?
+### 如何设计一个支持多 Provider 的 LLM 抽象层?
 
 A:
 
@@ -154,7 +154,7 @@ type Client interface {
 
 ---
 
-### Q6: SSE 流式读取中的 idle timeout 机制是如何实现的? 解决了什么问题?
+### SSE 流式读取中的 idle timeout 机制是如何实现的? 解决了什么问题?
 
 A:
 
@@ -193,7 +193,7 @@ for {
 
 ---
 
-### Q7: Prompt Cache 优化策略是什么? 如何保证缓存命中率?
+### Prompt Cache 优化策略是什么? 如何保证缓存命中率?
 
 A:
 
@@ -221,7 +221,7 @@ Fork 子 Agent 的缓存复用:
 
 ## 三、上下文窗口管理
 
-### Q8: 两层上下文管理机制的设计思路和触发条件是什么?
+### 两层上下文管理机制的设计思路和触发条件是什么?
 
 A:
 
@@ -245,7 +245,7 @@ Layer 2 细节:
 
 ---
 
-### Q9: Layer 1 工具结果预算的两趟算法是什么?
+### Layer 1 工具结果预算的两趟算法是什么?
 
 A:
 
@@ -262,7 +262,7 @@ A:
 
 ---
 
-### Q10: Layer 2 压缩何时触发? 保留什么?
+### Layer 2 压缩何时触发? 保留什么?
 
 A:
 
@@ -282,7 +282,7 @@ A:
 
 ---
 
-### Q11: Token 估算的 Usage Anchor 机制是如何工作的? 为什么不直接用 tokenizer?
+### Token 估算的 Usage Anchor 机制是如何工作的? 为什么不直接用 tokenizer?
 
 A:
 
@@ -317,7 +317,7 @@ func ComputeUsedTokens(conv, anchor) int {
 
 ---
 
-### Q12: 压缩请求本身超出上下文怎么办? ( PTL 重试机制)
+### 压缩请求本身超出上下文怎么办? ( PTL 重试机制)
 
 A:
 
@@ -329,7 +329,7 @@ PTL( prompt-too-long) 重试( compact.go:586-642) :
 
 ---
 
-### Q13: 压缩后如何恢复工作状态? 如何支持会话恢复?
+### 压缩后如何恢复工作状态? 如何支持会话恢复?
 
 A:
 
@@ -345,7 +345,7 @@ A:
 
 ## 四、工具系统与执行引擎
 
-### Q14: Tool 接口如何设计? 为什么需要延迟加载工具?
+### Tool 接口如何设计? 为什么需要延迟加载工具?
 
 A:
 
@@ -369,7 +369,7 @@ ToolSearch 的两种模式:
 
 ---
 
-### Q15: 工具的安全分级执行( Safety-Based Batching) 是如何实现的?
+### 工具的安全分级执行( Safety-Based Batching) 是如何实现的?
 
 A:
 
@@ -413,7 +413,7 @@ for _, batch := range batches {
 
 ---
 
-### Q16: FileStateCache 的 "Read-before-Edit" 机制是如何工作的?
+### FileStateCache 的 "Read-before-Edit" 机制是如何工作的?
 
 A:
 
@@ -453,7 +453,7 @@ ReadFile/WriteFile/EditFile 共享同一个 cache 实例( `CreateDefaultToolsWit
 
 ---
 
-### Q17: Bash 工具为什么不把非零退出码一律当错误?
+### Bash 工具为什么不把非零退出码一律当错误?
 
 A:
 
@@ -476,7 +476,7 @@ A:
 
 ---
 
-### Q18: 流式工具提交( Streaming Tool Execution) 的实现原理?
+### 流式工具提交( Streaming Tool Execution) 的实现原理?
 
 A:
 
@@ -515,7 +515,7 @@ type StreamingExecutor struct {
 
 ## 五、权限与安全
 
-### Q19: 五层权限系统的架构设计及各层职责是什么?
+### 五层权限系统的架构设计及各层职责是什么?
 
 A:
 
@@ -552,7 +552,7 @@ A:
 
 ---
 
-### Q20: OS 级沙箱( macOS seatbelt / Linux bubblewrap) 是如何集成的?
+### OS 级沙箱( macOS seatbelt / Linux bubblewrap) 是如何集成的?
 
 A:
 
@@ -605,7 +605,7 @@ AllowWrite 路径 `--bind` 可写, DenyWrite `--ro-bind` 覆盖回只读, 挂 `/
 
 ---
 
-### Q21: Hook 系统的条件引擎是如何设计的? 支持哪些表达式?
+### Hook 系统的条件引擎是如何设计的? 支持哪些表达式?
 
 A:
 
@@ -656,7 +656,7 @@ hooks:
 
 ## 六、记忆体系与会话持久化
 
-### Q22: 长期记忆如何组织、提取与召回?
+### 长期记忆如何组织、提取与召回?
 
 A:
 
@@ -681,7 +681,7 @@ A:
 
 ---
 
-### Q23: 后台整合进程如何用文件锁防止并发?
+### 后台整合进程如何用文件锁防止并发?
 
 A:
 
@@ -698,7 +698,7 @@ teams 的文件邮箱用的是另一套: `O_CREATE|O_EXCL` 原子创建 + 指数
 
 ---
 
-### Q24: Session 持久化为什么选择 JSONL 格式? Compact Boundary 的作用是什么?
+### Session 持久化为什么选择 JSONL 格式? Compact Boundary 的作用是什么?
 
 A:
 
@@ -733,7 +733,7 @@ Compact Boundary 的作用:
 
 ---
 
-### Q25: 模型上下文窗口大小是如何确定的?
+### 模型上下文窗口大小是如何确定的?
 
 A:
 
@@ -749,7 +749,7 @@ A:
 
 ## 七、并发与状态管理
 
-### Q26: 项目中使用了哪些并发模式? 如何避免数据竞争?
+### 项目中使用了哪些并发模式? 如何避免数据竞争?
 
 A:
 
@@ -789,7 +789,7 @@ A:
 
 ---
 
-### Q27: 项目中有哪些关键的性能优化手段?
+### 项目中有哪些关键的性能优化手段?
 
 A:
 
@@ -811,7 +811,7 @@ A:
 
 ## 八、多 Agent 协作与扩展
 
-### Q28: 子 Agent 的三种 spawn 模式( Sync/Async/Fork) 的设计考量?
+### 子 Agent 的三种 spawn 模式( Sync/Async/Fork) 的设计考量?
 
 A:
 
@@ -854,7 +854,7 @@ type TaskManager struct {
 
 ---
 
-### Q29: Teams 多 Agent 协作系统的架构? Agent 之间如何通信?
+### Teams 多 Agent 协作系统的架构? Agent 之间如何通信?
 
 A:
 
@@ -935,7 +935,7 @@ agent.ToolNameFilter = teams.CoordinatorToolFilter(cfg.EnableCoordinatorMode)
 
 ---
 
-### Q30: 为什么用 git worktree 做并行隔离? 如何实现?
+### 为什么用 git worktree 做并行隔离? 如何实现?
 
 A:
 
@@ -951,7 +951,7 @@ A:
 
 ---
 
-### Q31: 技能系统如何做渐进式披露?
+### 技能系统如何做渐进式披露?
 
 A:
 
@@ -995,7 +995,7 @@ $ARGUMENTS 替换: Skill body 中的 `$ARGUMENTS` 被替换为用户调用时传
 
 ---
 
-### Q32: MCP 如何集成? 为什么 MCP 工具默认延迟加载?
+### MCP 如何集成? 为什么 MCP 工具默认延迟加载?
 
 A:
 
@@ -1036,7 +1036,7 @@ func (w *MCPToolWrapper) Name() string {
 
 ## 九、错误处理与容错
 
-### Q33: Agent Loop 中的错误恢复策略有哪些?
+### Agent Loop 中的错误恢复策略有哪些?
 
 A:
 
@@ -1067,7 +1067,7 @@ Turn 3-4: 耗尽后按正常完成处理. 成功一轮后计数器归零.
 
 ---
 
-### Q34: 类型化错误层次结构的设计? 为什么不用 errors.Is/As?
+### 类型化错误层次结构的设计? 为什么不用 errors.Is/As?
 
 A:
 
@@ -1102,7 +1102,7 @@ if errors.As(err, &ctxErr) {
 
 ## 十、配置与部署
 
-### Q35: 分层配置系统的合并策略? 如何处理冲突?
+### 分层配置系统的合并策略? 如何处理冲突?
 
 A:
 
@@ -1134,7 +1134,7 @@ config.yaml 中的 api_key 字段
 
 ## 十一、性能优化
 
-### Q36: Prompt Cache 与上下文预算如何协同优化?
+### Prompt Cache 与上下文预算如何协同优化?
 
 A:
 
@@ -1147,7 +1147,7 @@ Prompt Cache 和上下文预算存在天然张力: 预算裁剪要改写历史�
 
 ---
 
-### Q37: 流式工具提交( Streaming Tool Execution) 的性能收益分析?
+### 流式工具提交( Streaming Tool Execution) 的性能收益分析?
 
 A:
 
@@ -1174,7 +1174,7 @@ results := executor.ExecuteAll(ctx, agent)  // 批量执行
 
 ## 十二、设计模式与工程实践
 
-### Q38: 项目中用到了哪些设计模式?
+### 项目中用到了哪些设计模式?
 
 A:
 
@@ -1197,7 +1197,7 @@ A:
 
 ---
 
-### Q39: 如何保证 "Read-before-Edit" 这类不变量( invariant) ? 还有哪些类似的防御性设计?
+### 如何保证 "Read-before-Edit" 这类不变量( invariant) ? 还有哪些类似的防御性设计?
 
 A:
 
@@ -1239,7 +1239,7 @@ Read-before-Edit:
 
 ---
 
-### Q40: 项目的测试策略是什么? 如何测试一个 LLM Agent 系统?
+### 项目的测试策略是什么? 如何测试一个 LLM Agent 系统?
 
 A:
 
@@ -1276,7 +1276,7 @@ A:
 
 ---
 
-### Q41: 盘点项目中的可靠性兜底设计
+### 盘点项目中的可靠性兜底设计
 
 A:
 
@@ -1296,7 +1296,7 @@ A:
 
 ## 十三、Go 语言特定问题
 
-### Q42: 项目中 `context.Context` 的使用模式? 如何做到优雅取消?
+### 项目中 `context.Context` 的使用模式? 如何做到优雅取消?
 
 A:
 
@@ -1342,7 +1342,7 @@ main (signal.NotifyContext)
 
 ---
 
-### Q43: 为什么选择 Bubble Tea 作为 TUI 框架? Elm Architecture 在 Go CLI 中的优劣?
+### 为什么选择 Bubble Tea 作为 TUI 框架? Elm Architecture 在 Go CLI 中的优劣?
 
 A:
 
@@ -1376,7 +1376,7 @@ Swifty 的适配:
 
 ## 十四、系统设计开放题
 
-### Q44: 如果要为 Swifty 添加 "Undo/Redo" 功能( 撤销 Agent 的文件修改) , 你会如何设计?
+### 如果要为 Swifty 添加 "Undo/Redo" 功能( 撤销 Agent 的文件修改) , 你会如何设计?
 
 A:
 
@@ -1414,7 +1414,7 @@ type UndoManager struct {
 
 ---
 
-### Q45: 如何设计一个分布式 Agent 系统( 多机协作) ? Swifty 的 Teams 系统如何扩展到分布式场景?
+### 如何设计一个分布式 Agent 系统( 多机协作) ? Swifty 的 Teams 系统如何扩展到分布式场景?
 
 A:
 
@@ -1448,7 +1448,7 @@ A:
 
 ---
 
-### Q46: Swifty 的 Prompt 构建系统如何保证可维护性和可扩展性?
+### Swifty 的 Prompt 构建系统如何保证可维护性和可扩展性?
 
 A:
 
