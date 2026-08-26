@@ -1,6 +1,6 @@
 # CodeGraph 深度解析: 给 AI 编码 Agent 的本地代码知识图谱
 
-本机器路径: /Users/hangtiancheng/codegraph( 本机已有克隆; 如需重新克隆: git clone git@github.com:colbymchenry/codegraph.git)
+仓库路径: git@github.com:colbymchenry/codegraph.git
 
 ## 一、项目快照( 截至 2026-08-12)
 

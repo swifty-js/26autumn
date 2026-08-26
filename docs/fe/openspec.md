@@ -1,5 +1,7 @@
 # OpenSpec 调研文档
 
+仓库路径: https://github.com/Fission-AI/openspec
+
 ## 一、OpenSpec 是什么
 
 OpenSpec 是一个轻量级的"协议层"(agreement layer), 由 Fission AI 开发, npm 包名为 `@fission-ai/openspec`, MIT 协议开源.

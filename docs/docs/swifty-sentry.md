@@ -1,8 +1,8 @@
 # @swifty.js/sentry 技术说明文档
 
-本机器路径 /Users/hangtiancheng/github/swifty-sentry/sentry
+本机器路径 $HOME/github/swifty-sentry/sentry
 
-> 仓库: <https://github.com/hangtiancheng/swifty-sentry>( 目录 `sentry/`, npm 包名 `@swifty.js/sentry`)
+> 仓库路径: <https://github.com/hangtiancheng/swifty-sentry>( 目录 `sentry/`, npm 包名 `@swifty.js/sentry`)
 >
 > 定位: 框架无关的浏览器端监控/埋点 SDK. 发布订阅架构, core 模块( 事件总线、生命周期、数据上报) 与 plugin 子模块( 性能采集、屏幕录制、曝光) 解耦. 支持错误捕获、白屏检测、性能指标采集、故障现场重放、声明式点击埋点、路由/PV 追踪, 数据上报具备三级降级与离线缓存, 提供 React 16+ / Vue 3+ 集成.
 >

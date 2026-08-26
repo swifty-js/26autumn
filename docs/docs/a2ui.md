@@ -1,7 +1,8 @@
 # A2UI
 
-本机器路径: /Users/hangtiancheng/Documents/a2ui (克隆指令: git clone git@github.com:a2ui-project/a2ui.git)
-请浏览文档库: /Users/hangtiancheng/.swifty/docs
+仓库路径: git@github.com:a2ui-project/a2ui.git
+本机器路径: $HOME/github/a2ui/packages/shadcn
+本机器文档库: $HOME/.swifty/docs
 
 ## 背景与动机
 
