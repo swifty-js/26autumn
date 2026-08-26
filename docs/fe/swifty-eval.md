@@ -17,19 +17,19 @@
 ```
 任务指令文档 (Markdown)
     │ LLM 结构化抽取 (TaskParser)
-    ▼
+    ↓
 TaskInstruction (role / task / openingLine / flow / faq / constraints)
     │
     │  对每个用户画像 (6 种)
-    ▼
+    ↓
 DialogueEngine: 被测模型 <-> UserSimulator 多轮对话 (上限 30 轮)
     │
     │  EvaluatorRegistry: 8 个维度评测器并发打分
     │  (Judge 模型独立于被测模型, 每维度采样 evalCount 次)
-    ▼
+    ↓
 Scorer: 加权聚合为 0-100 总分 + 低分维度改进建议
     │
-    ▼
+    ↓
 MarkdownGenerator + HtmlGenerator: 带时间戳的双格式报告
 ```
 
