@@ -2,7 +2,7 @@
 protected: true
 ---
 
-# swifty-cache 分布式缓存 -- 高级后端工程师面试 QA
+# swifty-cache 分布式缓存 -- 技术笔记
 
 > 本机器路径: `$HOME/github/swifty.js/packages/cache`
 > 基于 npm 包 `@swifty.js/cache` (Node.js / TypeScript 实现, 与 Go 版 `swifty.go/swifty_cache` 对齐) 源码整理, 覆盖架构设计、存储引擎、一致性哈希、服务发现、并发模型、容错机制等核心主题.

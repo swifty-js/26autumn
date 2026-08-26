@@ -1,4 +1,4 @@
-# React + Next.js 面试 QA
+# React + Next.js 技术笔记
 
 ## 一、React 核心概念与渲染机制
 
@@ -43,7 +43,7 @@ const element = {
 };
 ```
 
-面试加分点: React 18 引入的 Automatic Batching 使得即使在 setTimeout、Promise 回调中的多次 setState 也会自动合并为一次渲染, 而 React 17 及之前只在 React 事件处理器中批处理.
+延伸: React 18 引入的 Automatic Batching 使得即使在 setTimeout、Promise 回调中的多次 setState 也会自动合并为一次渲染, 而 React 17 及之前只在 React 事件处理器中批处理.
 
 ---
 

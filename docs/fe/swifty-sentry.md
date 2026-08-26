@@ -1,4 +1,4 @@
-# @swifty.js/sentry 前端监控 SDK 面试 QA
+# @swifty.js/sentry 前端监控 SDK 技术笔记
 
 > 本机器路径 `$HOME/github/swifty-sentry/sentry`
 

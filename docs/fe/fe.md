@@ -1,6 +1,6 @@
-# 前端面试 Q/A: JavaScript、DOM、BOM、浏览器与网络
+# 前端技术笔记: JavaScript、DOM、BOM、浏览器与网络
 
-本文档以问答形式梳理前端面试中关于 JavaScript 语言、DOM/BOM、浏览器原理与网络的核心知识点, 题目由浅入深, 解答力求准确、专业, 并覆盖常见的追问方向.
+本文档以问答形式梳理 JavaScript 语言、DOM/BOM、浏览器原理与网络的核心知识点, 题目由浅入深, 解答力求准确、专业, 并覆盖常见的追问方向.
 
 ## 第一部分 JavaScript 语言核心
 
@@ -48,7 +48,7 @@ NaN == NaN    // false, NaN 不等于任何值包括自身
 [1,2] == '1,2' // true: 数组 toString 为 '1,2'
 ```
 
-补充: Object.is 与 === 几乎一致, 区别只有两处: Object.is(NaN, NaN) 为 true, Object.is(+0, -0) 为 false. 面试中还常追问为什么应避免 ==: 转换规则难以记忆、容易引入隐蔽 bug, 团队规范通常要求默认使用 ===.
+补充: Object.is 与 === 几乎一致, 区别只有两处: Object.is(NaN, NaN) 为 true, Object.is(+0, -0) 为 false. 还常追问为什么应避免 ==: 转换规则难以记忆、容易引入隐蔽 bug, 团队规范通常要求默认使用 ===.
 
 ### Q3. 原型与原型链是什么
 
@@ -181,7 +181,7 @@ A: 闭包是函数与其词法环境的组合: 函数在定义时捕获外层作
 - 一次性函数 once、防抖节流内部保存状态.
 - 回调中保存上下文状态, 如循环中为每个异步任务保留当前的 i( let 块级作用域 + 闭包, 或 IIFE) .
 
-经典面试题:
+经典知识点:
 
 ```js
 for (var i = 0; i < 3; i++) {
@@ -603,7 +603,7 @@ A: 完整签名: target.addEventListener(type, listener, options), 第三个参�
 
 - 同一 target 上 type、listener、capture 三者完全相同的重复注册会被忽略( once/passive 差异不影响去重判定) .
 - removeEventListener 需要 capture 标志匹配才能成功移除, once/passive/signal 不参与匹配.
-- 这是标准考点, 也是面试官判断候选人是否跟进现代 DOM API 的信号( once/passive/signal 三件套) .
+- 这是标准考点, 也是判断是否跟进现代 DOM API 的标准( once/passive/signal 三件套) .
 
 ### Q27. 事件委托的原理与优缺点
 
@@ -713,7 +713,7 @@ key 的作用与 index 作 key 的坑: key 帮助框架建立稳定的节点身�
 对 vdom 的客观评价:
 
 - 价值在于声明式编程模型、批量更新、跨平台渲染( React Native/SSR) , 而不是“一定更快”——vdom diff 本身有 CPU 与内存开销, 极端性能场景手写 DOM 或细粒度响应式更快.
-- 细粒度响应式( Vue3 的 block tree + patch flag 编译时优化、Svelte/Solid 编译为精准 DOM 指令、preact signals 类方案) 正在绕过或缩小 vdom diff 的成本, 这是面试加分点.
+- 细粒度响应式( Vue3 的 block tree + patch flag 编译时优化、Svelte/Solid 编译为精准 DOM 指令、preact signals 类方案) 正在绕过或缩小 vdom diff 的成本, 这是延伸.
 
 ### Q33. Web Component 的原理是什么
 
@@ -2078,13 +2078,13 @@ function flat(arr, depth = 1) {
 
 考点深挖:
 
-- 原生 map 保留稀疏性: [1, , 2].map(x => x\*2) 结果仍有空位; reduce 版本把空位写成 undefined 实值——这是面试官最爱的坑.
+- 原生 map 保留稀疏性: [1, , 2].map(x => x\*2) 结果仍有空位; reduce 版本把空位写成 undefined 实值——这是经典的易错点.
 - reduce 无初始值时, 首个存在的元素为累加器, 从第二个元素开始迭代; 空数组无初始值抛 TypeError.
 - p.then(curTask) 串行原理: 每个 then 返回新 Promise, 注册时机保证任务按序排队.
 
 ### 题目 12| 类字段初始化顺序
 
-源码解读( 米哈游面试题) : new Child() 的执行序列:
+源码解读( 米哈游知识点) : new Child() 的执行序列:
 
 1. super() 进入 Parent: 先初始化 Parent 的实例字段;
 2. 执行 Parent 构造体;
@@ -2444,11 +2444,11 @@ A: 隐藏类( Hidden Class / Map / Shape) :
 - 数字: 31 位内整数走 SMI( 指针 tagged) 不开箱, 超出变 HeapNumber.
 - 字符串: cons string( 拼接先存切片树) 、sliced string、intern 化.
 
-面试口径: 写"JIT 友好"代码 = 形状稳定 + 类型稳定 + 热点函数小而纯.
+要点: 写"JIT 友好"代码 = 形状稳定 + 类型稳定 + 热点函数小而纯.
 
 ### Q91. ES 新特性高频考点
 
-A: 尾调用优化( PTC, ES6 规范) : 严格模式下 return f(...) 复用当前栈帧——理论上递归阶乘可 O(1) 栈. 现实: 只有 Safari/JSC 实现, V8 曾实现后移除——面试要会说"规范有、引擎没普及, 别依赖".
+A: 尾调用优化( PTC, ES6 规范) : 严格模式下 return f(...) 复用当前栈帧——理论上递归阶乘可 O(1) 栈. 现实: 只有 Safari/JSC 实现, V8 曾实现后移除——要记住"规范有、引擎没普及, 别依赖".
 
 BigInt: 任意精度整数( 123n) ; 不能与 Number 混算( 显式转换) ; typeof 1n === 'bigint'; JSON 序列化抛错; BigInt.asIntN(64, x) 固定位宽截断. 应用: 雪花 ID、时间戳纳秒、区块链数值.
 

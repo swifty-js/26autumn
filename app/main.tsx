@@ -1,4 +1,8 @@
-import { bootstrap, type LoadContentFn } from "@lark.js/docs";
+import {
+  bootstrap,
+  SwiftyDocsAntiCopyProps,
+  type LoadContentFn,
+} from "@lark.js/docs";
 import {
   ScreenRecordPlugin,
   PerformancePlugin,
@@ -17,7 +21,11 @@ bootstrap({
   loadContent: loadContent as LoadContentFn,
   getSearchIndex,
   onContentUpdate,
-  antiCopy: false,
+  antiCopy: import.meta.env.DEV
+    ? ({
+        devtools: true,
+      } satisfies SwiftyDocsAntiCopyProps)
+    : false,
   sentry: {
     options: {
       dsn: "/26autumn",

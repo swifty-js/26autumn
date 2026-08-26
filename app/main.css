@@ -7,14 +7,11 @@
 
 @theme {
   --font-sans:
-    "Geist Mono", "Swifty", "Maple Mono", "SF Mono", Menlo, "Cascadia Code",
-    monospace;
+    "Swifty", "Maple Mono", "SF Mono", Menlo, "Cascadia Code", monospace;
   --font-display:
-    "Geist Mono", "Swifty", "Maple Mono", "SF Mono", Menlo, "Cascadia Code",
-    monospace;
+    "Swifty", "Maple Mono", "SF Mono", Menlo, "Cascadia Code", monospace;
   --font-mono:
-    "Geist Mono", "Swifty", "Maple Mono", "SF Mono", Menlo, "Cascadia Code",
-    monospace;
+    "Swifty", "Maple Mono", "SF Mono", Menlo, "Cascadia Code", monospace;
 }
 
 :root {

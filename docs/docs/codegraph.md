@@ -4,7 +4,7 @@
 
 ## 一、项目快照( 截至 2026-08-26)
 
-CodeGraph( colbymchenry/codegraph) 是 2026 年 1 月 18 日由独立开发者 Colby McHenry 创建的开源项目, 他在 Medium 个人介绍中自我描述为"15+ 年经验的自学软件工程师". 项目定位是给 AI 编码 agent 做"前置索引"的本地 MCP 服务器: 预先把代码库的符号、调用边、依赖关系构建成一张知识图谱, 让 agent 一次查询拿到精确上下文, 而不是用 grep + Read 逐文件爬. 创建后 4 个月登上 GitHub Trending 前列( 5 月 23 日单日新增 2,434 star) .
+CodeGraph( colbymchenry/codegraph) 是 2026 年 1 月 18 日由独立开发者 Colby McHenry 创建的开源项目, 他在 Medium 个人介绍中自我描述为自学软件工程师. 项目定位是给 AI 编码 agent 做"前置索引"的本地 MCP 服务器: 预先把代码库的符号、调用边、依赖关系构建成一张知识图谱, 让 agent 一次查询拿到精确上下文, 而不是用 grep + Read 逐文件爬. 创建后 4 个月登上 GitHub Trending 前列( 5 月 23 日单日新增 2,434 star) .
 
 仓库当前状态( GitHub API, 2026-08-26) :
 

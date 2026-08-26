@@ -1,10 +1,10 @@
-# Swifty Agent 面试 Q/A
+# Swifty Agent 技术笔记
 
 > 本机器路径 `$HOME/github/swifty-cli/apps/swifty-agent`
 
 > 项目: `apps/swifty-agent` —— 基于 Next.js 16 + React 19 + Vercel AI SDK v7 的 AI OnCall 智能助手, 支持 RAG 知识库检索、ReAct 对话 Agent、Plan-Execute-Replan 运维编排、A2UI 交互界面生成、Prometheus 告警分析、MCP 日志工具接入、swifty-sentry 前端监控桥接.
 >
-> 本文档面向高级前端工程师面试场景, 问题覆盖架构设计、LLM 工程、RAG、Agent 编排、流式输出、React 工程化、性能与安全等方向. 所有回答均基于项目真实源码, 关键结论附 `文件:行号` 引用.
+> 本文档问题覆盖架构设计、LLM 工程、RAG、Agent 编排、流式输出、React 工程化、性能与安全等方向. 所有回答均基于项目真实源码, 关键结论附 `文件:行号` 引用.
 
 ## 一、项目架构与整体设计
 
@@ -534,7 +534,7 @@ HNSW(Hierarchical Navigable Small World) 是一种基于图的近似最近邻( A
 2. 指令优先级声明:AI_OPS_QUERY 中"严格遵循内部文档"的语境是"处理流程", 而非全局指令覆盖;
 3. 来源可信: 文档来自内部上传( upload 接口) , 非公开抓取, 攻击面相对小.
 
-但要说清楚:目前没有根治方案, 业界的纵深防御还包括——检索结果 sanitize( stripping 指令性语句模式) 、把文档放入独立 user message 而非 system prompt( 降低指令权重) 、对工具调用做人工确认( human-in-the-loop, 本项目 mysql_crud 的写操作尤其需要, 源项目的交互确认被 Web 版移除后防线少了一层, 见 Q61)、输出侧审计. 面试中应主动指出当前实现的残余风险.
+但要说清楚:目前没有根治方案, 业界的纵深防御还包括——检索结果 sanitize( stripping 指令性语句模式) 、把文档放入独立 user message 而非 system prompt( 降低指令权重) 、对工具调用做人工确认( human-in-the-loop, 本项目 mysql_crud 的写操作尤其需要, 源项目的交互确认被 Web 版移除后防线少了一层, 见 Q61)、输出侧审计. 需要注意当前实现的残余风险.
 
 ---
 
@@ -616,7 +616,7 @@ MCP 是 Anthropic 主导的开放协议, 目标是标准化"应用向 LLM 提供
 
 设计意图:① MCP 握手 + listTools 是网络开销, 每次 chat 都重连浪费; ② 降级为空工具表意味着"MCP 挂了, 对话仍可用, 只是少了日志工具"——语义上等价于忽略连接错误继续跑.
 
-并发隐患( 值得在面试中主动指出) :缓存检查与赋值之间存在 check-then-act 竞态——两个并发请求同时发现 `cachedTools` 为空, 会各自建连、各自 listTools, 后完成者覆盖前者的 client, 前者的连接泄漏. 另外"失败也缓存 {}"意味着 MCP 恢复后进程内永远拿不到工具, 需重启( 或调用未暴露的 `closeLogMcpClient`). 改进: 缓存 Promise 而非结果( `cachedToolsPromise ??= connect()`, 与 Redis client 单例的 `clientPromise` 模式对齐,`client.ts:30-42`), 失败时重置 Promise 允许下次重试——项目里 Redis 单例已经示范了正确写法( P1-8 修复) ,MCP 这处属于尚未对齐的历史遗留.
+并发隐患( 值得注意) :缓存检查与赋值之间存在 check-then-act 竞态——两个并发请求同时发现 `cachedTools` 为空, 会各自建连、各自 listTools, 后完成者覆盖前者的 client, 前者的连接泄漏. 另外"失败也缓存 {}"意味着 MCP 恢复后进程内永远拿不到工具, 需重启( 或调用未暴露的 `closeLogMcpClient`). 改进: 缓存 Promise 而非结果( `cachedToolsPromise ??= connect()`, 与 Redis client 单例的 `clientPromise` 模式对齐,`client.ts:30-42`), 失败时重置 Promise 允许下次重试——项目里 Redis 单例已经示范了正确写法( P1-8 修复) ,MCP 这处属于尚未对齐的历史遗留.
 
 ---
 
@@ -657,7 +657,7 @@ MCP 是 Anthropic 主导的开放协议, 目标是标准化"应用向 LLM 提供
 - prompt 工程的部分:description 文案( 决定召回准确率) 、schema 字段描述( 决定参数构造正确率) 、返回 JSON 的字段命名与裁剪( 决定模型能否正确使用结果) 、AI_OPS_QUERY 中的工具使用规约( 决定调用顺序与组合方式) ——这些"写给模型看的代码"不遵循传统代码的正确性标准, 需要像调 prompt 一样反复实验;
 - 传统后端工程的部分: 超时( AbortSignal.timeout)、重连( reconnectStrategy)、锁( SETNX)、事务( MULTI/EXEC)、错误结构化、zod 边界校验、DSN 归一化、连接销毁——这些与 LLM 无关, 是任何生产级后端都该有的健壮性.
 
-两部分的交接面是契约: 模型按契约生成调用, 工程按契约保证执行. 哪一边没做好, 表现都是"agent 不干活":description 含糊 → 模型不知道该调工具; 工具实现超时 → ReAct 循环卡死. 所以面试回答这个问题时可以强调:agent 质量 = prompt 质量 × 工程质量, 短板效应明显.
+两部分的交接面是契约: 模型按契约生成调用, 工程按契约保证执行. 哪一边没做好, 表现都是"agent 不干活":description 含糊 → 模型不知道该调工具; 工具实现超时 → ReAct 循环卡死. 所以回答这个问题时可以强调:agent 质量 = prompt 质量 × 工程质量, 短板效应明显.
 
 ---
 
@@ -1013,7 +1013,7 @@ useEffect(() => {
 - upload 管线: 必然失败;
 - ai_ops:`retrieveDocs()`(`operations.ts:141-144`)与 `query_internal_docs` 的 wrapper(`tools/index.ts:57-62`)均没有 try/catch, Redis 故障会让工具的 execute 直接 throw, `generateText` 在该步中断, 错误冒泡到管线 catch 产出 `error` 事件, 整个 ai_ops 请求返回 500——模型没有机会"无文档依据降级回答".
 
-合理性评价与改进: 当前是硬依赖, 不合理之处是对话本可以无 RAG 降级运行. 改进: retrieve 加 try/catch, 失败时返回空文档列表并在 system prompt 标注"知识库暂不可用", 对话功能保持可用; 同时 embedding API 故障与 Redis 故障要区分处理. 这呼应 Q37 提到的 MCP 降级设计——项目里 MCP 已有优雅降级, Redis 路径还欠对齐, 面试中主动分析出这种"降级策略不一致"能体现系统性思维.
+合理性评价与改进: 当前是硬依赖, 不合理之处是对话本可以无 RAG 降级运行. 改进: retrieve 加 try/catch, 失败时返回空文档列表并在 system prompt 标注"知识库暂不可用", 对话功能保持可用; 同时 embedding API 故障与 Redis 故障要区分处理. 这呼应 Q37 提到的 MCP 降级设计——项目里 MCP 已有优雅降级, Redis 路径还欠对齐, 分析出这种"降级策略不一致"能体现系统性思维.
 
 ---
 
@@ -1064,7 +1064,7 @@ P1-8(Redis 单例缓存 rejected Promise, `client.ts:34-39`):`clientPromise = in
 
 可接受的前提: 服务仅绑定 localhost 或在内网受信环境 + 无敏感数据 + 短生命周期演示. 对生产环境应:① CORS 收敛到具体 origin 白名单( 同源部署前端时甚至可去掉 CORS 头) ;② 加鉴权( session/token),OnCall 工具对接企业 SSO;③ 上游加速率限制.
 
-面试回答要点: 不要为了"演示能跑"把开发态配置带进生产; CORS 不是鉴权机制, 只是浏览器的资源协商, 真正的边界是认证 + 网络层.
+要点: 不要为了"演示能跑"把开发态配置带进生产; CORS 不是鉴权机制, 只是浏览器的资源协商, 真正的边界是认证 + 网络层.
 
 ---
 
@@ -1371,7 +1371,7 @@ AI Ops 报告另有一处"UI 化"后处理: replanner 判定完成后, `uiifyRep
 2. 上报端点( `app/api/log/route.ts`):请求体先 `JSON.parse` 再过 `reportBatchSchema`( looseObject 数组, `metrics.ts:17-27`), 非法 JSON 或非法批次记 `recordInvalidReportBatch` 并返回 400, 合法则 `recordReportBatch` 逐条分发( `route.ts:20-45`);
 3. 指标桥( `lib/metrics.ts`):27 个 `swifty_sentry_*` 指标( `metrics.ts:126-154` 的 SentryMetrics 接口逐一定义) 覆盖除 ScreenRecord 外的全部上报类型( 按 `item.type` 分发, `metrics.ts:568-611`; ScreenRecord 只带 rrweb blob, 仅计入 events_total), 外加 prom-client 默认指标覆盖不到的 Node/V8 运行时指标——heap_size_limit、heap used ratio( OOM 余量)、detached contexts( 内存泄漏指纹)、event loop utilization、page faults、context switches、fs operations( `metrics.ts:347-497`).
 
-两个工程亮点值得在面试中展开:
+两个工程亮点值得展开:
 
 1. 标签基数防御( `metrics.ts:115, 521-536`):浏览器上报的字符串标签( 错误名、点击 ev id、自定义事件名) 是攻击者和重构都能控制的输入, 每个标签键最多保留 50 个不同取值, 溢出一律归并为 "other"——否则一次坏上线就能把 Prometheus 的 series 数量炸掉;
 2. registry 版本化缓存( `metrics.ts:120, 499-517`):registry 挂在 `globalThis.__swiftySentryMetrics` 上( 路由 bundle 与 dev HMR 会重复求值该模块, 全局缓存保证每进程只有一个 registry), 并带 `METRICS_VERSION` 版本号——指标集变更必须 bump 版本, 否则长驻 dev server 会继续用缺字段的旧缓存, 新字段 undefined 却"类型上存在"( tsc 查不出来), 第一次 `.inc()` 就抛 TypeError; 重建的代价只是一次计数器清零.
@@ -1388,7 +1388,7 @@ AI Ops 报告另有一处"UI 化"后处理: replanner 判定完成后, `uiifyRep
 
 告警-文档契约( `prometheus.rules.yml:1-5` 头部注释): "Alert names are contract"——AI Ops 管线的 SOP 是 `query_prometheus_alerts` 拿到活跃告警名, 再用告警名调 `query_internal_docs` 检索处理手册, 所以每条告警规则的名字必须与 `data/docs/alert-handling-guide.md` 中的同名标题一一对应, 否则检索落空、模型失去知识锚点. 规则文件本身展示了运行时指标的正确用法: ServiceOffline(up == 0)、NodeHeapNearLimit(swifty_node_v8_heap_used_ratio > 0.9)、NodeHeapLeakSuspected(predict_linear 外推一小时内触及上限)、NodeDetachedContextLeak(detached contexts > 10)——全部基于 Q81 的 Node/V8 指标.
 
-这条契约把四个模块串成一个闭环: swifty-sentry 采集 → `/api/log` 入库 → `/api/metrics` 暴露 → Prometheus 告警 → AI Ops 一键分析( 按告警名检索 runbook) → 报告与 A2UI 界面呈现. 面试中可以把它作为"监控数据反哺 AI Agent"的完整案例.
+这条契约把四个模块串成一个闭环: swifty-sentry 采集 → `/api/log` 入库 → `/api/metrics` 暴露 → Prometheus 告警 → AI Ops 一键分析( 按告警名检索 runbook) → 报告与 A2UI 界面呈现. 可以把它作为"监控数据反哺 AI Agent"的完整案例.
 
 ---
 

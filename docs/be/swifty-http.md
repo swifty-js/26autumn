@@ -1,4 +1,4 @@
-# swifty_http 高级后端工程师面试 QA
+# swifty_http 技术笔记
 
 > 本机器路径: `$HOME/github/swifty.go/swifty_http`
 > 基于项目 `github.com/hangtiancheng/swifty.go/swifty_http` 源码整理, 覆盖洋葱模型中间件、延迟响应、Trie 路由、SSE、WebSocket (RFC 6455) 等核心主题.

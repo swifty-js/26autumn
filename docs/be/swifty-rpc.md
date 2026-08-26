@@ -1,4 +1,4 @@
-# swifty_rpc RPC 框架面试 QA
+# swifty_rpc RPC 框架技术笔记
 
 > 本机器路径: `$HOME/github/swifty.go/swifty_rpc`
 > 基于项目 `github.com/hangtiancheng/swifty.go/swifty_rpc` 源码整理, 覆盖线协议、传输层多路复用、Future 异步模型、流式 RPC、熔断/限流/负载均衡、etcd 服务发现等核心主题.

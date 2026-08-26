@@ -1,6 +1,6 @@
-# Go 高级后端工程师面试 QA
+# Go 技术笔记
 
-> 本文面向高级 Go 后端工程师面试, 由"Golang 面试题"与"底层原理专题"两份文档合并而成, 覆盖语言基础、slice/map/string/interface、GMP 调度、channel、context、sync、内存模型、内存分配与逃逸、GC、defer/panic/recover、跨平台编译、泛型、工程实践、死锁、工具链与高频编码题. 文中运行时行为以 Go 1.22+ 为基准, 并标注关键版本差异; 部分工程实践结合作者的 Go 项目 swifty.go (swifty_cache: groupcache 风格分布式缓存; swifty_rpc: TCP 自研 RPC 框架) 中经核实的真实源码模式说明.
+> 本文由"Golang 知识点"与"底层原理专题"两份文档合并而成, 覆盖语言基础、slice/map/string/interface、GMP 调度、channel、context、sync、内存模型、内存分配与逃逸、GC、defer/panic/recover、跨平台编译、泛型、工程实践、死锁、工具链与高频编码题. 文中运行时行为以 Go 1.22+ 为基准, 并标注关键版本差异; 部分工程实践结合作者的 Go 项目 swifty.go (swifty_cache: groupcache 风格分布式缓存; swifty_rpc: TCP 自研 RPC 框架) 中经核实的真实源码模式说明.
 > 本机器路径: `$HOME/github/swifty.go/swifty_cache`
 > 本机器路径: `$HOME/github/swifty.go/swifty_rpc`
 
@@ -267,7 +267,7 @@ if newLen > doublecap {
 ```
 
 - Go 1.17 及以前阈值是 1024 且是硬切换 (<1024 翻倍, >=1024 乘 1.25); 1.18 改为 256 并平滑过渡, 减少大 slice 的突变.
-- 第二步 `roundupsize`: 期望容量乘元素大小后, 会向上取整到 malloc 的 size class (如 48、64、80、96、112 字节……), 所以 `append([]int{1,2,3}, 4)` 得到的 cap 是 6 (oldCap=3 < 256 走翻倍, newcap=6, 6*8=48B 正好是 size class), 而某些元素类型会出现 cap 比翻倍值更大的"怪异"结果. 面试时能讲出 roundupsize 这一步是区分度所在.
+- 第二步 `roundupsize`: 期望容量乘元素大小后, 会向上取整到 malloc 的 size class (如 48、64、80、96、112 字节……), 所以 `append([]int{1,2,3}, 4)` 得到的 cap 是 6 (oldCap=3 < 256 走翻倍, newcap=6, 6*8=48B 正好是 size class), 而某些元素类型会出现 cap 比翻倍值更大的"怪异"结果. 能讲出 roundupsize 这一步是区分度所在.
 - 扩容必然发生 `mallocgc` 分配新数组 + `memmove` 拷贝 + 旧数组等待 GC, 因此已知规模时必须 `make([]T, 0, n)` 预分配. 基准测试中, 预分配对热点路径 (如 RPC 编解码缓冲) 常有数倍收益.
 
 ### 2.3 共享底层数组的经典陷阱
@@ -418,7 +418,7 @@ A: Go 1.24 (2025.02) 把内置 map 从链式桶实现替换为基于 Swiss Table
 - 官方数据: 热点 map 操作平均提速 10%~35%, 负载因子上限更高 (7/8), 内存占用更省.
 - 语义完全不变 (迭代仍随机、并发写仍 fatal), 属纯运行时替换; 依赖 `//go:linkname` 摸 hmap 内部的黑科技代码会被破坏.
 
-面试表达建议: 先讲透经典 hmap (考察基本功), 再主动提 1.24 Swiss Table (考察技术追踪), 是明显加分项.
+补充: 先讲透经典 hmap (考察基本功), 再主动提 1.24 Swiss Table (考察技术追踪), 是明显加分项.
 
 ### 3.4 map 的几个语言级约束及原因
 
@@ -468,7 +468,7 @@ func (s *ShardedMap) shardOf(key string) *shard {
 }
 ```
 
-设计细节 (面试区分度所在):
+设计细节 (理解难点所在):
 
 1. 分片数取 2 的幂, 用 `hash & mask` 代替 `hash % n` (除法慢一个量级). swifty_cache 的 `lruStore` 是完整的真实实现: `MaskOfNextPowOf2(BucketCount)` 把配置的桶数向上取整为 2 的幂, 读写入口 `idx := HashBKRD(key) & s.mask` 定位分片, 每个分片一把独立 `sync.Mutex` 保护该分片的两级 LRU.
 2. 哈希函数要快且均匀: 字符串常用 BKDR/FNV-1a/xxhash; 不需要加密强度. 注意不要用 Go 内置 map 的 hash (不可导出), 但 1.19+ 可用 `maphash`.
@@ -575,7 +575,7 @@ var g *Gopher        // g == nil 为 true
 c = g                // 装箱后动态类型变为 *Gopher, c == nil 变为 false
 ```
 
-修复原则: 函数签名返回 `error` 时, 成功路径必须字面量返回 `nil`, 而不是返回一个可能为 nil 的具体错误指针. 这是 Go 面试出现率最高的题之一, 本质考察 iface 的双字结构.
+修复原则: 函数签名返回 `error` 时, 成功路径必须字面量返回 `nil`, 而不是返回一个可能为 nil 的具体错误指针. 这是 Go 最常见的考点之一, 本质考察 iface 的双字结构.
 
 ### 5.3 动态派发的成本与逃逸
 
@@ -788,7 +788,7 @@ G 的状态机 (`runtime/runtime2.go`):
 | `_Gdead`      | 已退出或未使用, 可被 gFree 池复用       | 函数返回 → goexit → `_Gdead`                                     |
 | `_Gcopystack` | 栈正在扩容/收缩拷贝                     | morestack/shrinkstack 期间的临时态                               |
 
-面试常见追问"goroutine 什么时候让出 CPU", 完整答案是六类: channel/select/锁阻塞 (gopark)、系统调用、网络 IO (netpoller)、`runtime.Gosched()` 主动让出、被 sysmon 信号抢占、GC 安全点 (含栈扫描请求). `_Gwaiting` 与 `_Gsyscall` 的本质区别: 前者是用户态阻塞, M 立即释放去跑别的 G (零线程成本); 后者 M 被内核占住, 需要 handoff 补充线程.
+常见追问"goroutine 什么时候让出 CPU", 完整答案是六类: channel/select/锁阻塞 (gopark)、系统调用、网络 IO (netpoller)、`runtime.Gosched()` 主动让出、被 sysmon 信号抢占、GC 安全点 (含栈扫描请求). `_Gwaiting` 与 `_Gsyscall` 的本质区别: 前者是用户态阻塞, M 立即释放去跑别的 G (零线程成本); 后者 M 被内核占住, 需要 handoff 补充线程.
 
 ### 7.9 m0 与 g0: 调度器自身的引导
 
@@ -1567,7 +1567,7 @@ for i := 0; i < 3; i++ {
 }
 ```
 
-Go 1.21 及以前: 循环变量 i 整个循环共享一个地址, goroutine 延迟执行, 大概率输出 `333`. Go 1.22 起语义变更: 每轮迭代 i 是新变量, 输出 0、1、2 的某个排列. for range 同理. 这是极少数不向后兼容的语言变更 (按 go.mod 的 go 版本行生效), 面试必须能讲出版本差异及 `loopvar` 实验背景.
+Go 1.21 及以前: 循环变量 i 整个循环共享一个地址, goroutine 延迟执行, 大概率输出 `333`. Go 1.22 起语义变更: 每轮迭代 i 是新变量, 输出 0、1、2 的某个排列. for range 同理. 这是极少数不向后兼容的语言变更 (按 go.mod 的 go 版本行生效), 需要理解版本差异及 `loopvar` 实验背景.
 
 Q2: map 遍历中删除/新增
 
@@ -1613,7 +1613,7 @@ Q: `fatal error: all goroutines are asleep - deadlock!` 是怎么检测出来的
 
 A: 检测逻辑在 `runtime.checkdead`: 每当一个 M 进入休眠, 运行时检查"还在干活的 M 数量", 若所有 goroutine 都阻塞在运行时可见的原语上 (channel 收发、select、sync 原语的 sema、Wait), 且没有可运行的 G、没有活跃的 timer 和 netpoll 等待, 就直接 fatal (throw, recover 不了).
 
-盲区 (这是面试的重点):
+盲区 (重点):
 
 1. 部分死锁不报: 只要还有任意一个 G 能跑 (哪怕只是主 goroutine 在 `http.ListenAndServe` 里), 几千个互相等待的 G 也不会触发检测——生产环境的死锁几乎都是这种, 表现为"某类请求全部超时 + goroutine 数只涨不跌".
 2. 有 timer/网络等待就不报: 运行时认为"未来可能有事件唤醒", 即使那个 timer 与死锁毫无关系.
@@ -1816,7 +1816,7 @@ func BenchmarkEncodeLoop(b *testing.B) {
 
 ## 21. 并发编程编码题
 
-以下题目考察 channel / WaitGroup / Mutex / Cond 的综合运用, 均为面试高频手写题.
+以下题目考察 channel / WaitGroup / Mutex / Cond 的综合运用, 均为重点手写题.
 
 ### 21.1 100 个协程按余数分工, 顺序打印 1-1000
 

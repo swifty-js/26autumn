@@ -1,4 +1,4 @@
-# Swifty-Chatbot 高级全栈工程师面试 QA
+# Swifty-Chatbot 技术笔记
 
 > 本机器路径 `$HOME/github/swifty-chatbot`
 

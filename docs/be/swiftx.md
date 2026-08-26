@@ -2,7 +2,7 @@
 protected: true
 ---
 
-# Swiftx — 高级后端工程师面试 QA
+# Swiftx — 技术笔记
 
 > 本机器路径: `$HOME/github/swifty.go/swiftx`
 > 基于 `github.com/hangtiancheng/swifty.go/swiftx` 项目源码分析( Go 1.26, 约 2.9 万行非测试代码, 实测 28,771 行)

@@ -1,6 +1,6 @@
-# ClickHouse & Kafka 后端工程师面试 QA
+# ClickHouse & Kafka 技术笔记
 
-> 本文面向高级后端工程师面试, 覆盖 ClickHouse 列式存储引擎、MergeTree 家族、分布式架构、查询优化, 以及 Kafka 存储模型、生产者/消费者语义、高可用机制、性能调优等核心考点.
+> 本文覆盖覆盖 ClickHouse 列式存储引擎、MergeTree 家族、分布式架构、查询优化, 以及 Kafka 存储模型、生产者/消费者语义、高可用机制、性能调优等核心考点.
 
 ---
 

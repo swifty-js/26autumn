@@ -3,7 +3,7 @@ import { defineConfig } from "@lark.js/docs/vite";
 export default defineConfig({
   docs: "docs",
   baseUrl: "/26autumn/",
-  title: "面试 QA 文档",
+  title: "技术学习笔记",
   nav: [
     { text: "前端基础", link: "fe/react" },
     { text: "Swifty 前端", link: "fe/swifty" },

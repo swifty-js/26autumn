@@ -1,10 +1,10 @@
-# swifty-eval 面试 QA
+# swifty-eval 技术笔记
 
 > 本机器路径 `$HOME/github/swifty.js/packages/swifty-eval`
 
 > 项目: `@swifty.js/eval` —— LLM-as-Judge 对话模型评测框架, 用于评测"任务指令遵循型"对话模型. 它在内置用户画像与被测模型之间模拟多轮电话对话, 按 8 个加权维度打分, 并生成可解释的 Markdown + HTML 报告. 该包是 Python `ai-evaluate` 项目的 TypeScript 迁移版, 修复了原版一系列缺陷 (见 README.md 的 Migration notes).
 >
-> 本文档面向高级前端/全栈工程师面试场景, 所有结论均基于项目真实源码, 关键结论附 `文件:行号` 引用.
+> 本文档所有结论均基于项目真实源码, 关键结论附 `文件:行号` 引用.
 
 ## 一、项目概述与架构
 
@@ -196,7 +196,7 @@ end            -> (终态)
 3. `reset()` 清空状态、步骤与历史 (src/engine/state-machine.ts:72-76), 引擎每次 runDialogue 前都会 reset (src/engine/dialogue-engine.ts:105), 一个引擎实例可复用跑多组对话
 4. `stateHistory` 记录转移轨迹 (src/engine/state-machine.ts:48-49), 便于调试与断言
 
-面试可延伸的点: 这是典型的"显式状态建模 vs 隐式 if-else"取舍 —— 把对话生命周期固化为受检转移表后, 新增 comfortUser (安抚用户) 这类分支状态不会让循环逻辑膨胀.
+可延伸的点: 这是典型的"显式状态建模 vs 隐式 if-else"取舍 —— 把对话生命周期固化为受检转移表后, 新增 comfortUser (安抚用户) 这类分支状态不会让循环逻辑膨胀.
 
 ---
 
