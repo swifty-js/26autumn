@@ -24,7 +24,7 @@ function Counter() {
 }
 ```
 
-### 参考答案
+### 解析
 
 输出结果: 控制台每秒打印 `0`, 页面始终显示 `1`.
 
@@ -65,7 +65,7 @@ useEffect(() => {
 }, []);
 ```
 
-追问: 为什么 `useRef` 能绕过闭包陷阱?
+延伸: 为什么 `useRef` 能绕过闭包陷阱?
 
 `useRef` 返回的是一个可变对象 `{ current: T }`, 其引用在组件整个生命周期内保持不变. 闭包捕获的是 `ref` 对象本身的引用( 不变) , 而非 `ref.current` 的值. 每次渲染时我们手动同步 `ref.current = count`, 因此闭包内通过 `ref.current` 总能读取到最新值. 本质上是将值语义转换为引用语义.
 
@@ -97,7 +97,7 @@ function Child({ onClick }) {
 }
 ```
 
-### 参考答案
+### 解析
 
 结论: 每次点击按钮, `Child` 都会重新渲染.
 
@@ -138,7 +138,7 @@ function Parent({ children }) {
 }
 ```
 
-追问: `React.memo` 的浅比较具体比较什么? 对引用类型有何影响?
+延伸: `React.memo` 的浅比较具体比较什么? 对引用类型有何影响?
 
 `React.memo` 默认使用 `Object.is` 对每个 prop 进行浅比较. 对于基本类型( number、string、boolean) 比较值; 对于引用类型( object、array、function) 比较引用地址. 因此:
 
@@ -154,7 +154,7 @@ function Parent({ children }) {
 
 请解释 React Fiber 的核心设计目标、数据结构, 以及它如何实现可中断渲染.
 
-### 参考答案
+### 解析
 
 设计目标:
 
@@ -250,7 +250,7 @@ React 维护两棵 Fiber 树:
 
 请描述 React 的 Diff 算法策略, 并解释为什么它的时间复杂度是 O(n) 而非 O(n³).
 
-### 参考答案
+### 解析
 
 传统树 Diff 的复杂度:
 
@@ -318,7 +318,7 @@ React 对列表采用两轮遍历:
 
 请系统性地阐述 React 应用的性能优化策略, 从渲染、内存、网络三个维度展开.
 
-### 参考答案
+### 解析
 
 ### 5.1 渲染优化
 
@@ -387,7 +387,7 @@ function onRenderCallback(id, phase, actualDuration, baseDuration) {
 
 React 官方规定 Hooks 不能在条件语句、循环或嵌套函数中调用. 请从实现原理层面解释这一约束的根本原因.
 
-### 参考答案
+### 解析
 
 根本原因: Hooks 依赖调用顺序来标识自身.
 
@@ -494,7 +494,7 @@ function App() {
 }
 ```
 
-### 参考答案
+### 解析
 
 ### React 17 的行为
 
@@ -582,7 +582,7 @@ setCount((c) => c + 1); // 链式执行, 最终 +2
 
 请解释 React 18 的并发渲染( Concurrent Rendering) 机制, 以及 `useTransition` 和 `useDeferredValue` 的区别与适用场景.
 
-### 参考答案
+### 解析
 
 ### 并发渲染核心思想
 
@@ -652,7 +652,7 @@ Suspense 在并发模式下获得完整能力:
 
 `useEffect` 是否等同于 `componentDidMount` + `componentDidUpdate` + `componentWillUnmount` 的组合? 请深入分析其执行时机与心智模型.
 
-### 参考答案
+### 解析
 
 结论: 不等同. 将 `useEffect` 简单映射为生命周期方法是常见的心智模型误区.
 
@@ -732,7 +732,7 @@ React 18+ 开发模式( 需启用 StrictMode) 下, `useEffect` 会执行 mount �
 
 在大型 React 应用中, 如何设计状态管理架构? 请对比 Context、Redux、Zustand、Jotai 的设计哲学与适用边界.
 
-### 参考答案
+### 解析
 
 ### 状态分类
 

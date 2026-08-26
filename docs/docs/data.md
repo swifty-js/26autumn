@@ -2132,7 +2132,7 @@ embedding 和聚类的生态在 Python (sentence-transformers、umap-learn、hdb
 ## 手写 SWR: 预加载 + 请求去重 + Stale-While-Revalidate
 
 > 本机器路径 $HOME/github/26autumn/packages/swr-demo
-> 本文基于 packages/swr-demo 项目, 梳理手写 SWR 数据请求方案的实现思路、与 vercel/swr 等现成方案的选型权衡, 以及 SWR 模式对前端性能的优化原理, 按问答形式组织.
+> 本文基于 packages/swr-demo 项目, 梳理手写 SWR 数据请求方案的实现思路、与 vercel/swr 等现成方案的选型权衡, 以及 SWR 模式对前端性能的优化原理.
 
 ### 1. 业务背景: 这个方案解决什么问题
 
@@ -2255,7 +2255,7 @@ mock-api.ts 用 800ms 加随机 200ms 的延迟模拟网络耗时, 延迟越大,
 
 ### 3. 为什么大型存量项目选择手写 SWR 而不是 vercel/swr
 
-这是最核心的追问. 答案不是"vercel/swr 不好", 而是"存量项目的约束条件让现成方案接不进去, 而手写方案恰好绕开了这些约束".
+这是最核心的问题. 答案不是"vercel/swr 不好", 而是"存量项目的约束条件让现成方案接不进去, 而手写方案恰好绕开了这些约束".
 
 #### 3.1 架构约束: MPA 与多技术栈共存
 
@@ -2355,7 +2355,7 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 #### 4.5 与其他预加载手段的对比
 
-可能进一步追问"为什么不直接用 link rel=preload", 可以对比:
+可能进一步延伸"为什么不直接用 link rel=preload", 可以对比:
 
 - link rel=preload 只能预加载资源( 脚本、字体、图片) , 无法预加载 XHR/fetch 接口数据
 - HTTP 缓存( Cache-Control) 能覆盖二次访问, 但首次访问仍需完整 RTT, 且无法与 bundle 下载并行调度, 也没有 promise 级别的去重
@@ -2364,27 +2364,27 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 ### 5. 延伸要点
 
-追问一: 缓存挂 window 上不怕污染全局吗?
+延伸一: 缓存挂 window 上不怕污染全局吗?
 
 回答: 真实项目会用带命名空间的 key( 如 `window.__SWR__.staff`) , demo 里用模块级 Map 是等价的封装. 全局挂载是手段不是目的, 目的是让缓存脱离任何框架实例的生命周期, MPA 页面跳转、jQuery 与 React 混用都能共享.
 
-追问二: revalidate 失败怎么办, 缓存会一直是旧数据吗?
+延伸二: revalidate 失败怎么办, 缓存会一直是旧数据吗?
 
 回答: demo 里 revalidate 的 then 只在成功时更新缓存, 失败保留旧数据, 下次消费再重试. 生产实现应补 catch, 并可加 timestamp 判断数据陈旧程度, 超过阈值( 如 10 分钟) 就降级为阻塞式重新请求, 避免无限使用过期数据.
 
-追问三: 两个组件几乎同时调用 swrFetch, 会不会竞态发两个请求?
+延伸三: 两个组件几乎同时调用 swrFetch, 会不会竞态发两个请求?
 
 回答: 不会. 判断 promise 是否存在和写入缓存都在同一个同步代码块里完成, JS 单线程加事件循环模型保证了 swrFetch 的同步判断段不会被打断, 第二个调用进入时缓存里已有 promise, 走复用分支.
 
-追问四: 这个方案怎么做缓存失效?
+延伸四: 这个方案怎么做缓存失效?
 
 回答: 当前实现是"每次命中都后台刷新"的激进策略, 适合低频变化数据. 可扩展的方向: 基于 timestamp 的 TTL 判断, TTL 内不 revalidate; 暴露 invalidate(key) 方法供 mutation 后主动失效; 按 key 配置不同的过期策略. 这些都是几十行代码内可以完成的演进, 不需要引入完整库.
 
-追问五: 如果项目后来升级到了 React 18 的 SPA, 这个方案还有价值吗?
+延伸五: 如果项目后来升级到了 React 18 的 SPA, 这个方案还有价值吗?
 
 回答: 预加载部分依然有价值, header 内联请求早于 bundle 的时间窗口与框架无关; 消费侧可以逐步替换为 useSWR 或 React Query, 并用它们的初始数据注入能力( SWR 的 fallbackData、React Query 的 initialData) 认领 window 上的预加载结果, 两套机制可以平滑过渡.
 
-追问六: 和 React Query 的 prefetchQuery 有什么区别?
+延伸六: 和 React Query 的 prefetchQuery 有什么区别?
 
 回答: prefetchQuery 运行在 bundle 内部, 最早也只能在应用初始化时触发, 无法早于 bundle 下载; 且强依赖 QueryClientProvider, 非 React 页面无法使用. 手写方案的预加载发生在 HTML 解析阶段, 消费入口是普通函数, 这两点差异正是存量 MPA 项目选择它的原因.
 

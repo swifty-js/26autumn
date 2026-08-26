@@ -23,7 +23,7 @@ MySQL 架构分为两层: Server 层和存储引擎层.
    - 全表扫描: `type = ALL`, 逐行读取判断
    - 索引下推: 联合索引中未参与索引定位的列, 下推到存储引擎层过滤, 减少回表
 
-追问: 权限校验发生在哪一步? 连接时校验库表级权限缓存, 精确的表/列权限校验发生在执行器执行之前 (precheck) 以及执行过程中.
+延伸: 权限校验发生在哪一步? 连接时校验库表级权限缓存, 精确的表/列权限校验发生在执行器执行之前 (precheck) 以及执行过程中.
 
 ### 执行一条 update 语句, MySQL 内部发生了什么?
 
@@ -36,7 +36,7 @@ update 会经过与 select 相同的连接器、解析器、优化器、执行�
 5. 执行器写 binlog (逻辑日志, Server 层)
 6. 提交事务, redo log 打上 commit 标记——即两阶段提交, 保证 redo log 与 binlog 一致
 
-追问: 更新一行也会加载整页吗? 会. InnoDB 以页 (默认 16KB) 为读写单位, 即使只更新 1 行也会将整页读入 Buffer Pool.
+延伸: 更新一行也会加载整页吗? 会. InnoDB 以页 (默认 16KB) 为读写单位, 即使只更新 1 行也会将整页读入 Buffer Pool.
 
 ### MySQL 的长连接和短连接如何取舍? 长连接内存暴涨怎么办?
 
@@ -235,7 +235,7 @@ select * from users where name = 'Alice';             -- 需要回表查其余�
 - 遇到 `>`、`<` 严格范围查询时停止匹配: `where a > 1 and b = 2` 中只有 a 走索引定位, 因为满足 a > 1 的记录内部 b 是无序的
 - `>=`、`<=`、`between`、`like 'xx%'` 前缀匹配不会停止匹配: 以 `where a >= 1 and b = 2` 为例, 存在 a = 1 的等值边界, 在 a = 1 的分组内 b 是有序的, 可以继续用 b 缩小扫描起点
 
-追问: order by 也遵循最左匹配吗? 是. `where a = 1 order by b, c` 可利用索引免排序; `order by b` 单独出现则需要 filesort.
+延伸: order by 也遵循最左匹配吗? 是. `where a = 1 order by b, c` 可利用索引免排序; `order by b` 单独出现则需要 filesort.
 
 ### 什么是索引下推 (ICP)?
 
@@ -413,7 +413,7 @@ select @@transaction_isolation;  -- 查询隔离级别
 set session transaction isolation level repeatable read;
 ```
 
-追问: 为什么互联网公司有些会把隔离级别改成 RC? RC 下不加间隙锁 (只有记录锁), 锁冲突和死锁概率更低, 并发写入吞吐更高; 代价是必须用 row 格式 binlog 保证主从一致.
+延伸: 为什么互联网公司有些会把隔离级别改成 RC? RC 下不加间隙锁 (只有记录锁), 锁冲突和死锁概率更低, 并发写入吞吐更高; 代价是必须用 row 格式 binlog 保证主从一致.
 
 ### 详述 MVCC 与 Read View 的可见性判断规则
 
