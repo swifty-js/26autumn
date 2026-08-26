@@ -2023,51 +2023,43 @@ func main() {
     ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
     defer cancel()
 
-    // 生产者: 队列满则 Wait, 写入后 Signal 唤醒消费者
+    // 生产者: 队列满且未超时则 Wait, 写入后 Signal 唤醒消费者
     producer := func(ctx context.Context, out chan<- int, idx int) {
         defer wg.Done()
         for {
-            select {
-            case <-ctx.Done():
-                cond.Broadcast() // 退出前唤醒可能等待的消费者, 防止其死锁
-                return
-            default:
-                cond.L.Lock()
-                for len(msgCh) == cap(msgCh) {
-                    cond.Wait()
-                }
-                num := rand.Intn(500)
-                out <- num
-                cond.Signal()
-                cond.L.Unlock()
+            cond.L.Lock()
+            for len(msgCh) == cap(msgCh) && ctx.Err() == nil {
+                cond.Wait()
             }
+            if ctx.Err() != nil {
+                cond.Broadcast() // 退出前唤醒所有等待者, 防止其永久阻塞
+                cond.L.Unlock()
+                return
+            }
+            num := rand.Intn(500)
+            out <- num
+            cond.Signal()
+            cond.L.Unlock()
         }
     }
 
-    // 消费者: 队列空则 Wait, 取出后 Signal 唤醒生产者
+    // 消费者: 队列空且未超时则 Wait, 取出后 Signal 唤醒生产者
     consumer := func(ctx context.Context, in <-chan int, idx int) {
         defer wg.Done()
         for {
-            select {
-            case <-ctx.Done():
-                for len(msgCh) > 0 { // 退出前尽量消费剩余
-                    select {
-                    case num := <-in:
-                        fmt.Printf("consumer %d, msg: %d\n", idx, num)
-                    default:
-                    }
-                }
-                return
-            default:
-                cond.L.Lock()
-                for len(msgCh) == 0 {
-                    cond.Wait()
-                }
-                num := <-in
-                cond.Signal()
-                cond.L.Unlock()
-                fmt.Printf("consumer %d, msg: %d\n", idx, num)
+            cond.L.Lock()
+            for len(msgCh) == 0 && ctx.Err() == nil {
+                cond.Wait()
             }
+            if len(msgCh) == 0 { // ctx 已取消且队列已排空
+                cond.Broadcast()
+                cond.L.Unlock()
+                return
+            }
+            num := <-in
+            cond.Signal()
+            cond.L.Unlock()
+            fmt.Printf("consumer %d, msg: %d\n", idx, num)
         }
     }
 
@@ -2080,11 +2072,10 @@ func main() {
         go consumer(ctx, msgCh, i+1)
     }
     wg.Wait()
-    close(msgCh)
 }
 ```
 
-要点: Cond 的 Wait/Signal 必须在持锁状态下调用, 条件判断必须放在 for 循环里 (10.3); 退出路径必须 Broadcast 防止等待方永久阻塞.
+要点: Cond 的 Wait/Signal 必须在持锁状态下调用, 条件判断必须放在 for 循环里 (10.3). 退出路径的正确写法是把 ctx 取消并入 for 等待条件 (`len(...) == x && ctx.Err() == nil`), 每个退出者在归还锁前 Broadcast——单独一次退出 Broadcast 不够: 等待者被唤醒后若条件仍成立会再次 Wait, 必须依赖"每个退出者都广播"才能让所有等待者最终醒来退出; 退出后的消费者仍会继续消费剩余消息, 直到队列排空才返回.
 
 ### 21.7 1000 个并发 + 全局 1 秒超时
 

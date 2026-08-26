@@ -168,8 +168,8 @@ ZooKeeper 的角色:
 
 - 不存储数据本身, 只存元数据和复制日志
 - 提供分布式协调: leader 选举、part 分配、DDL 同步
-- ZK 不可用时: 已有数据仍可读写 (本地有完整数据), 但无法执行 DDL、无法同步新数据
-- ClickHouse 21.8+ 引入 ClickHouse Keeper 替代 ZK, 用 Raft 协议, 去掉 Java 依赖
+- ZK 不可用时: 读不受影响 (本地有完整数据), 但副本表的 INSERT 与 DDL/ALTER 都会失败 (写入依赖 ZK 中的 replication log, 常见表现为表进入只读模式)
+- ClickHouse 21.11 实验支持 ClickHouse Keeper、21.12 feature complete、22.3+ 生产可用, 用 Raft 协议替代 ZK, 去掉 Java 依赖
 
 副本 vs 分片:
 
@@ -187,14 +187,14 @@ ZooKeeper 的角色:
 
 ClickHouse 的向量化执行:
 
-- 每个算子每次处理一列的一个 block (默认 8192 行, 即一个 granule)
+- 每个算子每次处理一列的一个 block (查询执行层由 `max_block_size` 控制, 默认 65536 行; 不要与存储层的索引粒度 8192 混淆——granule 是 MergeTree 稀疏索引与标记文件的最小单元, 两者概念不同)
 - 同列数据连续存放在内存中, 一次加载到 CPU cache line
 - 利用 SIMD (SSE4.2 / AVX2 / AVX-512) 一条指令并行处理 4~16 个值
-- 减少虚函数调用次数: 从 N 行 x M 列次降为 (N/8192) x M 次
+- 减少虚函数调用次数: 从 N 行 x M 列次降为 (N/max_block_size) x M 次
 
 ```text
 Volcano (逐行):          向量化 (逐列块):
-  for each row:            for each block (8192 rows):
+  for each row:            for each block (max_block_size rows):
     filter(row)              filter(column_block)  // SIMD 批量比较
     project(row)             project(column_block) // SIMD 批量计算
     aggregate(row)           aggregate(column_block)
@@ -332,20 +332,20 @@ ALTER TABLE events DELETE WHERE user_id = 12345;
 1. ReplacingMergeTree: 插入新版本行, 合并时自动去重, 查询用 FINAL 或 argMax
 2. CollapsingMergeTree: 插入 -1 行抵消旧行, +1 行写入新值
 3. 分区级操作: `ALTER TABLE DROP PARTITION` 删除整个分区 (瞬间完成)
-4. 轻量删除 (21.8+): `DELETE FROM events WHERE ...` (注意不是 ALTER TABLE DELETE), 只标记行删除, 不重写 part, 查询时过滤; 合并时物理清除. 比 mutation 快很多, 但标记期间仍占磁盘
+4. 轻量删除 (22.8+): `DELETE FROM events WHERE ...` (注意不是 ALTER TABLE DELETE), 只标记行删除, 不重写 part, 查询时过滤; 合并时物理清除. 比 mutation 快很多, 但标记期间仍占磁盘
 
 ### Q13: ClickHouse 与 MySQL 在 OLAP 场景下的性能差异根源是什么?
 
 同样一条 `SELECT count(*) FROM orders WHERE status = 'paid' GROUP BY region` (1 亿行, 20 列):
 
-| 环节     | MySQL (InnoDB)                                  | ClickHouse                        |
-| -------- | ----------------------------------------------- | --------------------------------- |
-| I/O      | 读所有 20 列 (行存, 即使只需 3 列)              | 只读 status + region 两列         |
-| 压缩     | 页级压缩, 压缩率约 2x                           | 列级 LZ4/ZSTD, 压缩率 5~10x       |
-| 执行模型 | 逐行 Volcano, 每行一次虚函数调用                | 向量化, 8192 行一批 SIMD 处理     |
-| 并行度   | 单线程执行 (per query, 即使 8.0 也以单线程为主) | 多核并行, 每个 part 一个线程      |
-| 索引     | B+ 树定位行, 回表读数据                         | 稀疏索引定位 granule, 顺序扫描    |
-| 聚合     | 逐行累加                                        | 列数据连续, cache 友好, SIMD 加速 |
+| 环节     | MySQL (InnoDB)                                  | ClickHouse                                                     |
+| -------- | ----------------------------------------------- | -------------------------------------------------------------- |
+| I/O      | 读所有 20 列 (行存, 即使只需 3 列)              | 只读 status + region 两列                                      |
+| 压缩     | 页级压缩, 压缩率约 2x                           | 列级 LZ4/ZSTD, 压缩率 5~10x                                    |
+| 执行模型 | 逐行 Volcano, 每行一次虚函数调用                | 向量化, 按 block (max_block_size 默认 65536 行) 批量 SIMD 处理 |
+| 并行度   | 单线程执行 (per query, 即使 8.0 也以单线程为主) | 多核并行, 每个 part 一个线程                                   |
+| 索引     | B+ 树定位行, 回表读数据                         | 稀疏索引定位 granule, 顺序扫描                                 |
+| 聚合     | 逐行累加                                        | 列数据连续, cache 友好, SIMD 加速                              |
 
 综合效果: 典型 OLAP 聚合查询 ClickHouse 比 MySQL 快 100~1000 倍.
 
@@ -816,7 +816,7 @@ SELECT * FROM events_kafka;
 注意事项:
 
 - `kafka_num_consumers` 不要超过 topic 的 partition 数 (多出的消费者分不到 partition)
-- 消费失败时消息不会重试, 会进入死信 (需监控 `KafkaConsumerErrors` 指标)
+- 消息解析失败不会重试, Kafka 引擎也没有内建死信队列: 默认按 `kafka_skip_broken_messages` (默认 0, 即一条坏消息即报错) 跳过并记日志; 配置 `kafka_handle_error_mode='stream'` 可把错误与原始消息写入 `_error`/`_raw_message` 虚拟列由下游自行处理. 需自行监控 system.kafka_consumers 表与日志
 - 每批消费的数据量由 `kafka_max_block_size` 控制 (默认 65536 行)
 - ClickHouse 重启后从上次提交的 offset 继续消费, 可能重复消费 (需目标表去重)
 
@@ -1020,7 +1020,7 @@ kafka-consumer-groups.sh --bootstrap-server broker:9092 \
 4. 数据再平衡:
    - 方案 A: 新数据自动路由到新分片 (Distributed 表写入时按分片键分配), 旧数据不动 — 简单但数据不均匀
    - 方案 B: 用 `INSERT INTO new_shard SELECT ... FROM old_shard WHERE sipHash64(user_id) % 4 = 3` 手动迁移部分数据 — 均匀但有 I/O 开销
-   - 方案 C: 使用 ClickHouse 的 `REBALANCE` 命令 (实验性) 或脚本自动化迁移
+   - 方案 C: 用脚本自动化方案 B (按分片键计算目标分片、批量 INSERT SELECT、校验行数后清理源数据); 注意 ClickHouse 没有"跨分片数据再平衡"的命令——`SYSTEM REBALANCE QUEUE` 只用于副本间复制队列的再平衡, 不迁移分片数据
 
 保证不中断:
 

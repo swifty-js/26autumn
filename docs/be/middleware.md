@@ -168,7 +168,7 @@ watchChan := watcher.Watch(ctx, "prefix/", clientv3.WithPrefix(), clientv3.WithR
 - Watch 的 key 范围不宜过大, 避免 server 端遍历开销
 - 客户端必须处理 `ErrCompacted`, 收到后执行全量同步再重新 Watch
 - 大量 Watcher 监听同一 key 时, server 端使用 watcherGroup 批量分发
-- gRPC stream 的 `WithProgressNotify(interval)` 用于检测静默断连
+- gRPC stream 的 `WithProgressNotify()` 用于检测静默断连 (无参调用; 通知间隔由服务端 `--experimental-watch-progress-notify-interval` 控制, 默认 10min)
 
 ### Q4: etcd 的 Lease 和 KeepAlive 机制如何保证服务发现的可靠性?
 
@@ -240,7 +240,7 @@ BoltDB 核心特点
 BoltDB 的局限与应对
 
 ```
-局限 1: 写放大 (COW 复制整路径) -> etcd 用 WAL 批量 commit
+局限 1: 写放大 (COW 复制整路径) -> etcd 后端用批量事务 (默认约 100ms batch interval) 摊薄 BoltDB 提交/fsync 开销
 局限 2: 单写锁 -> 写入瓶颈在 Raft 共识, 非 BoltDB
 局限 3: 空间碎片 (文件只增不减) -> 定期 Defrag
 局限 4: 大 value 性能差 -> etcd 限制 value 最大 1.5MB
@@ -640,7 +640,7 @@ absent(up{job="svc"})                                  # 存活检测
 ```
 写入: Samples -> WAL -> Head Block (内存, 2h) -> Persistent Block (磁盘)
 编码: Delta-of-Delta (时间戳) + XOR (值), 1-2 bytes/sample
-压缩: 2h -> 6h -> 18h -> 36h (3 倍递增合并)
+压缩: 2h -> 6h -> 18h -> 54h -> ... (严格 3 倍递增, 上限 min(31d, retention 的 10%))
 ```
 
 ### Q35: Prometheus 的服务发现机制是如何工作的?
@@ -848,7 +848,7 @@ HNSW (Hierarchical Navigable Small World)
 
 时间复杂度: O(log N * EF_RUNTIME)
 准确率: 近似 (95-99%, 取决于参数)
-内存: 原始向量 + 图结构 (约 1.5-2 倍原始向量大小)
+内存: 原始向量 + 图结构; 图开销每向量约 150-250B (与维度无关), 高维向量下仅占原始向量 3-5%, 低维短向量下占比才接近 1.5-2 倍
 适用: 大数据集 (> 10 万), 对延迟敏感
 ```
 
@@ -940,7 +940,7 @@ Redis 向量存储的劣势
 ```
 1. 内存成本高: 所有数据和索引都在内存中
    - 100 万条 1536 维 FLOAT32 向量 = 约 6GB 内存
-   - 加上 HNSW 图结构约 9-12GB
+   - 加上 HNSW 图结构 (每向量约 150-250B, 与维度无关) 仅约 0.2GB, 总计约 6.2-6.5GB
 2. 数据规模受限: 单机内存上限
 3. 分布式能力弱: Redis Cluster 对 FT.SEARCH 支持有限
 4. 无 GPU 加速: 纯 CPU 计算
@@ -1102,8 +1102,8 @@ func retrieve(ctx context.Context, question string, topK int) ([]Chunk, error) {
 5. 内存估算:
    100 万条 1536 维 FLOAT32:
    - 原始向量: 1M * 1536 * 4 = 6 GB
-   - HNSW 图 (M=16): 约 3-4 GB
-   - 总计: 约 9-10 GB
+   - HNSW 图 (M=16, 每向量约 150-250B 且与维度无关): 约 0.2 GB
+   - 总计: 约 6.2-6.5 GB
 ```
 
 性能调优

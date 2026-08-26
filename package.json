@@ -11,9 +11,9 @@
   "type": "module",
   "author": "https://github.com/swifty-js",
   "scripts": {
-    "dev": "vite",
+    "dev": "DOCS_PASSWORD=pass vite",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "DOCS_PASSWORD=pass vite preview",
     "git:commit": "git add -A && git commit -m \"feat: Introduce new features\"",
     "git:push": "pnpm git:commit && git push origin main",
     "format": "prettier -w ./ --experimental-cli",

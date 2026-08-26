@@ -1,3 +1,7 @@
+---
+protected: true
+---
+
 # Data 工作: JSError 自动修复、视频切片聚类标签与手写 SWR
 
 ## JSError 自动修复与故障现场还原

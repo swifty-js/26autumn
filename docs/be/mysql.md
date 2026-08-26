@@ -51,7 +51,7 @@ update 会经过与 select 相同的连接器、解析器、优化器、执行�
 
 ```sql
 show processlist;                        -- 查看连接列表, Sleep 状态为空闲连接
-kill connection +<id>;                   -- 手动断开连接
+kill connection <id>;                   -- 手动断开连接 (或简写 kill <id>)
 show variables like 'wait_timeout';      -- 空闲连接最大存活时间, 默认 28800s
 show variables like 'max_connections';   -- 最大连接数
 ```
@@ -250,7 +250,7 @@ select * from users where name = 'Alice';             -- 需要回表查其余�
 
 1. 违反最左匹配: 联合索引缺最左列或跳列 (见 Q14)
 2. 左模糊/左右模糊匹配: `like '%xxx'`、`like '%xxx%'` 失效, 因为索引按前缀有序; `like 'xxx%'` 有效
-3. 对索引列使用函数: `where length(name) = 5` 失效. 解决: MySQL 5.7+ 可建函数索引 (基于虚拟列): `alter table t add key idx_len ((length(name)))`
+3. 对索引列使用函数: `where length(name) = 5` 失效. 解决: MySQL 8.0.13+ 支持函数索引 (functional key parts): `alter table t add key idx_len ((length(name)))`; 5.7 需先加 generated column (虚拟列) 再对其建普通索引
 4. 对索引列做表达式计算: `where id + 1 = 7` 失效, `where id = 7 - 1` 有效——优化器不会主动做代数变换
 5. 隐式类型转换: MySQL 比较字符串和数字时把字符串转为数字.
    - `where phone = 13800000000` (phone 是 varchar): 等价于对索引列套 cast 函数, 失效

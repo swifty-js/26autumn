@@ -1,3 +1,7 @@
+---
+protected: true
+---
+
 # IEG 工作: NoSQL 管理端四项工程实践
 
 ## IEG 工作 1: 迁移类组件到函数组件
