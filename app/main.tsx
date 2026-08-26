@@ -29,6 +29,10 @@ bootstrap({
         return eventList;
       },
     },
-    plugins: [new ScreenRecordPlugin(), new PerformancePlugin(), new ExposurePlugin()],
+    plugins: [
+      new ScreenRecordPlugin(),
+      new PerformancePlugin(),
+      new ExposurePlugin(),
+    ],
   },
 });

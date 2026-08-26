@@ -65,12 +65,12 @@ selectStyle 的默认值依赖 mode 是一个关键设计: replace 模式需要�
 
 DevtoolsOptions 子配置:
 
-| 选项        | 默认值          | 说明                                                                                       |
-| ----------- | --------------- | ------------------------------------------------------------------------------------------ |
-| intervalMs  | 1000            | 慢轮询间隔毫秒数                                                                           |
-| threshold   | 170             | 窗口 outer 与 inner 尺寸差超过该值视为 DevTools 停靠打开                                   |
-| freeze      | true            | 检测到 DevTools 后以 20ms 紧密循环反复执行 debugger 探针, 冻结页面直到 DevTools 关闭       |
-| redirectUrl | "about:blank"   | freeze 被绕过( 用户脚本 hook Function、禁用断点等) 时跳转的目标页; 设为 false 禁用此兜底   |
+| 选项        | 默认值        | 说明                                                                                     |
+| ----------- | ------------- | ---------------------------------------------------------------------------------------- |
+| intervalMs  | 1000          | 慢轮询间隔毫秒数                                                                         |
+| threshold   | 170           | 窗口 outer 与 inner 尺寸差超过该值视为 DevTools 停靠打开                                 |
+| freeze      | true          | 检测到 DevTools 后以 20ms 紧密循环反复执行 debugger 探针, 冻结页面直到 DevTools 关闭     |
+| redirectUrl | "about:blank" | freeze 被绕过( 用户脚本 hook Function、禁用断点等) 时跳转的目标页; 设为 false 禁用此兜底 |
 
 ### 3.2 resolveOptions 归一化
 
@@ -267,13 +267,13 @@ selectstart 拦截器作为样式被覆盖时的兜底, 逻辑与 contextmenu �
 
 ## 7. 各特性行为矩阵
 
-| 特性        | 监听目标 | 阶段 | 事件                            | 可编辑豁免          | excludeSelectors 豁免    | 注入样式 |
-| ----------- | -------- | ---- | ------------------------------- | ------------------- | ------------------------ | -------- |
-| clipboard   | window   | 捕获 | copy / cut / dragstart          | 是                  | 是( copy/cut 优先按选区) | 否       |
-| keyboard    | window   | 捕获 | keydown                         | 部分( 导出键不豁免) | 部分( 导出键不豁免)      | 否       |
-| contextmenu | window   | 捕获 | contextmenu                     | 是                  | 是                       | 否       |
-| style       | window   | 捕获 | selectstart( 仅非 replace 模式) | 是                  | 是                       | 是       |
-| print       | window   | —    | beforeprint                     | —                   | —                        | 是       |
+| 特性        | 监听目标 | 阶段 | 事件                                       | 可编辑豁免          | excludeSelectors 豁免    | 注入样式 |
+| ----------- | -------- | ---- | ------------------------------------------ | ------------------- | ------------------------ | -------- |
+| clipboard   | window   | 捕获 | copy / cut / dragstart                     | 是                  | 是( copy/cut 优先按选区) | 否       |
+| keyboard    | window   | 捕获 | keydown                                    | 部分( 导出键不豁免) | 部分( 导出键不豁免)      | 否       |
+| contextmenu | window   | 捕获 | contextmenu                                | 是                  | 是                       | 否       |
+| style       | window   | 捕获 | selectstart( 仅非 replace 模式)            | 是                  | 是                       | 是       |
+| print       | window   | —    | beforeprint                                | —                   | —                        | 是       |
 | devtools    | window   | —    | resize + 慢轮询 + debugger 探针 + 守卫循环 | —                   | —                        | 否       |
 
 ## 8. 关键设计决策小结

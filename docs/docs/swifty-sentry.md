@@ -1,4 +1,5 @@
 # @swifty.js/sentry 技术说明文档
+
 本机器路径 /Users/hangtiancheng/github/swifty-sentry/sentry
 
 > 仓库: <https://github.com/hangtiancheng/swifty-sentry>( 目录 `sentry/`, npm 包名 `@swifty.js/sentry`)
@@ -29,14 +30,14 @@ TypeScript 编写( strict + `exactOptionalPropertyTypes`) , ESM/CJS 双产物( r
 
 package.json 定义 6 个公共入口( package.json:32-63 ↔ rollup.config.ts:58-65) :
 
-| 入口        | 源文件               | 内容                                                                             |
-| ----------- | -------------------- | -------------------------------------------------------------------------------- |
-| `.`         | src/index.ts         | `init`/`destroy`/`enablePlugin`、手动上报 API、全部类型                          |
+| 入口        | 源文件               | 内容                                                                                                          |
+| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `.`         | src/index.ts         | `init`/`destroy`/`enablePlugin`、手动上报 API、全部类型                                                       |
 | `./plugins` | src/plugins/index.ts | `PerformancePlugin`、`ScreenRecordPlugin`、`ExposurePlugin`、`ScreenRecordPluginOptions`、`unzipScreenRecord` |
-| `./react`   | src/react.ts         | `ReactErrorBoundary`                                                             |
-| `./vue`     | src/vue.ts           | `vuePlugin`                                                                      |
-| `./vite`    | src/vite.ts          | dev server 上报接收 + sourcemap 还原插件                                         |
-| `./webpack` | src/webpack.ts       | 同上( webpack-dev-server 版)                                                     |
+| `./react`   | src/react.ts         | `ReactErrorBoundary`                                                                                          |
+| `./vue`     | src/vue.ts           | `vuePlugin`                                                                                                   |
+| `./vite`    | src/vite.ts          | dev server 上报接收 + sourcemap 还原插件                                                                      |
+| `./webpack` | src/webpack.ts       | 同上( webpack-dev-server 版)                                                                                  |
 
 运行时依赖 7 个, 各司其职: `web-vitals`( 性能指标) 、`@rrweb/record` + `pako`( 录屏 + gzip) 、`ua-parser-js`( 设备信息) 、`@fingerprintjs/fingerprintjs`( 可选访客指纹) 、`zod`( 校验) 、`source-map`( dev 堆栈还原) .
 
@@ -221,10 +222,10 @@ load 后上报 NavigationTiming( navigation-timing.ts:61-104, DNS/TCP/TTFB/DomRe
 
 sendBatch( index.ts:142-150 决策, transports.ts 实现) :
 
-| 级别                     | 条件                                                       | 实现                                                                                                       | 失败判定                                           |
-| ------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| ① `navigator.sendBeacon` | 批次 JSON ≤ 60KB( TextEncoder 计字节, transports.ts:26-30) | `sendBeacon(dsn, json)`( :32-37)                                                                           | 返回 false( 浏览器排队失败) 则降级                 |
-| ② Image beacon           | `useImageReport: true`( 默认关) 且 ≤ 2KB                   | `img.src = dsn?data=encodeURIComponent(json)`, 经 CallbackQueue 在 `requestIdleCallback` 空闲执行( :64-71) | 乐观成功( GET 打点无法可靠感知失败)                |
+| 级别                     | 条件                                                       | 实现                                                                                                                                                                                                     | 失败判定                                           |
+| ------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| ① `navigator.sendBeacon` | 批次 JSON ≤ 60KB( TextEncoder 计字节, transports.ts:26-30) | `sendBeacon(dsn, json)`( :32-37)                                                                                                                                                                         | 返回 false( 浏览器排队失败) 则降级                 |
+| ② Image beacon           | `useImageReport: true`( 默认关) 且 ≤ 2KB                   | `img.src = dsn?data=encodeURIComponent(json)`, 经 CallbackQueue 在 `requestIdleCallback` 空闲执行( :64-71)                                                                                               | 乐观成功( GET 打点无法可靠感知失败)                |
 | ③ `fetch`                | 兜底                                                       | `fetch(dsn, {method: "POST", headers: {"Content-Type": "application/json"}, keepalive})`, body ≤60KB 才启用 keepalive( Chromium 对 keepalive 请求有约 64KB 在途预算, :44-53) ; reportByFetch 整体 :39-62 | `!res.ok` 或异常 → 返回 false 并触发服务端故障处理 |
 
 sendBeacon 与带 keepalive 的 fetch( body ≤60KB) 均在页面卸载时仍能完成发送, 保证 beforeunload 场景( PV 停留、最后一批错误) 不丢数据.

@@ -1,4 +1,5 @@
 # A2UI
+
 本机器路径: /Users/hangtiancheng/Documents/a2ui (克隆指令: git clone git@github.com:a2ui-project/a2ui.git)
 请浏览文档库: /Users/hangtiancheng/.swifty/docs
 
@@ -1626,10 +1627,10 @@ A2UI 把"Agent 发 UI"从发代码变成发数据, 用 catalog 契约 + 数据�
 
 阅读旧资料时注意以下差异 (本文全部采用 v0.9 形态):
 
-| 维度            | v0.8                         | v0.9                                             |
-| :-------------- | :--------------------------- | :----------------------------------------------- |
-| 组件类型字段    | 无 componentType 字段; 仍是 component 键, 值为 {类型名: props} 的包裹对象 | component 键直接是类型名字符串 (相当于 componentType) |
-| 组件属性        | 嵌在类型名包裹对象内, 无 params 键 | 按实际 schema 直接平铺在组件对象上               |
-| createSurface   | 不存在; 信封为 beginRendering/surfaceUpdate/dataModelUpdate/deleteSurface | 必须携带 catalogId, 数据由 updateDataModel 下发  |
-| 数据更新        | dataModelUpdate: path + contents (key/value 条目) 数组 | updateDataModel: path + value, upsert 语义       |
-| 设计取向        | 面向 structured output       | prompt-first, schema 嵌入 prompt, 生成后校验修复 |
+| 维度          | v0.8                                                                      | v0.9                                                  |
+| :------------ | :------------------------------------------------------------------------ | :---------------------------------------------------- |
+| 组件类型字段  | 无 componentType 字段; 仍是 component 键, 值为 {类型名: props} 的包裹对象 | component 键直接是类型名字符串 (相当于 componentType) |
+| 组件属性      | 嵌在类型名包裹对象内, 无 params 键                                        | 按实际 schema 直接平铺在组件对象上                    |
+| createSurface | 不存在; 信封为 beginRendering/surfaceUpdate/dataModelUpdate/deleteSurface | 必须携带 catalogId, 数据由 updateDataModel 下发       |
+| 数据更新      | dataModelUpdate: path + contents (key/value 条目) 数组                    | updateDataModel: path + value, upsert 语义            |
+| 设计取向      | 面向 structured output                                                    | prompt-first, schema 嵌入 prompt, 生成后校验修复      |

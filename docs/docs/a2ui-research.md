@@ -3,6 +3,7 @@
 调研日期: 2026-08-20
 调研来源:
 本机器路径
+
 - swifty-mcp 本地知识库中的 A2UI 官方文档( a2ui/ 目录, 含 introduction、concepts、reference、guides、ecosystem)
 - /Users/hangtiancheng/github/a2ui/packages/shadcn( @swifty.js/a2ui-shadcn 包源码)
 - /Users/hangtiancheng/github/swifty-cli/apps/swifty-agent( A2UI 应用源码)

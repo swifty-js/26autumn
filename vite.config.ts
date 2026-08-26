@@ -1,7 +1,11 @@
 import { resolve, dirname } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
-import { swiftyDocsPlugin, docsGuardPlugin, sentryPlugin } from "@lark.js/docs/vite";
+import {
+  swiftyDocsPlugin,
+  docsGuardPlugin,
+  sentryPlugin,
+} from "@lark.js/docs/vite";
 import docsConfig from "./docs.config.js";
 import { fileURLToPath } from "node:url";
 import { parse } from "node-html-parser";

@@ -119,14 +119,14 @@ Memory 就是解决这个问题的方法——把重要的信息保存在磁盘�
 
 ### Loop Engineering 与 Prompt Engineering 的本质区别
 
-| 维度 | Prompt Engineering | Loop Engineering |
-|------|-------------------|-----------------|
-| 核心动作 | 优化单次手动指令 | 设计自动运行的系统 |
+| 维度     | Prompt Engineering         | Loop Engineering          |
+| -------- | -------------------------- | ------------------------- |
+| 核心动作 | 优化单次手动指令           | 设计自动运行的系统        |
 | 交互方式 | 你 → 提示 → AI → 回复 → 你 | 你设计系统 → 系统自动运行 |
-| 时间维度 | 单次、即时 | 持续、周期性 |
-| 人的角色 | 每次都在驾驶座上 | 设计路线，偶尔检查 |
-| 杠杆点 | 单条提示的质量 | 系统设计的质量 |
-| 适用场景 | 一次性任务、探索性工作 | 重复性工作、长期项目 |
+| 时间维度 | 单次、即时                 | 持续、周期性              |
+| 人的角色 | 每次都在驾驶座上           | 设计路线，偶尔检查        |
+| 杠杆点   | 单条提示的质量             | 系统设计的质量            |
+| 适用场景 | 一次性任务、探索性工作     | 重复性工作、长期项目      |
 
 ### Loop Engineering 不是什么？
 
@@ -195,14 +195,14 @@ Loop Engineering 的核心洞察是：对话式的交互方式有一个根本性
 
 ### 1.2 关键人物与里程碑
 
-| 时间 | 事件 |
-|------|------|
-| 2024 年 11 月 | **MCP 协议发布** — Anthropic 发布 Model Context Protocol，为 AI 与外部工具的连接建立开放标准。 |
-| 2025 年 2 月 | **Harness Engineering 概念提出** — Mitchell Hashimoto 提出"Harness Engineering"——围绕 AI 模型构建 harness（harness = 模型之外的一切）。 |
-| 2025 年 10 月 | **Claude Code Skills 发布** — Anthropic 推出 Skills 功能，允许用户将项目知识编码为可复用的模块。 |
-| 2026 年 2 月 | **Claude Code Agent Teams 发布** — Anthropic 推出多代理团队功能，多个 Claude 实例可以并行协作。 |
-| 2026 年 4 月 | **OpenAI Codex 重大更新** — Codex 加入 /goal、subagents、MCP 支持，与 Claude Code 形成直接竞争。 |
-| 2026 年 6 月 | **Loop Engineering 概念推广** — Addy Osmani 发表博客文章，系统性地总结和命名了 Loop Engineering 这一范式。 |
+| 时间          | 事件                                                                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 2024 年 11 月 | **MCP 协议发布** — Anthropic 发布 Model Context Protocol，为 AI 与外部工具的连接建立开放标准。                                          |
+| 2025 年 2 月  | **Harness Engineering 概念提出** — Mitchell Hashimoto 提出"Harness Engineering"——围绕 AI 模型构建 harness（harness = 模型之外的一切）。 |
+| 2025 年 10 月 | **Claude Code Skills 发布** — Anthropic 推出 Skills 功能，允许用户将项目知识编码为可复用的模块。                                        |
+| 2026 年 2 月  | **Claude Code Agent Teams 发布** — Anthropic 推出多代理团队功能，多个 Claude 实例可以并行协作。                                         |
+| 2026 年 4 月  | **OpenAI Codex 重大更新** — Codex 加入 /goal、subagents、MCP 支持，与 Claude Code 形成直接竞争。                                        |
+| 2026 年 6 月  | **Loop Engineering 概念推广** — Addy Osmani 发表博客文章，系统性地总结和命名了 Loop Engineering 这一范式。                              |
 
 ### 1.3 相关概念辨析
 
@@ -317,17 +317,20 @@ description: Generate React components following our design system
 # React Component Skill
 
 ## Conventions
+
 - Use TypeScript with strict mode
 - Follow the shadcn/ui component pattern
 - All components must be accessible (ARIA labels)
 - Use Tailwind CSS for styling
 
 ## File Structure
+
 - Component: `components/{ComponentName}.tsx`
 - Tests: `components/{ComponentName}.test.tsx`
 - Stories: `components/{ComponentName}.stories.tsx`
 
 ## Common Pitfalls
+
 - NEVER use inline styles
 - ALWAYS forward refs for composability
 - Check for memory leaks in useEffect
@@ -357,12 +360,12 @@ MCP 基于 JSON-RPC 2.0 协议，支持三种传输方式：
 
 Sub-agents 是 Loop 中最有用的结构性设计。核心原则：让写代码的代理和检查代码的代理不是同一个。
 
-| 代理角色 | 职责 | 推荐模型 |
-|---------|------|---------|
-| Explorer（探索者） | 阅读代码、理解结构、生成报告 | 轻量快速模型 |
-| Implementer（实现者） | 编写代码、修改文件 | 主力模型 |
-| Tester（测试者） | 编写测试、运行测试套件 | 主力模型 |
-| Reviewer（审查者） | 检查代码质量、安全风险 | 强推理模型 |
+| 代理角色              | 职责                         | 推荐模型     |
+| --------------------- | ---------------------------- | ------------ |
+| Explorer（探索者）    | 阅读代码、理解结构、生成报告 | 轻量快速模型 |
+| Implementer（实现者） | 编写代码、修改文件           | 主力模型     |
+| Tester（测试者）      | 编写测试、运行测试套件       | 主力模型     |
+| Reviewer（审查者）    | 检查代码质量、安全风险       | 强推理模型   |
 
 ### 2.6 Memory：跨会话的记忆
 
@@ -378,16 +381,19 @@ AI 代理的上下文窗口是有限的，而且每次新会话都会清空。Me
 # AGENTS.md - 项目状态记录
 
 ## 当前进行中的工作
+
 - [ ] 重构支付模块（Issue #234）
   - 负责人: payment-refactor-agent
   - Worktree: ../project-payment
   - 状态: 测试中，3/5 测试通过
 
 ## 已完成
+
 - [x] 修复登录页面的 CSS 问题（PR #456）
   - 验证: 所有视觉回归测试通过
 
 ## 待分类
+
 - CI 失败: test/auth 超时（需调查）
 - 新 Issue: 用户报告导出功能异常
 ```
@@ -452,15 +458,15 @@ Loop Engineering 的理念与认知科学中的几个重要理论高度吻合：
 
 # /loop: 按时间表重复执行提示
 # 每个工作日早上 9 点运行
-/loop "Read yesterday's CI failures and open issues, 
-       write findings to TODO.md, and draft fixes 
+/loop "Read yesterday's CI failures and open issues,
+       write findings to TODO.md, and draft fixes
        for anything labeled quick-win" \
        --schedule "0 9 * * 1-5"
 
 # 子代理：并行执行探索任务
-/spawn "audit the test suite for flaky tests 
+/spawn "audit the test suite for flaky tests
         and report which ones share a fixture"
-/spawn "review the diff against our coding-standards.md 
+/spawn "review the diff against our coding-standards.md
         and list violations"
 ```
 
@@ -472,11 +478,11 @@ codex /goal "Migrate the billing module to the new pricing API,
              keep all existing tests green"
 
 # /spawn: 启动子代理并行工作
-> /spawn "list every file under apps/billing that imports 
+> /spawn "list every file under apps/billing that imports
          from apps.legacy and write the import graph"
-> /spawn "grep for raw SQL strings that bypass the ORM 
+> /spawn "grep for raw SQL strings that bypass the ORM
          in apps/billing and apps/payments"
-> /spawn "for each test that takes more than 5 seconds, 
+> /spawn "for each test that takes more than 5 seconds,
          output test name + likely cause"
 
 # 父代理汇总三个子代理的报告，制定迁移计划
@@ -492,17 +498,20 @@ codex /goal "Migrate the billing module to the new pricing API,
 # 项目级配置：Claude Code 每次启动时读取
 
 ## 项目概述
+
 - 技术栈: Next.js 14 + TypeScript + Prisma + PostgreSQL
 - 测试框架: Vitest + Playwright
 - 代码风格: ESLint (strict) + Prettier
 
 ## 工作约定
+
 - NEVER 直接修改 migration 文件
 - ALWAYS 在修改 API 后更新 OpenAPI 文档
 - 提交前必须跑 `npm run test:ci`
 - 所有新功能必须有对应的 E2E 测试
 
 ## 子代理配置
+
 - explorer: 只读权限，用于代码探索和分析
 - implementer: 读写权限，用于实现功能
 - reviewer: 只读权限，用于代码审查
@@ -520,12 +529,14 @@ description: Daily automated triage of project status
 # Daily Triage Skill
 
 ## Steps
+
 1. Read CI failures from the last 24 hours
 2. Check open issues labeled `bug` or `urgent`
 3. Review recent commits for potential regressions
 4. Write findings to `DAILY_TRIAGE.md`
 
 ## For each finding:
+
 - If labeled `quick-win`: spawn implementer subagent
 - If complex: add to `BACKLOG.md` with analysis
 - If security-related: immediately notify + spawn reviewer
@@ -533,11 +544,17 @@ description: Daily automated triage of project status
 ## Output Format
 
 ## YYYY-MM-DD Triage
+
 ### Critical (needs action today)
+
 - [ ] Issue #XXX: ...
+
 ### This Week
+
 - [ ] Issue #YYY: ...
+
 ### Watched
+
 - Issue #ZZZ: ... (monitoring)
 ```
 
@@ -673,13 +690,13 @@ CI 失败时自动诊断、修复、验证。（/goal · 验证循环）
 
 Loop Engineering 的一个现实考量是成本。多个子代理、频繁运行、强模型——这些都会消耗大量 Token。
 
-| 策略 | 具体做法 | 效果 |
-|------|---------|------|
-| 模型分层 | 探索用轻量模型，实现用主力模型，审查用强模型 | 降低 60-80% 成本 |
-| 频率控制 | 从每天一次开始，根据产出质量调整 | 避免无效运行 |
-| 条件触发 | 只在检测到变化时才运行（如 CI 失败、新 Issue） | 减少空转 |
-| 上下文压缩 | 使用 Skills 的渐进式披露，避免加载无关内容 | 减少 Token 消耗 |
-| 预算上限 | 设置每日/每周 Token 预算，超限自动暂停 | 防止意外账单 |
+| 策略       | 具体做法                                       | 效果             |
+| ---------- | ---------------------------------------------- | ---------------- |
+| 模型分层   | 探索用轻量模型，实现用主力模型，审查用强模型   | 降低 60-80% 成本 |
+| 频率控制   | 从每天一次开始，根据产出质量调整               | 避免无效运行     |
+| 条件触发   | 只在检测到变化时才运行（如 CI 失败、新 Issue） | 减少空转         |
+| 上下文压缩 | 使用 Skills 的渐进式披露，避免加载无关内容     | 减少 Token 消耗  |
+| 预算上限   | 设置每日/每周 Token 预算，超限自动暂停         | 防止意外账单     |
 
 ### 5.5 写在最后
 

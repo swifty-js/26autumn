@@ -8,17 +8,17 @@
 
 ## 总览
 
-| 文档                | 对照代码                          | 错误 | 警告 | 建议 | 整体评价                         |
-| ------------------- | --------------------------------- | ---- | ---- | ---- | -------------------------------- |
-| swifty-http.md      | ~/github/swifty.go/swifty_http    | 0    | 5    | 7    | 极高, 25 处行号全部精确          |
-| swifty-rpc.md       | ~/github/swifty.go/swifty_rpc     | 3    | 7    | 8    | 很高, 路径/名称/协议全部通过     |
-| swifty-cache.md     | ~/github/swifty.js/packages/cache | 1    | 5    | 8    | 很高, 代码片段几乎逐字匹配       |
-| swiftx.md           | ~/github/swifty.go/swiftx         | 3    | 7    | 7    | 高, 架构描述准确, 行号全面偏移   |
-| go.md               | 通用知识 + swifty.go 示例         | 2    | 4    | 4    | 极高, 深度匹配高级定位           |
-| middleware.md       | 通用知识                          | 1    | 3    | 4    | 高, 广度足够                     |
-| mysql.md            | 通用知识                          | 0    | 3    | 4    | 极高, 未发现事实性错误           |
-| redis.md            | 通用知识                          | 0    | 4    | 4    | 很高, 分布式锁部分是亮点         |
-| clickhouse-kafka.md | 通用知识                          | 1    | 4    | 3    | 高, 个别数字需标注前提           |
+| 文档                | 对照代码                          | 错误 | 警告 | 建议 | 整体评价                       |
+| ------------------- | --------------------------------- | ---- | ---- | ---- | ------------------------------ |
+| swifty-http.md      | ~/github/swifty.go/swifty_http    | 0    | 5    | 7    | 极高, 25 处行号全部精确        |
+| swifty-rpc.md       | ~/github/swifty.go/swifty_rpc     | 3    | 7    | 8    | 很高, 路径/名称/协议全部通过   |
+| swifty-cache.md     | ~/github/swifty.js/packages/cache | 1    | 5    | 8    | 很高, 代码片段几乎逐字匹配     |
+| swiftx.md           | ~/github/swifty.go/swiftx         | 3    | 7    | 7    | 高, 架构描述准确, 行号全面偏移 |
+| go.md               | 通用知识 + swifty.go 示例         | 2    | 4    | 4    | 极高, 深度匹配高级定位         |
+| middleware.md       | 通用知识                          | 1    | 3    | 4    | 高, 广度足够                   |
+| mysql.md            | 通用知识                          | 0    | 3    | 4    | 极高, 未发现事实性错误         |
+| redis.md            | 通用知识                          | 0    | 4    | 4    | 很高, 分布式锁部分是亮点       |
+| clickhouse-kafka.md | 通用知识                          | 1    | 4    | 3    | 高, 个别数字需标注前提         |
 
 合计: 8 处错误, 38 处警告, 44 处建议.
 

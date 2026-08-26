@@ -11,7 +11,7 @@ export default defineConfig({
     { text: "Swifty 后端", link: "fe/swifty-agent" },
   ],
   sidebar: {
-    "/docs/": 'auto',
+    "/docs/": "auto",
     "/fe/": "auto",
     "/be/": "auto",
   },
