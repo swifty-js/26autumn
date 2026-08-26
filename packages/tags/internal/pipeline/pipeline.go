@@ -101,7 +101,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	for i := range segments {
 		if errs[i] != nil {
-			results[i].Labels = []string{"未能识别内容"}
+			results[i].Labels = []string{"unrecognized content"}
 			results[i].Summary = errs[i].Error()
 		}
 		report.Segments = append(report.Segments, results[i])
@@ -151,11 +151,11 @@ func writeOutputs(dir string, report Report) error {
 // renderMarkdown builds a human-readable timeline report.
 func renderMarkdown(report Report) string {
 	var b strings.Builder
-	b.WriteString("# 视频聚类标签结果\n\n")
-	fmt.Fprintf(&b, "- 视频: %s\n", filepath.Base(report.Video))
-	fmt.Fprintf(&b, "- 时长: %s\n", slicer.FormatTime(report.DurationSeconds))
-	fmt.Fprintf(&b, "- 切片粒度: %.0fs, 共 %d 个切片\n\n", report.SegmentSeconds, len(report.Segments))
-	b.WriteString("| 切片 | 时间范围 | 聚类标签 | 内容总结 |\n")
+	b.WriteString("# Video Cluster Label Results\n\n")
+	fmt.Fprintf(&b, "- Video: %s\n", filepath.Base(report.Video))
+	fmt.Fprintf(&b, "- Duration: %s\n", slicer.FormatTime(report.DurationSeconds))
+	fmt.Fprintf(&b, "- Segment granularity: %.0fs, %d segments in total\n\n", report.SegmentSeconds, len(report.Segments))
+	b.WriteString("| Segment | Time Range | Cluster Labels | Summary |\n")
 	b.WriteString("| --- | --- | --- | --- |\n")
 	for _, seg := range report.Segments {
 		fmt.Fprintf(&b, "| %d | %s - %s | %s | %s |\n",

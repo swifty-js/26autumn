@@ -848,7 +848,7 @@ if (!scheduled) {
 三个对话框体现了终端键盘交互的统一模式语言:
 
 1. 选项列表 + 光标 + 回车确认: `PermissionDialog` 三个固定选项( Yes / Yes, don't ask again / No) , 上下键循环( 边界回绕) , Enter 选择, Esc 一律视为拒绝 —— 拒绝是零成本默认动作, 安全交互的基本原则.
-2. 向导模式( 多步表单) : `AskUserDialog`( 485 行, 最复杂) 用 `useReducer` 管理 `currentQuestion + answers + submitCursor` 状态机: 顶部导航条展示问题页签( `☑/☐` 标记已答) ; 上下键选选项、Tab/左右键切问题、数字键直跳选项、空格切换多选、"Other"进入自由文本; 答完进入 Submit 页复核. 单问题非多选时隐藏 Submit 页、选完即提交 —— 按复杂度自适应流程长度.
+2. 向导模式( 多步表单) : `AskUserDialog`( 485 行, 最复杂) 用 `useReducer` 管理 `currentQuestion + answers + submitCursor` 状态机: 顶部导航条展示问题页签( 已答项带对勾标记) ; 上下键选选项、Tab/左右键切问题、数字键直跳选项、空格切换多选、"Other"进入自由文本; 答完进入 Submit 页复核. 单问题非多选时隐藏 Submit 页、选完即提交 —— 按复杂度自适应流程长度.
 3. 破坏性操作的双段确认: 计划审批三选项( yolo / manual / feedback) , Esc 默认落到最保守的 manual; 反馈文本用 Shift+Tab 提交避免与 Enter 冲突.
 4. 统一的中断语义: 所有对话框期间 Ctrl+C/Esc 都有明确含义( 拒绝/取消) , 与全局 Ctrl+C 双击退出( `ctrlCCountRef` + 2 秒窗口计数器) 分层: 对话框消费优先, 冒泡到全局的是"无对话框时"的退出.
 

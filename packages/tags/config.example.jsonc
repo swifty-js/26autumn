@@ -1,20 +1,20 @@
 {
-  // "openai" 表示任意 OpenAI 兼容端点 (base_url 原样使用, 通常带 /v1),
-  // "anthropic" 表示 Claude (SDK 自动追加 /v1/messages, base_url 不带 /v1)
+  // "openai" denotes any OpenAI-compatible endpoint (base_url is used as-is, usually ending with /v1),
+  // "anthropic" denotes Claude (the SDK appends /v1/messages automatically; base_url should not end with /v1)
   "model_provider": "openai",
   "chat_model": {
     "api_key": "your-api-key",
     "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-    // 必须是视觉模型 (VLM)
+    // Must be a vision model (VLM)
     "model": "doubao-seed-1.6-vision-250715",
     "max_tokens": 1024,
   },
-  // 切片粒度 (秒)
+  // Slicing granularity (seconds)
   "segment_seconds": 60,
-  // 每个切片抽取的代表帧数量
+  // Number of representative frames extracted per segment
   "frames_per_segment": 3,
-  // 并发处理的切片数
+  // Number of segments processed concurrently
   "concurrency": 2,
-  // 代表帧缩放宽度 (px), 高度按比例, 控制 token 成本
+  // Width (px) to which representative frames are scaled; height keeps aspect ratio, controlling token cost
   "frame_width": 768,
 }

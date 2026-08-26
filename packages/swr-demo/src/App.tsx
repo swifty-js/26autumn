@@ -57,15 +57,15 @@ function SelectorCard({
       )}
       {timing && (
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-lg font-semibold tabular-nums text-gray-900">
+          <span className="text-lg font-semibold text-gray-900 tabular-nums">
             {timing.waitedMs.toFixed(0)}ms
           </span>
           <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600">
             {timing.fromCache
               ? "cache hit (SWR)"
               : timing.fromPromise
-                ? "promise 复用"
-                : "全新请求"}
+                ? "promise dedup"
+                : "fresh request"}
           </span>
         </div>
       )}
@@ -75,31 +75,36 @@ function SelectorCard({
 
 function PerfPanel({ report }: { report: PerfReport }) {
   const rows: [string, string][] = [
-    ["启动总耗时 (boot-start → boot-end)", `${report.bootTime}ms`],
-    ["DNS 解析", `${Math.round(report.pageLoad.dnsTime)}ms`],
+    ["Total boot time (boot-start → boot-end)", `${report.bootTime}ms`],
+    ["DNS resolution", `${Math.round(report.pageLoad.dnsTime)}ms`],
     [
-      "文档请求等待 (TTFB 排队)",
+      "Document request wait (TTFB queuing)",
       `${Math.round(report.pageLoad.requestWaitTime)}ms`,
     ],
-    ["文档请求耗时", `${Math.round(report.pageLoad.requestTime)}ms`],
+    [
+      "Document request duration",
+      `${Math.round(report.pageLoad.requestTime)}ms`,
+    ],
     ["DOM Interactive", `${Math.round(report.pageLoad.domInteractive)}ms`],
     [
-      "perf-ping 探测请求",
-      report.pingResource ? `${report.pingResource.duration}ms` : "未采集到",
+      "perf-ping probe request",
+      report.pingResource
+        ? `${report.pingResource.duration}ms`
+        : "not captured",
     ],
     [
-      "最慢资源",
+      "Slowest resource",
       report.slowestResource
         ? `${report.slowestResource.duration}ms (${report.slowestResource.name.split("/").pop()})`
-        : "无",
+        : "none",
     ],
-    ["启动期间长任务 (>50ms)", `${report.longTaskCount} 个`],
-    ["累计上报条数", `${PERF_QUEUE.length} 条 (PERF_QUEUE)`],
+    ["Long tasks during boot (>50ms)", `${report.longTaskCount}`],
+    ["Total reported entries", `${PERF_QUEUE.length} (PERF_QUEUE)`],
   ];
   return (
     <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-5">
       <h3 className="mb-4 text-[15px] font-semibold text-amber-800">
-        性能监控采集结果 (手写, 模仿 boot.ts)
+        Performance Telemetry (hand-rolled, modeled after boot.ts)
       </h3>
       <div className="flex flex-col gap-1.5">
         {rows.map(([label, value]) => (
@@ -108,16 +113,16 @@ function PerfPanel({ report }: { report: PerfReport }) {
             className="flex items-center justify-between gap-3 rounded-md border border-amber-100 bg-white px-3 py-1.5"
           >
             <span className="text-xs text-gray-700">{label}</span>
-            <span className="text-[13px] font-semibold tabular-nums text-gray-900">
+            <span className="text-[13px] font-semibold text-gray-900 tabular-nums">
               {value}
             </span>
           </div>
         ))}
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-gray-500">
-        数据来自 performance.mark/measure、Navigation Timing、Resource Timing 与
-        PerformanceObserver(longtask), 经 PERF_QUEUE 队列化上报 (demo
-        中打印到控制台).
+        Data sourced from performance.mark/measure, Navigation Timing, Resource
+        Timing, and PerformanceObserver(longtask). Reported via a PERF_QUEUE
+        batched pipeline (logged to console in this demo).
       </p>
     </div>
   );
@@ -130,13 +135,13 @@ function TimelineChart({ entries }: { entries: TimelineEntry[] }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-5">
       <h3 className="mb-4 text-[15px] font-semibold text-gray-800">
-        请求耗时对比
+        Request Latency Comparison
       </h3>
       <div className="flex flex-col gap-2.5">
         {entries.map((entry, i) => (
           <div key={i} className="flex items-center gap-3">
             <span className="w-40 shrink-0 text-xs text-gray-600">
-              [{entry.mode === "swr" ? "SWR" : "对照"}] {entry.label}
+              [{entry.mode === "swr" ? "SWR" : "Control"}] {entry.label}
             </span>
             <div className="flex flex-1 items-center gap-2">
               <div
@@ -145,7 +150,7 @@ function TimelineChart({ entries }: { entries: TimelineEntry[] }) {
                 }`}
                 style={{ width: `${(entry.waitedMs / maxMs) * 100}%` }}
               />
-              <span className="text-xs tabular-nums whitespace-nowrap text-gray-500">
+              <span className="text-xs whitespace-nowrap text-gray-500 tabular-nums">
                 {entry.waitedMs.toFixed(0)}ms
               </span>
             </div>
@@ -224,9 +229,9 @@ export default function App() {
     setPerfReport(collectAndReport());
 
     entries.push(
-      { label: "Staff 选择器", mode: "swr", key: "staff", ...staffR },
-      { label: "算法选择器", mode: "swr", key: "algorithm", ...algoR },
-      { label: "向量库选择器", mode: "swr", key: "vectorDB", ...vdbR },
+      { label: "Staff Selector", mode: "swr", key: "staff", ...staffR },
+      { label: "Algorithm Selector", mode: "swr", key: "algorithm", ...algoR },
+      { label: "Vector DB Selector", mode: "swr", key: "vectorDB", ...vdbR },
     );
 
     const [nStaffR, nAlgoR, nVdbR] = await Promise.all([
@@ -241,9 +246,19 @@ export default function App() {
     setNormalLoading(false);
 
     entries.push(
-      { label: "Staff 选择器", mode: "normal", key: "staff", ...nStaffR },
-      { label: "算法选择器", mode: "normal", key: "algorithm", ...nAlgoR },
-      { label: "向量库选择器", mode: "normal", key: "vectorDB", ...nVdbR },
+      { label: "Staff Selector", mode: "normal", key: "staff", ...nStaffR },
+      {
+        label: "Algorithm Selector",
+        mode: "normal",
+        key: "algorithm",
+        ...nAlgoR,
+      },
+      {
+        label: "Vector DB Selector",
+        mode: "normal",
+        key: "vectorDB",
+        ...nVdbR,
+      },
     );
 
     setTimeline(entries);
@@ -274,11 +289,12 @@ export default function App() {
     <div className="mx-auto min-h-screen max-w-4xl bg-gray-50 px-6 py-10 font-sans text-gray-900 antialiased">
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-          手写 SWR 对比 Demo
+          Hand-rolled SWR Benchmark
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">
-          模拟场景: 公共选择器数据在 &lt;header&gt; 中预加载, 页面组件消费时复用
-          promise / 命中缓存
+          Simulated scenario: shared selector data is preloaded in
+          &lt;header&gt;; page components consume it via promise deduplication
+          or cache hits.
         </p>
       </header>
 
@@ -288,14 +304,14 @@ export default function App() {
           disabled={phase === "running"}
           className="rounded-md bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {phase === "running" ? "加载中..." : "开始对比"}
+          {phase === "running" ? "Loading..." : "Run Benchmark"}
         </button>
         {phase === "done" && (
           <button
             onClick={runSecondFetch}
             className="rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
           >
-            模拟二次消费 (SWR 即时返回)
+            Simulate Re-consumption (SWR instant return)
           </button>
         )}
       </div>
@@ -304,11 +320,11 @@ export default function App() {
         <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
           <section>
             <h2 className="mb-3 border-b-2 border-indigo-500 pb-2 text-base font-semibold text-indigo-600">
-              SWR 组 (预加载 + 去重)
+              SWR Group (preload + dedup)
             </h2>
             <div className="flex flex-col gap-3">
               <SelectorCard
-                title="Staff 用户"
+                title="Staff Members"
                 items={swrStaff}
                 loading={swrLoading}
                 timing={
@@ -320,7 +336,7 @@ export default function App() {
                 }
               />
               <SelectorCard
-                title="推荐算法"
+                title="Recommendation Algorithms"
                 items={swrAlgo}
                 loading={swrLoading}
                 timing={
@@ -332,7 +348,7 @@ export default function App() {
                 }
               />
               <SelectorCard
-                title="向量库"
+                title="Vector Databases"
                 items={swrVdb}
                 loading={swrLoading}
                 timing={
@@ -348,11 +364,11 @@ export default function App() {
 
           <section>
             <h2 className="mb-3 border-b-2 border-rose-500 pb-2 text-base font-semibold text-rose-600">
-              对照组 (组件挂载时请求)
+              Control Group (fetch on mount)
             </h2>
             <div className="flex flex-col gap-3">
               <SelectorCard
-                title="Staff 用户"
+                title="Staff Members"
                 items={normalStaff}
                 loading={normalLoading}
                 timing={
@@ -364,7 +380,7 @@ export default function App() {
                 }
               />
               <SelectorCard
-                title="推荐算法"
+                title="Recommendation Algorithms"
                 items={normalAlgo}
                 loading={normalLoading}
                 timing={
@@ -376,7 +392,7 @@ export default function App() {
                 }
               />
               <SelectorCard
-                title="向量库"
+                title="Vector Databases"
                 items={normalVdb}
                 loading={normalLoading}
                 timing={
@@ -395,15 +411,19 @@ export default function App() {
       {secondFetchResults && (
         <section className="mb-8 rounded-lg border border-emerald-200 bg-emerald-50 p-5">
           <h2 className="mb-3 text-base font-semibold text-emerald-800">
-            二次消费对比
+            Re-consumption Comparison
           </h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
               <h3 className="mb-3 border-b-2 border-indigo-500 pb-2 text-sm font-semibold text-indigo-600">
-                SWR 组 (缓存命中)
+                SWR Group (cache hit)
               </h3>
               <div className="flex flex-col gap-3">
-                {["Staff 用户", "推荐算法", "向量库"].map((label, i) => (
+                {[
+                  "Staff Members",
+                  "Recommendation Algorithms",
+                  "Vector Databases",
+                ].map((label, i) => (
                   <SelectorCard
                     key={label}
                     title={label}
@@ -425,10 +445,14 @@ export default function App() {
             </div>
             <div>
               <h3 className="mb-3 border-b-2 border-rose-500 pb-2 text-sm font-semibold text-rose-600">
-                对照组 (无缓存, 重新请求)
+                Control Group (no cache, full re-fetch)
               </h3>
               <div className="flex flex-col gap-3">
-                {["Staff 用户", "推荐算法", "向量库"].map((label, i) => (
+                {[
+                  "Staff Members",
+                  "Recommendation Algorithms",
+                  "Vector Databases",
+                ].map((label, i) => (
                   <SelectorCard
                     key={label}
                     title={label}
@@ -456,8 +480,10 @@ export default function App() {
             </div>
           </div>
           <p className="mt-3 text-[13px] leading-relaxed text-gray-500">
-            二次消费时 SWR 组命中 result 缓存, fetcher 立即返回 (耗时接近 0ms),
-            同时后台静默 revalidate; 对照组无缓存机制, 必须重新等待完整网络请求.
+            On re-consumption, the SWR group hits the result cache and the
+            fetcher returns immediately (~0ms) while silently revalidating in
+            the background. The control group has no caching layer and must
+            await a full network round-trip.
           </p>
         </section>
       )}

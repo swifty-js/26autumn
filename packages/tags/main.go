@@ -1,7 +1,7 @@
 package main
 
 // Command tags slices a video into fixed-length segments and produces
-// cluster labels (short Chinese descriptions) for each segment via a vision
+// cluster labels (short English descriptions) for each segment via a vision
 // LLM, following the eino-based calling style of swifty_agent.
 //
 // Usage:

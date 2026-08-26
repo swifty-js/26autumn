@@ -1,5 +1,5 @@
-// 手写 SWR 核心逻辑
-// 模拟在 index.html <header> 中提前发起请求的场景
+// Hand-rolled SWR core logic
+// Simulates the scenario where requests are fired early in the <header> of index.html
 
 import {
   fetchStaff,
@@ -9,19 +9,19 @@ import {
 } from "./mock-api";
 import type { StaffItem, AlgorithmItem, VectorDBItem } from "./mock-api";
 
-// ============ 类型定义 ============
+// ============ Types ============
 
 interface SWREntry<T> {
   promise: Promise<T>;
   result: T | undefined;
-  timestamp: number; // 请求发起时间
+  timestamp: number; // time the request was initiated
 }
 
-// ============ 全局缓存( 模拟 window 挂载)  ============
+// ============ Global cache (simulates window-level mounting) ============
 
 const cache = new Map<string, SWREntry<unknown>>();
 
-// ============ 预加载( 模拟 <header> 中的脚本)  ============
+// ============ Preload (simulates scripts in <header>) ============
 
 export function preload() {
   const startTime = performance.now();
@@ -30,10 +30,11 @@ export function preload() {
   const algorithmPromise = fetchAlgorithm();
   const vectorDBPromise = fetchVectorDB();
 
-  // 真实网络探测请求, 与业务请求并行( 供性能监控采集 Resource Timing)
+  // Real network probe request, fired in parallel with business requests
+  // (provides a Resource Timing entry for perf monitoring)
   fetchPerfPing();
 
-  // 挂载 promise
+  // Mount promises
   cache.set("staff", {
     promise: staffPromise,
     result: undefined,
@@ -50,7 +51,7 @@ export function preload() {
     timestamp: startTime,
   });
 
-  // result 挂载
+  // Mount resolved results
   staffPromise.then((result) => {
     const entry = cache.get("staff")!;
     entry.result = result;
@@ -71,9 +72,9 @@ export function preload() {
 
 export interface FetchResult<T> {
   data: T;
-  fromCache: boolean; // 是否命中了已有 result( stale)
-  fromPromise: boolean; // 是否复用了已有 promise( 去重)
-  waitedMs: number; // 从调用 fetcher 到拿到数据的耗时
+  fromCache: boolean; // whether an existing result (stale) was served
+  fromPromise: boolean; // whether an in-flight promise was deduplicated
+  waitedMs: number; // elapsed time from fetcher invocation to data resolution
 }
 
 const fetcherMap: Record<string, () => Promise<unknown>> = {
@@ -86,10 +87,9 @@ export async function swrFetch<T>(key: string): Promise<FetchResult<T>> {
   const callTime = performance.now();
   const entry = cache.get(key) as SWREntry<T> | undefined;
 
-  // 情况 1: window.xxxResult 有值 → 立即返回, 后台 SWR 刷新
+  // Case 1: cached result available -> return immediately, revalidate in background
   if (entry?.result !== undefined) {
     const data = entry.result;
-    // 后台 revalidate( 不阻塞返回)
     const revalidate = fetcherMap[key]();
     revalidate.then((newResult) => {
       entry.result = newResult as T;
@@ -104,7 +104,7 @@ export async function swrFetch<T>(key: string): Promise<FetchResult<T>> {
     };
   }
 
-  // 情况 2: window.xxxPromise 有值 → 复用 promise 等待 resolved
+  // Case 2: in-flight promise exists -> deduplicate by awaiting the same promise
   if (entry?.promise) {
     const data = await entry.promise;
     return {
@@ -115,7 +115,7 @@ export async function swrFetch<T>(key: string): Promise<FetchResult<T>> {
     };
   }
 
-  // 情况 3: 都没有 → 重建 SWR 流程
+  // Case 3: no cache, no promise -> initiate a fresh SWR cycle
   const promise = fetcherMap[key]() as Promise<T>;
   const newEntry: SWREntry<T> = {
     promise,
@@ -133,7 +133,7 @@ export async function swrFetch<T>(key: string): Promise<FetchResult<T>> {
   };
 }
 
-// ============ 对照组: 普通 fetch( 组件挂载时才发请求)  ============
+// ============ Control group: plain fetch (request fires on component mount) ============
 
 export async function normalFetch<T>(key: string): Promise<FetchResult<T>> {
   const callTime = performance.now();
@@ -146,7 +146,7 @@ export async function normalFetch<T>(key: string): Promise<FetchResult<T>> {
   };
 }
 
-// ============ 工具 ============
+// ============ Utilities ============
 
 export function clearCache() {
   cache.clear();

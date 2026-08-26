@@ -24,7 +24,7 @@ const maxLabels = 5
 const maxRetries = 2
 
 // fallbackLabel guarantees every segment carries at least one label.
-const fallbackLabel = "未能识别内容"
+const fallbackLabel = "unrecognized content"
 
 // Result is the structured output of one labeling call.
 type Result struct {
@@ -42,14 +42,14 @@ func New(m model.ChatModel) *Labeler {
 	return &Labeler{model: m}
 }
 
-const systemPrompt = `你是一名视频内容分析专家, 负责分析视频切片的代表帧, 产出聚类标签. 
+const systemPrompt = `You are a video content analysis expert responsible for analyzing the representative frames of video segments and producing cluster labels.
 
-要求:
-1. 只输出严格的 JSON, 不要输出任何其他内容, 格式: {"labels": ["标签1", "标签2"], "summary": "一句话描述"}
-2. labels 为该切片的聚类标签数组, 必须包含 1 到 3 个标签
-3. 每个标签是简短的中文描述, 不超过 12 个字, 概括画面内容、场景或主题
-4. 标签应具备聚类价值, 同类内容应产出相同或相近的标签, 避免过于具体的专有名词
-5. summary 为对该切片内容的一句话中文总结, 不超过 50 字`
+Requirements:
+1. Output strictly valid JSON only, with no additional content. Format: {"labels": ["label1", "label2"], "summary": "one-sentence description"}
+2. labels is the array of cluster labels for the segment and must contain 1 to 3 labels.
+3. Each label is a short English description of no more than 12 words, summarizing the visual content, scene, or subject.
+4. Labels should be clustering-friendly: similar content should yield identical or closely related labels. Avoid overly specific proper nouns.
+5. summary is a one-sentence English summary of the segment content, no more than 50 words.`
 
 // LabelSegment sends the segment's frames to the vision model and returns
 // validated labels. It retries on malformed output and falls back to a
@@ -68,7 +68,7 @@ func (l *Labeler) LabelSegment(ctx context.Context, seg slicer.Segment) (*Result
 		}
 		if attempt > 0 {
 			msgs = append(msgs, schema.UserMessage(
-				fmt.Sprintf("上一次输出不是合法 JSON 或缺少标签 (%v), 请只输出符合要求的 JSON. ", lastErr)))
+				fmt.Sprintf("The previous output was not valid JSON or was missing labels (%v). Please output only JSON that meets the requirements. ", lastErr)))
 		}
 		resp, err := l.model.Generate(ctx, msgs)
 		if err != nil {
@@ -82,14 +82,14 @@ func (l *Labeler) LabelSegment(ctx context.Context, seg slicer.Segment) (*Result
 		return res, nil
 	}
 	// Guarantee the MUST-have-one-label invariant even after retries fail.
-	return &Result{Labels: []string{fallbackLabel}, Summary: "LLM 多次返回非法结果: " + lastErr.Error()}, nil
+	return &Result{Labels: []string{fallbackLabel}, Summary: "LLM returned invalid results after multiple attempts: " + lastErr.Error()}, nil
 }
 
 // buildParts assembles the multimodal user message: one text part describing
 // the segment, followed by the frame images in time order.
 func buildParts(seg slicer.Segment) ([]schema.MessageInputPart, error) {
 	text := fmt.Sprintf(
-		"这是视频第 %d 个切片 (时间范围 %s - %s) 的 %d 张代表帧, 按时间顺序排列, 请分析并输出 JSON. ",
+		"These are the representative frames for segment %d of the video (time range %s - %s), %d frames in chronological order. Please analyze them and output JSON. ",
 		seg.Index+1, slicer.FormatTime(seg.Start), slicer.FormatTime(seg.End), len(seg.Frames),
 	)
 	parts := []schema.MessageInputPart{

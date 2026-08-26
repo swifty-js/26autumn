@@ -8,7 +8,7 @@ export default defineConfig({
     { text: "前端基础", link: "fe/react" },
     { text: "Swifty 前端", link: "fe/swifty" },
     { text: "后端基础", link: "be/go" },
-    { text: "Swifty 后端", link: "fe/swifty-agent" },
+    { text: "Swifty 后端", link: "be/swiftx" },
   ],
   sidebar: {
     "/docs/": "auto",

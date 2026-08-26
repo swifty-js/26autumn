@@ -3,7 +3,8 @@ import "./index.css";
 import App from "./App.tsx";
 import { initPerfMonitor, mark } from "./perf-monitor";
 
-// 手写性能监控: 在应用入口最早时机初始化( 对应 boot.ts 顶部的监控启动)
+// Hand-rolled perf monitoring: initialize at the earliest point in the app
+// entry (mirrors the monitoring bootstrap at the top of boot.ts)
 initPerfMonitor();
 mark("swr-boot-start");
 

@@ -1,9 +1,10 @@
-// 手写前端性能监控( 模仿 src/boot.ts 的做法)
-// 思路: performance.mark/measure 打点 + PerformanceObserver 长任务监听
-//       + Navigation Timing 拆解 + Resource Timing 采集 + 队列化上报
-// 不依赖任何第三方监控 SDK, 全部基于浏览器原生 Performance API
+// Hand-rolled frontend performance monitoring (modeled after src/boot.ts)
+// Approach: performance.mark/measure instrumentation + PerformanceObserver long-task
+//           detection + Navigation Timing breakdown + Resource Timing collection
+//           + queued reporting. No third-party monitoring SDK; uses only the
+//           browser-native Performance API.
 
-// ============ 上报队列( 对应 boot.ts 的 window.PERF_QUEUE)  ============
+// ============ Report queue (mirrors window.PERF_QUEUE in boot.ts) ============
 
 export interface PerfLogEntry {
   action: "log";
@@ -13,7 +14,8 @@ export interface PerfLogEntry {
   ];
 }
 
-// 真实项目中由监控 SDK 异步消费该队列, demo 中仅累积并打印
+// In production this queue is consumed asynchronously by a monitoring SDK;
+// in this demo it simply accumulates and logs to console.
 export const PERF_QUEUE: PerfLogEntry[] = [];
 
 function report(entry: PerfLogEntry["arguments"][1]) {
@@ -21,39 +23,41 @@ function report(entry: PerfLogEntry["arguments"][1]) {
   console.log("[perf-monitor] report:", entry.p1, entry);
 }
 
-// ============ 长任务监听( 对应 boot.ts 的 longTaskObserver)  ============
+// ============ Long-task observer (mirrors longTaskObserver in boot.ts) ============
 
 let longTaskObserver: PerformanceObserver | undefined;
 
 export function observeLongTasks() {
   if (!("PerformanceObserver" in window)) {
-    console.warn("当前浏览器不支持 PerformanceObserver, 无法监听主线程卡顿");
+    console.warn(
+      "PerformanceObserver not supported; cannot observe main-thread blocking",
+    );
     return;
   }
   try {
     longTaskObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        // 只上报超过 50ms 的长任务( INP / TBT 口径)
+        // Only report tasks exceeding 50ms (INP / TBT threshold)
         if (entry.duration > 50) {
           report({
             p1: "main-thread-blocking",
-            c1: location.pathname, // 当前页面路径
-            c2: entry.name, // 任务名称
+            c1: location.pathname,
+            c2: entry.name,
             c3: Math.round(entry.startTime),
-            c4: Math.round(entry.duration), // 卡顿时长(毫秒)
+            c4: Math.round(entry.duration), // blocking duration in ms
             p4: "OTHER",
           });
         }
       }
     });
     longTaskObserver.observe({ entryTypes: ["longtask"] });
-    console.log("[perf-monitor] 主线程卡顿监听已启动");
+    console.log("[perf-monitor] long-task observer started");
   } catch (error) {
-    console.error("[perf-monitor] 启动长任务监听失败:", error);
+    console.error("[perf-monitor] failed to start long-task observer:", error);
   }
 }
 
-// ============ mark / measure 工具( 对应 boot.ts 的 performanceMeasure)  ============
+// ============ mark / measure utilities (mirrors performanceMeasure in boot.ts) ============
 
 export function mark(name: string) {
   try {
@@ -81,11 +85,11 @@ function performanceMeasure(
   }
 }
 
-// ============ 采集与上报 ============
+// ============ Collection & reporting ============
 
 export interface PerfReport {
-  bootTime: number; // 启动总耗时( swr-boot-start → swr-boot-end)
-  bootStartAt: number; // 启动起点在时间轴上的位置
+  bootTime: number; // total boot duration (swr-boot-start -> swr-boot-end)
+  bootStartAt: number; // boot start position on the timeline
   pageLoad: {
     dnsTime: number;
     requestWaitTime: number;
@@ -100,17 +104,17 @@ export interface PerfReport {
 let longTaskCount = 0;
 
 export function collectAndReport(): PerfReport | null {
-  // 启动完成后停止长任务采样, 避免后续交互噪声混入启动数据
+  // Stop long-task sampling after boot completes to avoid interaction noise
   longTaskObserver?.disconnect();
-  // 增大 resource timing 缓冲区, 防止条目被丢弃
+  // Increase resource timing buffer to prevent entry eviction
   try {
     performance.setResourceTimingBufferSize(200);
   } catch {
-    // 老浏览器不支持, 忽略
+    // Unsupported in older browsers; ignore
   }
 
   try {
-    // 1. Navigation Timing: 拆解文档自身的加载耗时
+    // 1. Navigation Timing: decompose document load latency
     const navEntry = performance.getEntriesByType(
       "navigation",
     )[0] as PerformanceNavigationTiming;
@@ -124,7 +128,7 @@ export function collectAndReport(): PerfReport | null {
         }
       : { dnsTime: 0, requestWaitTime: 0, requestTime: 0, domInteractive: 0 };
 
-    // 2. Resource Timing: 找最慢资源与预加载探测请求
+    // 2. Resource Timing: identify slowest resource and the preload probe
     const resources = performance.getEntriesByType(
       "resource",
     ) as PerformanceResourceTiming[];
@@ -139,7 +143,7 @@ export function collectAndReport(): PerfReport | null {
       ? { duration: Math.round(pingEntry.duration) }
       : null;
 
-    // 3. mark/measure: 启动总耗时
+    // 3. mark/measure: total boot duration
     const bootMeasure = performanceMeasure(
       "swr-boot-time",
       "swr-boot-start",
@@ -148,20 +152,20 @@ export function collectAndReport(): PerfReport | null {
     const bootTime = bootMeasure ? Math.round(bootMeasure.duration) : 0;
     const bootStartAt = bootMeasure ? Math.round(bootMeasure.startTime) : 0;
 
-    // 4. 启动耗时上报( 对应 boot.ts 的 qn-fcp)
+    // 4. Boot time report (mirrors qn-fcp in boot.ts)
     if (bootMeasure) {
       report({
         p1: "swr-demo-boot",
         c1: location.pathname,
-        c2: bootStartAt, // 启动起点
-        c3: bootTime, // 启动总耗时
-        c4: navEntry ? Math.round(navEntry.responseEnd) : 0, // 文档响应完成时间
-        c5: longTaskCount, // 启动期间长任务数量
+        c2: bootStartAt,
+        c3: bootTime,
+        c4: navEntry ? Math.round(navEntry.responseEnd) : 0,
+        c5: longTaskCount,
         p4: "OTHER",
       });
     }
 
-    // 5. 文档加载性能上报( 对应 boot.ts 的 performance-index)
+    // 5. Document load performance report (mirrors performance-index in boot.ts)
     report({
       p1: "performance-index",
       c1: Math.round(pageLoad.dnsTime),
@@ -185,29 +189,29 @@ export function collectAndReport(): PerfReport | null {
   }
 }
 
-// ============ 初始化入口 ============
+// ============ Initialization ============
 
 export function initPerfMonitor() {
   if (!("PerformanceObserver" in window)) return;
-  // 先统计长任务数量再上报
+  // Count long tasks before reporting
   const countObserver = new PerformanceObserver((list) => {
     longTaskCount += list.getEntries().filter((e) => e.duration > 50).length;
   });
   try {
     countObserver.observe({ entryTypes: ["longtask"] });
   } catch {
-    // longtask 不支持时忽略
+    // longtask entry type unsupported; ignore
   }
   observeLongTasks();
 }
 
-// 每轮对比实验前重置打点, 保证 measure 反映本轮启动
+// Reset marks before each benchmark run so measures reflect the current cycle
 export function resetBootMarks() {
   try {
     performance.clearMarks("swr-boot-start");
     performance.clearMarks("swr-boot-end");
     performance.clearMeasures("swr-boot-time");
   } catch {
-    // 忽略
+    // ignore
   }
 }
