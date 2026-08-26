@@ -40,11 +40,11 @@ A:
 
 A:
 
-`cmd/swiftx/main.go:35` 按 flag 分发四种模式:
+`cmd/swiftx/main.go:37` 按 flag 分发四种模式:
 
 1. Teammate 工作进程( `--teammate`) : 被团队 Lead 通过 tmux/iTerm 拉起的无头工作进程, 任务从文件邮箱读取, 事件流打到 stderr 供终端面板展示( `cmd/swiftx/teammate.go`) .
 2. Print 模式( `-p/--print`) : 非交互一次性执行, prompt 可来自参数或 stdin, 支持指定输出格式, 适合脚本/CI.
-3. Remote 模式( `--remote [addr]`) : 默认 `:18888`, 用同仓库的 `swifty_http` 框架起 HTTP 服务, `GET /` 提供 Web UI、`GET /ws` 升级 WebSocket 双向转发 Agent 事件( `internal/remote/server.go:154`) .
+3. Remote 模式( `--remote [addr]`) : 默认 `:18888`, 用同仓库的 `swifty_http` 框架起 HTTP 服务, `GET /` 提供 Web UI、`GET /ws` 升级 WebSocket 双向转发 Agent 事件( `internal/remote/server.go:158`) .
 4. 默认 TUI 模式: `tea.NewProgram` 启动 bubbletea 终端界面.
 
 四种模式共享同一套 `config.LoadConfig` 配置( providers、permission_mode、mcp_servers、hooks、sandbox、enable_coordinator_mode) , hooks 配置启动时统一 `hooks.Validate` 校验, 非法则降级为无钩子启动而不是崩溃.
@@ -272,7 +272,7 @@ A:
 - 软触发线: `effectiveWindow - 13000`( 自动压缩, 受熔断器保护)
 - 硬阻断线: `effectiveWindow - 3000`( 强制压缩, 绕过熔断器)
 
-保留策略 `computeKeepStartIndex`( compact.go:392) :
+保留策略 `computeKeepStartIndex`( compact.go:384) :
 
 从尾部向前累计 token, 满足"≥ 10000 token 或 ≥ 5 条消息"其一即停, 但上限 40000 token; 边界若落在带 tool_results 的消息上, 向前吸附跨过配对的 assistant tool_use 消息, 绝不拆散 tool_use/tool_result 对( 否则 API 直接拒绝孤儿 tool_result) .
 
@@ -464,7 +464,7 @@ A:
 - find 的 1 表示"部分目录不可访问"
 - test 的 1 表示"条件为假"
 
-这些都不是错误, 阈值 ≥2 才算真错. 管道命令取最后一段的 base 命令判断( bash 默认行为) . 最终 `IsError` 只在超时/中断时为 true, 普通非零退出码把 `Exit code N (语义提示)` 拼进输出让模型自己判断.
+这些都不是错误, 阈值 ≥2 才算真错. 管道命令取最后一段的 base 命令判断( bash 默认行为) . 最终 `IsError` 只在超时/中断、命令为空以及进程启动/执行失败( 如命令不存在) 时为 true, 普通非零退出码把 `Exit code N (语义提示)` 拼进输出让模型自己判断.
 
 这避免了模型把 "grep 没搜到" 误读为工具故障而反复重试.
 
@@ -817,11 +817,11 @@ A:
 
 `AgentTool`( `internal/subagent/agent_tool.go`) 是单个工具多角色:
 
-| 模式              | 触发条件                  | 上下文                               | 阻塞                        | 适用场景                                                      |
-| ----------------- | ------------------------- | ------------------------------------ | --------------------------- | ------------------------------------------------------------- |
-| Sync( 角色子代理) | `subagent_type` 指定      | 新 conversation + 按角色过滤的工具集 | 是                          | 快速查询( Explore agent) , "研究后只带结论回来", 保护主上下文 |
-| Async             | `run_in_background: true` | 新 conversation                      | 否                          | 耗时任务( 测试、构建)                                         |
-| Fork              | 无 `subagent_type`        | 复制父 conversation                  | 是( 除非 run_in_background) | 需要完整上下文的分支任务                                      |
+| 模式              | 触发条件                                                                              | 上下文                               | 阻塞                        | 适用场景                                                      |
+| ----------------- | ------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------- | ------------------------------------------------------------- |
+| Sync( 角色子代理) | `subagent_type` 指定                                                                  | 新 conversation + 按角色过滤的工具集 | 是                          | 快速查询( Explore agent) , "研究后只带结论回来", 保护主上下文 |
+| Async             | `run_in_background: true`                                                             | 新 conversation                      | 否                          | 耗时任务( 测试、构建)                                         |
+| Fork              | 无 `subagent_type` (需 `enable_fork` 开启, 默认开; 禁用时回退 general-purpose 子代理) | 复制父 conversation                  | 是( 除非 run_in_background) | 需要完整上下文的分支任务                                      |
 
 Fork 的独特设计:
 
@@ -900,6 +900,8 @@ TeamManager
 
    - `TaskCreate/Get/List/Update` 工具操作
    - 进程内 `sync.Mutex` 串行化读写( `SharedTaskStore.mu`) , 持久化为单个 tasks.json
+
+   注意同名工具的两套实现: 默认 TUI/print 模式注册的是 `internal/todo` 的会话级任务清单( 支持 blocks/blockedBy 依赖, 持久化到 `.swiftx/tasks/<listID>.json`) , 仅 teammate/团队上下文才注册这里 teams 包的 SharedTaskStore 版本( teams/task_tools.go) .
 
 运行后端:
 
@@ -1046,7 +1048,7 @@ A:
 | `ContextTooLongError` | 说明估算低估了真实 token, 立即 `ForceCompact` 强制压缩后重试本轮, 并通知调用方清除已失效的 usage 锚点   | 压缩失败即报错       |
 | `max_tokens` stop     | 1) 提升 output limit 到 64K; 2) 多轮恢复 "Continue"                                                     | 1 + 3 次             |
 | Stream idle timeout   | 返回 `NetworkError` 上抛为 ErrorEvent( Agent 层不自动重试)                                              | 0( 终止本轮)         |
-| Auto-compact 失败     | 熔断器: 连续 3 次失败后停止( `MaxConsecutiveAutoCompactFailures = 3`, compact.go:106)                   | 3 次                 |
+| Auto-compact 失败     | 熔断器: 连续 3 次失败后停止( `MaxConsecutiveAutoCompactFailures = 3`, compact.go:108)                   | 3 次                 |
 | 未知工具调用          | 返回错误结果( `Error: unknown tool '%s'`) 让模型自我纠正、继续循环( agent.go:676-686, 无连续计数硬停止) | 0( 不中断循环)       |
 | PTL (summary 超长)    | 逐步丢弃最旧 API-round 组                                                                               | 3 次                 |
 
@@ -1112,7 +1114,7 @@ A:
 环境变量                         (API Keys)
 ```
 
-合并规则( config.go:194 mergeConfig) :
+合并规则( config.go:206 mergeConfig) :
 
 - 标量字段: 后者覆盖前者( permission_mode 非空即覆盖)
 - `providers` 数组: 整体替换——override 中只要非 nil 就完全取代 base, 不做按 name 的逐项合并
@@ -1280,7 +1282,7 @@ A:
 
 这是该项目工程质量的核心亮点, 可归纳为:
 
-- 熔断: 自动压缩连续失败 3 次停止重试( compact.go:106) .
+- 熔断: 自动压缩连续失败 3 次停止重试( compact.go:108) .
 - 降级: hooks 配置非法→无钩子启动; 上下文窗口拉取失败→映射表→默认值; 压缩摘要缺 `<summary>` 标签→退回原文; 会话断点损坏→全量重放; 外溢写盘失败→冻结原文继续.
 - 重试: 限流按 Retry-After 等待; PTL 按轮次组丢头重试 ≤3 次; max_tokens 两级恢复( 升限 + 3 次续写) .
 - 防环路: 截断结果不再外溢( 50K > 10K + 后缀) ; 外溢文件回读不再外溢; 缓存决策冻结防止历史抖动.

@@ -105,14 +105,14 @@ React 18+ 的并发特性允许应用同时准备多个版本的 UI, 根据优�
 
 核心 API:
 
-| API                | 用途                                  | 场景                   |
-| ------------------ | ------------------------------------- | ---------------------- |
-| `startTransition`  | 标记非紧急更新                        | 搜索结果过滤、Tab 切换 |
-| `useTransition`    | 获取 isPending 状态 + startTransition | 带 loading 的导航      |
-| `useDeferredValue` | 延迟某个值的更新                      | 输入框实时搜索         |
-| `Suspense`         | 声明式异步边界                        | 数据加载、代码分割     |
-| `use()`            | 在组件中读取 Promise/Context          | 配合 Suspense 使用     |
-| `Activity`         | 保持隐藏组件的状态                    | Tab 面板、下拉菜单     |
+| API                | 用途                                    | 场景                   |
+| ------------------ | --------------------------------------- | ---------------------- |
+| `startTransition`  | 标记非紧急更新                          | 搜索结果过滤、Tab 切换 |
+| `useTransition`    | 获取 isPending 状态 + startTransition   | 带 loading 的导航      |
+| `useDeferredValue` | 延迟某个值的更新                        | 输入框实时搜索         |
+| `Suspense`         | 声明式异步边界                          | 数据加载、代码分割     |
+| `use()`            | 在组件中读取 Promise/Context( React 19) | 配合 Suspense 使用     |
+| `Activity`         | 保持隐藏组件的状态( React 19.2)         | Tab 面板、下拉菜单     |
 
 startTransition 示例:
 
@@ -933,15 +933,14 @@ export { Dialog } from "./Dialog";
 解决方案:
 
 ```tsx
-// Next.js 13.5+( 推荐) : 配置 optimizePackageImports
-// next.config.js
+// Next.js 14+ : optimizePackageImports 已稳定( 不再是 experimental)
+// lucide-react、@mui/material、react-icons、@headlessui/react 等常用库默认已启用,
+// 只需为默认列表之外的库在 next.config.js 顶层追加配置
 module.exports = {
-  experimental: {
-    optimizePackageImports: ["lucide-react", "@mui/material", "react-icons"],
-  },
+  optimizePackageImports: ["my-icon-lib", "@acme/ui"],
 };
 
-// 非 Next.js 项目: 直接导入
+// 非 Next.js 项目: 直接从子路径导入
 import Button from "@mui/material/Button";
 ```
 
@@ -975,6 +974,8 @@ const Dashboard = dynamic(() => import("./Dashboard"), {
   loading: () => <DashboardSkeleton />,
 });
 ```
+
+注意: App Router 中 `ssr: false` 的 dynamic 只能在 Client Component 内使用, Server Component 中不允许( 会构建报错) .
 
 条件加载模式:
 
@@ -1666,7 +1667,7 @@ requestIdleCallback(processChunk);
 
 答:
 
-在 Effect 中需要调用使用最新 props/state 的回调, 但不想让它成为 Effect 依赖.
+在 Effect 中需要调用使用最新 props/state 的回调, 但不想让它成为 Effect 依赖. `useEffectEvent` 在 React 19.2 转正( 此前为实验性) .
 
 ```tsx
 const onSearchEvent = useEffectEvent(onSearch);
@@ -1685,7 +1686,7 @@ useEffect(() => {
 
 答:
 
-频繁切换显示/隐藏的昂贵组件, 用 `Activity` 保持状态和 DOM:
+频繁切换显示/隐藏的昂贵组件, 用 `Activity`( React 19.2+) 保持状态和 DOM:
 
 ```tsx
 <Activity mode={activeTab === "chat" ? "visible" : "hidden"}>
@@ -1701,7 +1702,7 @@ hidden 时: DOM 保留、Effect cleanup; visible 时: 恢复显示、Effect 重�
 
 答:
 
-React Compiler 自动进行组件级记忆化( 等效于自动 memo/useMemo/useCallback) .
+React Compiler 自动进行组件级记忆化( 等效于自动 memo/useMemo/useCallback) . 它已于 2025 年 10 月发布 1.0, 以独立 Babel 插件启用, 兼容 React 17+, 需手动接入( Next.js 可通过 next.config 的 reactCompiler 选项开启) .
 
 启用后无需手动: useMemo、useCallback、React.memo、静态 JSX 提升.
 
@@ -1721,6 +1722,8 @@ Compiler 解决"组件级记忆化", 不解决"架构级性能".
 | Data Cache          | fetch 持久缓存 | 跨请求   | revalidatePath/Tag |
 | Full Route Cache    | 整页 HTML      | 跨请求   | revalidate/dynamic |
 | Router Cache        | 客户端路由缓存 | 用户会话 | 导航/refresh       |
+
+注意: 自 Next.js 15 起, fetch 默认不再缓存( 相当于 no-store) , Data Cache 需要显式 opt-in( cache: "force-cache" 或 next.revalidate) . Next.js 16 引入可选的 Cache Components( cacheComponents 配置, 即 PPR 演进方向) , 通过 use cache 指令声明缓存边界, 正在把缓存从"默认全开"转变为"显式声明"模型.
 
 补充缓存:
 

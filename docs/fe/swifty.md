@@ -24,7 +24,7 @@ Swifty 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 
 2. Agent 循环层( `src/agent/agent.ts`) : 核心是一个 `async *run(): AsyncGenerator<AgentEvent>` 生成器, 把"思考-行动"循环抽象为事件流.
 3. LLM 抽象层( `src/llm/`) : 统一 `LLMClient` 接口( `stream()` + `setSystemPrompt()`) , 适配 anthropic / openai / openai-compat 三种协议.
 4. 工具层( `src/tools/`) : 统一 `Tool` 接口( `schema()` + `execute()`) , 按 `category: read | write | command` 分类, 支撑并行调度与权限决策.
-5. 表现层( `src/tui/`) : Ink( React for CLI) 渲染, `app.tsx`( 约 2000 行) 作为编排者消费 AgentEvent 流.
+5. 表现层( `src/tui/`) : Ink( React for CLI) 渲染, `app.tsx`( 约 2150 行) 作为编排者消费 AgentEvent 流.
 6. 横切支撑层: 权限( `permissions/`) 、上下文压缩( `compact/`) 、会话持久化( `session/`) 、记忆( `memory/`) 、钩子( `hooks/`) 、MCP、技能、多智能体( `subagent/`、`teams/`) .
 
 关键设计洞察: 四种运行模式消费的是同一个 AgentEvent 流, Agent 核心对 UI 完全无感知 —— 这是"表现层与领域层彻底解耦"的体现.
@@ -85,7 +85,7 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 1. 声明式增量渲染: 流式输出本质是"状态随时间变化", React 的 state→view 映射天然契合. 对比 Blessed 的命令式 `box.setContent()`, React 模型下流式文本只是 `setStreamingText(text)`.
 2. 组件复用与生态: `ink-spinner`、对话框组件、`<Static>`/`<Box>`/`<Text>` 布局原语可直接组合; 团队已有的 React 经验零迁移成本.
 3. `<Static>` 组件解决终端特有痛点: 终端里已滚出屏幕的内容无法被重绘. Ink 的 `<Static>` 把"已提交消息"写入终端回滚缓冲区( scrollback) 且永不重渲染, 与动态区( 流式内容) 分离 —— 这是 Swifty 消除闪烁的核心手段( `app.tsx:1930` 附近) .
-4. Hooks 管理复杂状态: `app.tsx` 用约 30 个 `useState`/`useRef` 管理流式文本、权限请求、子代理进度、Ctrl+C 双击退出等状态, 逻辑内聚在函数组件中.
+4. Hooks 管理复杂状态: `app.tsx` 用约 70 个 `useState`/`useRef`( 28 个 useState + 43 个 useRef) 管理流式文本、权限请求、子代理进度、Ctrl+C 双击退出等状态, 逻辑内聚在函数组件中.
 
 代价与应对:
 
@@ -121,7 +121,7 @@ Ink 的核心价值是把声明式 UI 和组件化心智模型带进终端, 而 
 1. 可组合性: 不同运行模式( TUI / print / subagent) 可以裁剪不同段落组合, 例如子代理可注入 `systemPromptOverride` 完全替换.
 2. 可测试性: 每个 section 是独立纯函数, 可单测.
 3. 缓存友好: Anthropic 客户端在系统提示词上打 `cache_control: { type: "ephemeral" }` 断点( `anthropic.ts:372`) , 系统提示词整体稳定不变才能命中 prompt cache —— 如果把易变内容( 如日期) 混在正文里会破坏缓存, 所以日期等信息放在靠后的 Environment 段, 且会话内不变.
-4. 身份保护: Identity 段硬编码了"不得提及 Claude/Anthropic/OpenAI, 只能自称 Swifty"的约束, 作为品牌与合规防线.
+4. 身份保护: Identity 段( sections.ts:29-39) 只定义 "You are Swifty..." 身份与安全禁令, 并不含"不得提及 Claude/Anthropic/OpenAI"的约束 —— 该约束仅出现在 remote 模式初始化时注入的 "IDENTITY OVERRIDE" system-reminder( server.ts:419, 见 Q64) , 是按宿主定制的运行时强化而非系统提示词内容.
 
 ---
 
@@ -777,7 +777,7 @@ const fullRendered = stableRef.current.rendered + renderMarkdown(unstableText);
 
 ---
 
-### Q33: `app.tsx` 约 2150 行、30+ 个状态, 是如何避免变成"巨石组件"失控的? 它的状态分层策略是什么?
+### Q33: `app.tsx` 约 2150 行、70+ 个 `useState`/`useRef`, 是如何避免变成"巨石组件"失控的? 它的状态分层策略是什么?
 
 答:
 
@@ -848,7 +848,7 @@ if (!scheduled) {
 三个对话框体现了终端键盘交互的统一模式语言:
 
 1. 选项列表 + 光标 + 回车确认: `PermissionDialog` 三个固定选项( Yes / Yes, don't ask again / No) , 上下键循环( 边界回绕) , Enter 选择, Esc 一律视为拒绝 —— 拒绝是零成本默认动作, 安全交互的基本原则.
-2. 向导模式( 多步表单) : `AskUserDialog`( 485 行, 最复杂) 用 `useReducer` 管理 `currentQuestion + answers + submitCursor` 状态机: 顶部导航条展示问题页签( 已答项带对勾标记) ; 上下键选选项、Tab/左右键切问题、数字键直跳选项、空格切换多选、"Other"进入自由文本; 答完进入 Submit 页复核. 单问题非多选时隐藏 Submit 页、选完即提交 —— 按复杂度自适应流程长度.
+2. 向导模式( 多步表单) : `AskUserDialog`( 508 行, 最复杂) 用 `useReducer` 管理 `currentQuestion + answers + submitCursor` 状态机: 顶部导航条展示问题页签( 已答项带对勾标记) ; 上下键选选项、Tab/左右键切问题、数字键直跳选项、空格切换多选、"Other"进入自由文本; 答完进入 Submit 页复核. 单问题非多选时隐藏 Submit 页、选完即提交 —— 按复杂度自适应流程长度.
 3. 破坏性操作的双段确认: 计划审批三选项( yolo / manual / feedback) , Esc 默认落到最保守的 manual; 反馈文本用 Shift+Tab 提交避免与 Enter 冲突.
 4. 统一的中断语义: 所有对话框期间 Ctrl+C/Esc 都有明确含义( 拒绝/取消) , 与全局 Ctrl+C 双击退出( `ctrlCCountRef` + 2 秒窗口计数器) 分层: 对话框消费优先, 冒泡到全局的是"无对话框时"的退出.
 
@@ -1290,7 +1290,7 @@ context window 四级解析( `getContextWindowAsync()`) :
 
 答:
 
-Vitest v4( v8 coverage) , 测试分层( `tests/`, 43 个测试文件) :
+Vitest v4( v8 coverage) , 测试分层( `tests/`, 42 个测试文件) :
 
 单元层:
 
@@ -2442,7 +2442,7 @@ LLM 输出用 Zod 校验是 Agent 应用的特殊要点: 模型的 function call
 两条产品路径:
 
 1. `/review`( commands.ts:318) : 轻量路径, 类型为 `prompt` —— handler 返回一段固定提示词, 要求模型跑 `git status`/`git diff` 后以 `file:line` 形式报告正确性 bug、安全问题与可简化点. 无状态、零基础设施.
-2. `/code-review`( commands.ts:304) : 重路径, 类型为 `local`( handler 返回字符串) , 由 `code-review/handler.ts` 的 `handleCodeReviewCommand()` 解析子命令 —— create/add/remove/list/status/activate/deactivate 管理评审团队, request/requests/comment/accept/reject/report/approve/reject-request 管理评审请求, critic/critic-summary/add-critic 管理批评者评估.
+2. `/code-review`( commands.ts:304) : 重路径, 类型为 `local`, handler 返回 `code-review:{args}` 前缀字符串; 子命令分发逻辑实现在 `code-review/handler.ts` 的 `handleCodeReviewCommand()` —— create/add/remove/list/status/activate/deactivate 管理评审团队, request/requests/comment/accept/reject/report/approve/reject-request 管理评审请求, critic/critic-summary/add-critic 管理批评者评估 —— 值得注意当前源码中该函数尚无调用方接线, 属于"已实现、待接线"状态.
 
 状态模型( `code-review/manager.ts` + `session.ts`) :
 

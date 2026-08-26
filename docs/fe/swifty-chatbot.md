@@ -31,7 +31,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 选择 pnpm monorepo 的核心原因:
 
-1. 类型同仓: 前后端代码同仓管理. 注意项目并没有共享类型 package (`pnpm-workspace.yaml` 只声明了 `client` 和 `server` 两个包), `Message`、`Session`、`ModelType` 等类型由前后端各自复制定义, 靠约定保持一致; monorepo 的价值在于让接口变更可以在同一仓库内原子化完成
+1. 类型同仓: 前后端代码同仓管理. 注意项目并没有共享类型 package (`pnpm-workspace.yaml` 只声明了 `client` 和 `server` 两个包), `Message`、`Session`、`ModelType` 等类型由前后端各自独立定义 (仅 ModelType 的取值 "openai"/"openai-rag" 两边一致, Message/Session 的字段形状并不相同), 靠约定保持接口兼容; monorepo 的价值在于让接口变更可以在同一仓库内原子化完成
 2. 统一依赖管理: pnpm 的硬链接机制避免重复安装, 磁盘效率高
 3. 原子化变更: 一次 PR 可以同时修改前后端代码, 保证接口变更的原子性
 4. 开发体验: 根目录 `package.json` 通过 `concurrently` 一条命令同时启动前后端开发服务器
@@ -62,7 +62,7 @@ swifty-chatbot 是一个基于 pnpm workspace 的全栈 LLM 聊天应用, 采用
 
 前端采用三层状态管理策略:
 
-1. Jotai atoms (客户端状态): 管理 auth token、主题偏好、语言选择、模型类型等纯客户端状态. 其中 token 用普通 `atom` 创建, 初值取 `localStorage.getItem("token")`, 由写入 action atom 手动调用 `localStorage.setItem/removeItem` 持久化 (stores/auth.ts); 主题、语言、模型类型则通过 `atomWithStorage` 持久化到 localStorage (stores/settings.ts), 刷新后自动恢复.
+1. Jotai atoms (客户端状态): 管理 auth token、主题偏好、语言选择、模型类型等纯客户端状态. 其中 token 用普通 `atom` 创建, 初值取 `localStorage.getItem("token")`, 由写入 action atom 手动调用 `localStorage.setItem/removeItem` 持久化 (stores/auth.ts); 主题、语言、模型类型则通过 `atomWithStorage` 持久化到 localStorage (stores/settings.ts), 刷新后自动恢复. 注意模型类型的 `modelAtom` 目前只有定义、未被任何组件消费, AiChat 页面的模型选择实际由本地 useState 管理, 刷新后不保留 (pages/ai-chat/index.tsx:30-32).
 
 2. TanStack React Query (服务端状态): 管理 sessions 列表、聊天历史等需要与后端同步的数据. 利用其缓存失效、后台重新获取、乐观更新等能力.
 
@@ -370,10 +370,16 @@ export async function createStreamSessionAndSendMessageStream(ctx: Context) {
   });
   res.flushHeaders();
 
-  // 3. 先发送 session_id 元数据
+  // 3. 创建会话: randomUUID() 生成 session_id 并写入 sessions 表
+  const [sessionId, sessionCode] = await sessionService.createStreamSession(
+    username,
+    question,
+  );
+
+  // 4. 先发送 session_id 元数据
   res.write(`data: ${JSON.stringify({ session_id: sessionId })}\n\n`);
 
-  // 4. 流式生成, 逐 token 写入
+  // 5. 流式生成, 逐 token 写入
   await sessionService.sendMessageStream2session(
     username,
     question,
@@ -382,7 +388,7 @@ export async function createStreamSessionAndSendMessageStream(ctx: Context) {
     res,
   );
 
-  // 5. 结束连接
+  // 6. 结束连接
   res.end();
 }
 ```
@@ -708,7 +714,7 @@ db/cache.ts
 
 1. Tree-shaking: 移除未使用的代码路径, 减小部署体积
 2. 单文件输出: 将所有本地模块打包为一个 ESM 文件, 简化部署 (无需 node_modules 中的源码)
-3. external 配置: 所有 node_modules 依赖标记为 external, 不打包进 bundle, 保持运行时 require
+3. external 配置: 所有 node_modules 依赖标记为 external (node: 内建、@langchain/ 与 @koa/ 前缀走正则, 其余逐个列名, rollup.config.js:13-32), 不打包进 bundle, 运行时再从 node_modules 加载
 4. TypeScript 编译: 通过插件在构建时完成类型擦除, 产物为纯 JS
 
 开发模式: 使用 `tsx watch` 直接运行 TypeScript, 无需构建步骤, 文件变更自动重启.
@@ -722,7 +728,9 @@ db/cache.ts
 ```json
 {
   "scripts": {
-    "dev": "concurrently \"pnpm --filter client dev\" \"pnpm --filter server dev\""
+    "dev": "concurrently \"pnpm dev:client\" \"pnpm dev:server\"",
+    "dev:client": "pnpm --filter client dev",
+    "dev:server": "pnpm --filter server dev"
   }
 }
 ```
@@ -756,8 +764,8 @@ db/cache.ts
 扩展新模型示例:
 
 ```typescript
-// 注册新模型只需一行
-factory.registerModel("openai", (config) => new OpenAIModel(config));
+// 注册新模型只需一行 (MyModel 为新增的 AiModel 实现类)
+factory.registerModel("my-model", (config) => new MyModel(config));
 ```
 
 无需修改 Agent、Manager、Controller 的任何代码.
@@ -834,7 +842,7 @@ factory.registerModel("openai", (config) => new OpenAIModel(config));
 应用层 ThemeProvider (components/theme-provider/index.tsx):
 
 1. 监听 resolvedTheme, 在 documentElement 上切换 `.light`/`.dark` 类, Tailwind 的 dark 变体消费该类 (theme-provider/index.tsx:9-17)
-2. 同步更新 `<meta name="theme-color">` 为 #292120 (暗) 或 #fdf3f1 (亮), 适配移动端浏览器状态栏颜色 (theme-provider/index.tsx:19-25)
+2. 同步更新 `<meta name="theme-color">` 为 #292120 (暗) 或 #fdf3f1 (亮), 适配移动端浏览器状态栏颜色 (theme-provider/index.tsx:19-25; 该更新以页面已声明此 meta 为前提, 当前 index.html 并未包含 theme-color meta, 这段逻辑暂不生效)
 3. theme 为 "system" 时额外监听 prefers-color-scheme 的 change 事件, 系统主题切换即时生效, 卸载时移除监听 (theme-provider/index.tsx:29-45)
 
 代码高亮联动: Markdown 组件给 Streamdown 传 `shikiTheme={["github-light", "github-dark"]}` 双主题, 高亮主题跟随 `.dark` 类自动切换 (components/markdown/index.tsx:25). App 的组件层级为 QueryClientProvider > ThemeProvider > RouterProvider + Toaster (App.tsx:10-17).

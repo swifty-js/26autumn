@@ -205,7 +205,7 @@ providerOptions = {
 3. 输出规约显式化:"Output markdown only"、"复杂问题先逐步思考"等指令直接写在模板里, 与前端 `MdRender` 的渲染能力对齐.
 4. 配置缺失时优雅降级:log topic 未配置时不是注入空值而是删掉整行, 避免模型看到一个空配置项反而困惑或编造值.
 
-不足与改进: 占位符用简单 `replace`, 若文档内容本身含 `{date}` 字样会被二次替换污染; 检索结果没有按 score 过滤, topK=1 时可能注入无关文档. 更稳健的做法是用 messages 数组分离 context(inject 为独立 user/system message) 而非字符串模板.
+不足与改进: 占位符用简单 `replace` 注入, 文档内容若含 `$&`、`$'` 等 String.replace 替换模式字符串, 会被解释为匹配上下文而污染 prompt( `{documents}` 是最后一次替换, 文档中的 `{date}` 字样并不会被二次替换) ; 检索结果没有按 score 过滤, topK=1 时可能注入无关文档. 更稳健的做法是用 messages 数组分离 context(inject 为独立 user/system message) 而非字符串模板.
 
 ---
 
@@ -270,7 +270,7 @@ ReAct(Reasoning + Acting) 是让 LLM 在"思考 → 调用工具 → 观察结�
 3. Replan: 一轮执行完, think 模型 + `generateText` + `Output.object({schema: replanSchema})` 评估: 输入包含原始任务、原始计划、已完成步骤、各步结果全文. 若 `done=true` → 先跑一次可选的 `uiifyReport()` 后处理( think 模型、无工具, 把报告渲染成 A2UI 界面, 失败不影响报告, `index.ts:87-126`), 产出 `done` 事件( `result=summary`, `detail=全部步骤输出`, 可带 `a2ui`) 并 return; 否则 `plan = remaining`, 进入下一轮;
 4. 兜底:20 轮耗尽仍未 done, 产出 `done`(`result="Max iterations reached"`); 任何异常被捕获并产出 `error` 事件; `finally` 里 `logEnd` 打点.
 
-整体是一个双层循环: 外层 replan 循环( 20)× 中层步骤循环( plan.length)× 内层工具循环( 10), 理论上限 20×N×10 次 LLM 调用, 由两层 `isStepCount` + MAX_ITERATIONS 双重封顶.
+整体是一个三层嵌套循环: 外层 replan 循环( 20)× 中层步骤循环( plan.length)× 内层工具循环( 10), 理论上限 20×N×10 次 LLM 调用, 由 MAX_ITERATIONS( 20) 与 executor 的 `isStepCount(10)` 双重封顶.
 
 ---
 
@@ -378,11 +378,11 @@ Replan prompt(`index.ts:159-178`) 包含四部分: 原始 Task、Original Plan(J
 
 答:
 
-实现( `knowledge-index.ts:47-81`): 使用 `RecursiveCharacterTextSplitter.fromLanguage("markdown", {chunkSize: 1000, chunkOverlap: 200})`, 按 markdown 感知的分隔符层级( 标题 → 段落 → 句子 → 字符) 递归切分. 切分后对每个 chunk 提取首个 heading 作为 title, 无 heading 则继承前一个 chunk 的标题( 文档顺序传递).
+实现( `knowledge-index.ts:47-81`): 使用 `RecursiveCharacterTextSplitter.fromLanguage("markdown", {chunkSize: 1000, chunkOverlap: 200})`, 按 markdown 感知的分隔符层级( 标题 → 代码围栏/水平分隔线 → 段落 → 行 → 字符) 递归切分. 切分后对每个 chunk 提取首个 heading 作为 title, 无 heading 则继承前一个 chunk 的标题( 文档顺序传递).
 
 参数选择( 注释 `knowledge-index.ts:41-43`):chunkSize=1000 远低于 indexer 的 8192 字符存储上限和 embedding provider 的输入限制, 保证嵌入文本与存储文本始终一致; overlap=200 提供相邻 chunk 间的上下文 continuity. 参数沿用了 swifty-chatbot 项目验证过的 RAG 配置.
 
-优点:① markdown 感知: 分隔符优先级( `#` > `\n\n` > `\n` > ` `) 保证切分点尽量落在语义边界上, 不会把一句话拦腰切断; ② 递归兜底: 没有标题的纯文本文件也能按段落/句子合理切分, 不会变成单个巨型 chunk; ③ overlap 缓解边界语义断裂, 跨 chunk 依赖的知识( "接上文所述参数") 在相邻 chunk 中都有上下文; ④ chunk 自带 title 元数据( 继承机制保证无标题 chunk 也有归属), 便于溯源和展示.
+优点:① markdown 感知: 分隔符优先级( 标题 `##`~`######` > 代码围栏 > 水平分隔线 > `\n\n` > `\n` > ` `) 保证切分点尽量落在语义边界上, 不会把一句话拦腰切断; ② 递归兜底: 没有标题的纯文本文件也能按段落/句子合理切分, 不会变成单个巨型 chunk; ③ overlap 缓解边界语义断裂, 跨 chunk 依赖的知识( "接上文所述参数") 在相邻 chunk 中都有上下文; ④ chunk 自带 title 元数据( 继承机制保证无标题 chunk 也有归属), 便于溯源和展示.
 
 缺点:① chunkSize 按字符数而非 token 计数, 与 embedding 模型上下文不是精确对齐; ② 1000 字符对某些长段落仍可能切在不够自然的位置; ③ 继承标题只取最近一个, 多级嵌套文档中可能丢失上层标题链( 如"手册 > 告警处理 > 告警A"只保留"告警A").
 
@@ -1027,7 +1027,7 @@ P1-8(Redis 单例缓存 rejected Promise, `client.ts:34-39`):`clientPromise = in
 
 向量维度静默不匹配( `client.ts:62-67` 注释记录的真实踩坑, 由 `ensureIndex` 的启动自检防御, `client.ts:68-95`) : 切换 embedding provider 后, 旧索引 DIM 与新向量不符, 搜索静默失败/返回空——RAG 系统的"知识库失效"不会以异常形式出现, 而是表现为"模型开始一本正经地胡说八道"( 没有文档依据还在答) . 说明:AI 系统的故障模式比传统软件更隐蔽——传统系统挂了会报错, AI 系统"半坏"时会输出貌似合理但错误的内容, 因此需要启动自检( FT.INFO 维度比对) 和输出侧监控( 检索命中率、score 分布) 这类主动防御.
 
-整体看, 这些 P 编号修复分为三类: 资源生命周期( P1-1/P1-8)、并发安全( P1-9)、协议/语义对齐( P2-13/P2-17)与维度自检( `client.ts:68-95`)——恰好对应"异步 JS 基本功、并发思维、AI 系统特性"三个高级工程师能力域.
+整体看, 这些 P 编号修复分为三类: 资源生命周期( P1-1/P1-8)、并发安全( P1-9)、协议/语义对齐与维度自检( P2-13/P2-17, `client.ts:68-95`)——恰好对应"异步 JS 基本功、并发思维、AI 系统特性"三个高级工程师能力域.
 
 ---
 
@@ -1097,11 +1097,11 @@ P1-8(Redis 单例缓存 rejected Promise, `client.ts:34-39`):`clientPromise = in
 
 XSS 风险评估:
 
-1. 渲染链路:Streamdown 基于 react-markdown 体系, 默认不把 markdown 源文本中的内嵌 HTML 当 HTML 渲染( 未启用 rehype-raw 类插件), markdown 里的 `<script>` 会被当作纯文本呈现; 组件自身的渲染产物是 React 元素, 全文检索该依赖的构建产物也没有 `dangerouslySetInnerHTML` 用法;
+1. 渲染链路:Streamdown 基于 react-markdown 体系, 但并非"不渲染内嵌 HTML"——其默认 rehype 插件链是 rehype-raw + rehype-sanitize( 扩展 defaultSchema) + rehype-harden, markdown 内嵌 HTML 会被解析渲染, `<script>`、事件属性、`javascript:` 链接在 sanitize 阶段被剔除( 安全效果靠净化而非纯文本化) ; 构建产物中还有一处 `dangerouslySetInnerHTML`——Mermaid 图表组件用它注入 Mermaid 渲染出的 SVG, 该路径的安全性依赖 Mermaid 自身的净化配置( 默认 securityLevel=strict);
 2. 代码高亮走 Shiki 输出, 不是"手拼 HTML 字符串再注入"的旧模式, 不存在"高亮失败 fallback 到未转义原始文本"这类分支;
-3. 内容来源:markdown 内容来自 LLM 输出( 服务端可控性弱) + 用户自己的消息. LLM 输出可能被知识库 prompt injection 诱导产出恶意 markdown( 如"回复中包含这段代码"), 间接 XSS 的载体依赖渲染器默认转义兜底; A2UI 数据( 由 web_core schema 校验) 是另一条渲染路径, 见 Q79-Q80.
+3. 内容来源:markdown 内容来自 LLM 输出( 服务端可控性弱) + 用户自己的消息. LLM 输出可能被知识库 prompt injection 诱导产出恶意 markdown( 如"回复中包含这段代码"), 间接 XSS 的载体依赖渲染器 sanitize 兜底; A2UI 数据( 由 web_core schema 校验) 是另一条渲染路径, 见 Q79-Q80.
 
-结论: 主路径依赖 Streamdown/react-markdown 的默认安全语义, 无手写 innerHTML 注入点; 加固还可以上 CSP(`script-src 'self'`) 作为纵深防御.
+结论: 主路径依赖 Streamdown 的 rehype-sanitize 净化语义与 React 元素渲染, 应用自身代码无手写 innerHTML 注入点( 依赖内仅 Mermaid 图表一处, 注入的是 Mermaid 渲染产物而非原始文本) ; 加固还可以上 CSP(`script-src 'self'`) 作为纵深防御.
 
 ---
 
@@ -1195,7 +1195,7 @@ zod 使用点全景: API 请求体( `chat/route.ts:27-30`)、API 响应( 前端 
 价值:
 
 1. 让类型系统说真话:`as` 断言是"程序员对编译器撒谎",AI 生成代码尤其爱用断言消除编译错误( 它优化的是"编译通过"而非"正确"). 禁掉断言后, 未知数据必须走 zod 校验获得类型——把"看起来对"变成"运行时也对";
-2. eslint-disable 个案化:项目里仅有一处显式豁免( `use-chat.ts:134` 的 set-state-in-effect) 且带完整理由注释——规则保持牙齿, 例外留下文档. 对比"全局关掉烦人规则"的做法, 这种纪律使 lint 的防护价值不贬值;
+2. eslint-disable 个案化:项目里显式豁免仅两处 set-state-in-effect( `use-chat.ts:134` 带完整理由注释, 另一处是 shadcn 移植样板 `hooks/use-mobile.ts:16`)——规则保持牙齿, 例外留下文档. 对比"全局关掉烦人规则"的做法, 这种纪律使 lint 的防护价值不贬值;
 3. 重构安全性: 严格类型下改 schema/改事件联合类型, 编译器能列出全部受影响点( 如给 PlanExecuteEvent 加新事件类型, 消费方 switch 漏分支直接报错) ;
 4. AI 协作协议: 这些规范本质上是写给人和 AI 共同的"贡献指南"——约束越明确, AI 产出方差越小, review 成本越低. 这是 AI 时代工程规范的新定位:规范即 prompt 上下文.
 
@@ -1386,7 +1386,7 @@ AI Ops 报告另有一处"UI 化"后处理: replanner 判定完成后, `uiifyRep
 
 启动索引( `instrumentation.ts`):Next.js instrumentation 的 `register()` 钩子在服务启动时执行一次, 守卫 `NEXT_RUNTIME === "nodejs"` 后动态 import `indexDataDir()`( `instrumentation.ts:26-37`)——把 `FILE_DIR`( 默认 ./data/docs) 下全部 `.md/.markdown/.txt` 文件重建索引, 向量库无需手动上传即有数据; 索引失败只记 error, 绝不阻塞 server boot. `indexDataDir()` 逐文件容错, 单文件失败 log 后跳过, 目录不存在则 warn 跳过( `knowledge-index.ts:105-132`). 这与 Redis 客户端的维度探测( Q14) 组合, 构成"启动即自检自愈"的模式.
 
-告警-文档契约( `prometheus.rules.yml:1-6` 头部注释): "Alert names are contract"——AI Ops 管线的 SOP 是 `query_prometheus_alerts` 拿到活跃告警名, 再用告警名调 `query_internal_docs` 检索处理手册, 所以每条告警规则的名字必须与 `data/docs/alert-handling-guide.md` 中的同名标题一一对应, 否则检索落空、模型失去知识锚点. 规则文件本身展示了运行时指标的正确用法: ServiceOffline(up == 0)、NodeHeapNearLimit(swifty_node_v8_heap_used_ratio > 0.9)、NodeHeapLeakSuspected(predict_linear 外推一小时内触及上限)、NodeDetachedContextLeak(detached contexts > 10)——全部基于 Q81 的 Node/V8 指标.
+告警-文档契约( `prometheus.rules.yml:1-5` 头部注释): "Alert names are contract"——AI Ops 管线的 SOP 是 `query_prometheus_alerts` 拿到活跃告警名, 再用告警名调 `query_internal_docs` 检索处理手册, 所以每条告警规则的名字必须与 `data/docs/alert-handling-guide.md` 中的同名标题一一对应, 否则检索落空、模型失去知识锚点. 规则文件本身展示了运行时指标的正确用法: ServiceOffline(up == 0)、NodeHeapNearLimit(swifty_node_v8_heap_used_ratio > 0.9)、NodeHeapLeakSuspected(predict_linear 外推一小时内触及上限)、NodeDetachedContextLeak(detached contexts > 10)——全部基于 Q81 的 Node/V8 指标.
 
 这条契约把四个模块串成一个闭环: swifty-sentry 采集 → `/api/log` 入库 → `/api/metrics` 暴露 → Prometheus 告警 → AI Ops 一键分析( 按告警名检索 runbook) → 报告与 A2UI 界面呈现. 面试中可以把它作为"监控数据反哺 AI Agent"的完整案例.
 

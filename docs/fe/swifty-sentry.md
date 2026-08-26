@@ -110,7 +110,7 @@ setup() 的清理函数设计:
 const event2handlers = new Map<EventType, Set<TEventHandler>>();
 
 // 发布( 每个 handler 单独 try/catch, 单个消费者抛错不影响其他消费者)
-function pub(type: EventType, data: unknown): void {
+function pub(type: EventType, data: TReportPayload): void {
   const handlers = event2handlers.get(type);
   if (!handlers) return;
   for (const handler of handlers) {
@@ -262,7 +262,8 @@ if (!sentry.codeErrors.has(errorId)) {
 }
 ```
 
-- 使用 `base64v2` 对 `type-name-message-filename-line-column` 编码作为唯一键
+- 使用 `base64v2` 编码生成唯一键: window.onerror 路径为 `type-message-filename-line-column`( handle-code-error.ts:104) , Error 实例路径为 `type-name-message`( handle-error.ts:121) , 资源错误路径为 `type-localName-src/href`( handle-error.ts:84)
+- filename 缺失或为 "unknown" 的错误视为来源不明, 跳过去重直接上报( handle-code-error.ts:103-105)
 - `BoundedSet` 容量上限 1000, 超出时淘汰最早插入的条目( 基于 Map 的插入顺序)
 - 可通过 `repeatCodeError: true` 配置关闭去重
 
@@ -401,7 +402,7 @@ private sendBatch(finalSendData: readonly IReportData[]): Promise<boolean> | boo
 | 通道                   | 大小限制 | 优势                                                  | 劣势                                     | 适用场景              |
 | ---------------------- | -------- | ----------------------------------------------------- | ---------------------------------------- | --------------------- |
 | `navigator.sendBeacon` | ~64KB    | 页面卸载时仍可靠发送、不阻塞页面、浏览器调度          | 仅 POST、无法自定义 header、无法获取响应 | 常规批量上报          |
-| Image (1x1 gif)        | ~2KB     | 跨域无限制、兼容极老浏览器、不受 CSP connect-src 限制 | 仅 GET、URL 长度限制、无法发送复杂数据   | 兜底/跨域受限环境     |
+| Image ( new Image())   | ~2KB     | 跨域无限制、兼容极老浏览器、不受 CSP connect-src 限制 | 仅 GET、URL 长度限制、无法发送复杂数据   | 兜底/跨域受限环境     |
 | `fetch POST`           | 无硬限制 | 可自定义 header、可获取响应状态、支持 keepalive       | 页面卸载时可能中断                       | 大数据量/需要确认送达 |
 
 为什么需要多通道:
@@ -501,7 +502,7 @@ offline 事件 ──> isOnline = false
 设计亮点:
 
 - 区分「客户端离线」和「服务端不可达」两种故障, 分别用 online 事件和 HEAD 探测处理
-- 数据回插机制: flush 失败时 `events = [...finalSendData, ...events]`, 保证数据不丢
+- 数据回插机制: flush 失败时 `events = [...finalSendData, ...events].slice(-maxQueueLength)`( reporter/index.ts:119) , 失败批次回插队头; 但总量超过 200 条时最旧数据仍会被淘汰
 - localStorage 有 5MB 限制, 通过 `maxQueueLength=200` 和单条数据大小控制总量
 
 ---
@@ -1045,7 +1046,7 @@ function isIgnoredError(message: string): boolean {
 ```typescript
 init({
   onBeforeReportData: (data) => {
-    if (data.url.includes("/admin")) return null; // 返回 null 拒绝上报
+    if (data.url.includes("/admin")) return false; // 返回 false 拒绝上报
     return data; // 可修改后返回
   },
 });
@@ -1641,7 +1642,7 @@ globalThis.addEventListener("beforeunload", () => {
 | ------------------------ | ------------------ | --------------------------- |
 | PageLoad                 | SDK 初始化         | url, referrer, entryTime    |
 | HistoryChange/HashChange | 路由切换           | url, referrer, entryTime    |
-| Page + Dwell             | 路由切换、页面关闭 | url, referrer, duration(ms) |
+| PageDwell                | 路由切换、页面关闭 | url, referrer, duration(ms) |
 
 设计要点:
 
@@ -1680,7 +1681,7 @@ globalThis.addEventListener("beforeunload", () => {
 
 4. 架构优化:
 
-- 事件总线类型安全: 当前 `pub(type, data: unknown)` 丢失了类型信息, 可以用 discriminated union 让 handler 获得精确类型
+- 事件总线类型安全: 当前 `pub(type, data: TReportPayload)` 传入宽泛联合类型, EventType 与载荷类型无关联, 可以用 discriminated union 让 handler 获得精确类型
 - 插件通信: 当前插件只能订阅事件总线, 无法插件间通信. 可以添加插件间消息通道( 如录屏插件通知性能插件降低采样)
 - 配置热更新: 支持运行时动态修改采样率、过滤规则, 无需重新 init
 
@@ -1752,7 +1753,7 @@ IReportData
 ├── name: 出错脚本的 filename
 ├── message: 错误消息
 ├── status: "Error"
-├── id / timestamp / time: 事件唯一 ID 与时间
+├── id / timestamp / time: id 为 DataReporter 实例 ID( reporter/index.ts:37) , 事件级唯一 ID 在 payload.id
 ├── url: location.href
 ├── userId / projectId / sdkVersion: 归属信息
 ├── deviceInfo: { browserName, browserVersion, osName, osVersion,

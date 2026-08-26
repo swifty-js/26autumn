@@ -52,7 +52,7 @@ Swifty 后端框架相关的深度面试题, 包括 Swiftx、HTTP、RPC、Cache 
 - [Tiktok 工作: 设备性能采集、数据链路、RPC、BFF 与虚拟滚动](docs/tiktok.md)
 - [IEG 工作: NoSQL 管理端四项工程实践](docs/ieg.md)
 - [Data 工作: JSError 自动修复、视频切片聚类标签与手写 SWR](docs/data.md)
-- [Ali 工作: Next.js 交互稿还原](docs/ali.md)
+- [Ali 工作](docs/ali.md)
 
 ### 源码解析
 

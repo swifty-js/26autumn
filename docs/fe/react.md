@@ -462,7 +462,7 @@ function BadComponent({ flag }) {
 
 React Compiler 现状:
 
-React Compiler 已于 2025 年 10 月发布 1.0 并可用于生产, 以独立的 Babel 插件形式启用, 兼容 React 17+. 它在编译期自动插入记忆化( 等效于自动 memo/useMemo/useCallback) , 但 "Hooks 必须无条件调用" 的规则并未放宽——编译器同样依赖调用顺序稳定这一前提, 底层链表结构没有改变.
+React Compiler 已于 2025 年 10 月发布 1.0 并可用于生产, 以独立的 Babel 插件形式启用, 兼容 React 17+. 它在编译期自动插入记忆化( 等效于自动 memo/useMemo/useCallback) , 但 Hooks 必须无条件调用的规则并未放宽——编译器同样依赖调用顺序稳定这一前提, 底层链表结构没有改变.
 
 ---
 

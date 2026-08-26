@@ -52,7 +52,7 @@ NaN == NaN    // false, NaN 不等于任何值包括自身
 
 ### Q3. 原型与原型链是什么
 
-A: 每个对象都有一个内部槽 [[Prototype]], 指向它的原型对象, 可以通过 Object.getPrototypeOf 或 `__proto__`( 非标准但已被 HTML 规范收编的访问器) 访问. 函数对象额外拥有一个 prototype 属性, 该属性的 constructor 指回函数本身. 当通过 new 创建实例时, 实例的 [[Prototype]] 会被设为构造函数的 prototype.
+A: 每个对象都有一个内部槽 [[Prototype]], 指向它的原型对象, 可以通过 Object.getPrototypeOf 或 `__proto__`( 历史遗留但已被 ECMAScript 附录 B 规范化、HTML 规范要求浏览器实现的访问器) 访问. 函数对象额外拥有一个 prototype 属性, 该属性的 constructor 指回函数本身. 当通过 new 创建实例时, 实例的 [[Prototype]] 会被设为构造函数的 prototype.
 
 三者的关系:
 
@@ -550,7 +550,7 @@ A: requestAnimationFrame(cb): 告诉浏览器下一帧绘制前调用 cb, 回调
 - 后台标签页会暂停, 天然省电.
 - 每帧只执行一次, 需要持续动画要在回调里再次注册.
 
-requestIdleCallback(cb, { timeout }): 在浏览器空闲时段调用, cb 收到 IdleDeadline, deadline.timeRemaining() 告知本帧剩余空闲时间, deadline.didTimeout 表示是否因超时强制执行. 适合低优先级任务: 日志上报、预计算、非关键数据同步. 注意: 空闲回调中应避免直接大量修改 DOM( 可能迫使布局在回调内同步发生) , 修改 DOM 的工作应拆到 rAF 中; Safari 稳定版至今未实现( 仅 Safari Technology Preview 可通过标志开启), 需 setTimeout 降级.
+requestIdleCallback(cb, { timeout }): 在浏览器空闲时段调用, cb 收到 IdleDeadline, deadline.timeRemaining() 告知本帧剩余空闲时间, deadline.didTimeout 表示是否因超时强制执行. 适合低优先级任务: 日志上报、预计算、非关键数据同步. 注意: 空闲回调中应避免直接大量修改 DOM( 可能迫使布局在回调内同步发生) , 修改 DOM 的工作应拆到 rAF 中; Safari 稳定版至今未默认提供( WebKit 已实现但默认关闭, 目前仅 Safari Technology Preview 默认开启), 需 setTimeout 降级.
 
 两者常配合做时间切片: rIC 做数据准备, rAF 做 DOM 更新.
 
@@ -564,7 +564,7 @@ A: setTimeout(fn, delay) 的语义是“至少 delay 毫秒后把回调放入任
 4. 最小分辨率与系统定时器精度本身有限.
 5. 回调自身执行耗时会造成后续累积漂移.
 
-对策: 动画用 rAF; 需要稳定节拍的场景( 如倒计时显示) 应基于时间戳校准( 记录起始时间, 每 tick 用 Date.now() 差值计算, 而非累加 delay) ; 高精度后台计时可放到 Web Worker 中( Worker 不受后台标签节流限制) ; 调度类需求可用 setInterval 自校准或 scheduler.postTask( 优先级调度, 支持 delay 与 AbortSignal 取消, 兼容性逐步改善中) .
+对策: 动画用 rAF; 需要稳定节拍的场景( 如倒计时显示) 应基于时间戳校准( 记录起始时间, 每 tick 用 Date.now() 差值计算, 而非累加 delay) ; 高精度后台计时可放到 Web Worker 中( Worker 不受后台标签节流限制) ; 调度类需求可用 setInterval 自校准或 scheduler.postTask( 优先级调度, 支持 delay 与 AbortSignal 取消; Chrome 94+/Firefox 142+ 已支持, Safari 尚未) .
 
 ## 第三部分 DOM 与事件
 
@@ -642,7 +642,7 @@ A: 三者作用完全不同:
 
 - 阻止传播不阻止默认行为, 反之亦然.
 - passive: true 的监听器中 preventDefault 无效.
-- 内联属性事件( onclick="...") 中 return false 等价于 preventDefault + stopPropagation; 但 addEventListener 的回调里 return false 没有任何效果( jQuery 的 return false 则是框架自己做的封装行为) .
+- 内联属性事件( onclick="...; return false") 中 return false 仅等价于 preventDefault( 取消默认行为, 不阻止传播) ; addEventListener 或 DOM0 赋值( element.onclick = fn) 的回调里 return false 没有任何效果; jQuery 事件回调里的 return false 则是框架自己封装的 preventDefault + stopPropagation 组合.
 - event.cancelBubble 是 stopPropagation 的旧式别名; event.defaultPrevented 可查询是否已被阻止默认行为, 多层组件协作时可据此决定是否再处理.
 
 ### Q29. passive 事件监听器与滚动性能
@@ -656,7 +656,7 @@ passive: true 是开发者对浏览器的承诺: 这个监听器不会调用 pre
 - Chrome 从 56 起把 window、document、body 上的 touchstart/touchmove 默认设为 passive, wheel 随后也默认 passive; 这是“ Intervention ”级别的默认行为变更, 旧代码若依赖 preventDefault 阻止滚动( 如下拉刷新组件) , 必须显式 { passive: false }.
 - 特性检测: 通过定义带 getter 的对象探测浏览器是否读取 passive 属性.
 - 除滚动类事件外, passive 对其他事件没有实际收益.
-- React 17 之前 onTouchMove 等合成事件挂在 document 且非 passive, 无法 preventDefault 是常见坑; React 17 后事件挂到根容器, 行为变化需要注意.
+- React 17 之前合成事件统一委托到 document, 恰好落入浏览器对 document/window 上 touchstart/touchmove/wheel 默认 passive 的干预, onTouchMove/onWheel 里 preventDefault 无效是常见坑; React 17 起事件挂到根容器, 这几类事件仍默认按 passive 注册, 需要阻止默认行为时应通过 ref 挂原生监听器并显式传 { passive: false }.
 
 ### Q30. 如何创建与派发自定义事件
 
@@ -751,7 +751,7 @@ A: 样式隔离规则:
 事件机制:
 
 - 事件在 Shadow 边界发生 retargeting: 外部监听器看到的 event.target 是宿主元素, 内部实现细节被隐藏; 内部监听器看到的仍是真实目标.
-- 只有 composed: true 的事件才会穿越 Shadow 边界继续冒泡到外部( 原生事件如 click、input 默认 composed, focus、scroll 等不 composed; 自定义事件需显式设置) .
+- 只有 composed: true 的事件才会穿越 Shadow 边界继续传播到外部( 原生 UI 事件如 click、input、focusin 默认 composed; mouseenter/mouseleave 等不 composed; focus/blur 本身 composed 但不冒泡, 祖先只能在捕获阶段观察到; 自定义事件需显式设置) .
 - composedPath() 返回包含 Shadow 内部节点的完整路径( closed 模式下对外隐藏内部节点) .
 - slot 分发的元素在事件路径上同时包含“扁平树”位置, 理解事件路径要以扁平树而非原 DOM 树为准.
 
@@ -1007,7 +1007,7 @@ A: 关键渲染路径( CRP) 是首屏渲染所必需的资源与处理步骤: HT
 A: 以 Chrome 为例的多进程模型:
 
 - Browser 进程: UI、地址栏、书签、导航协调、权限与存储管理.
-- Renderer 渲染进程: 负责 HTML/CSS/JS 执行与绘制, 运行在沙箱中, 默认按站点( site) 隔离实例——站点隔离( Site Isolation) 让不同源页面运行在不同进程, 是缓解 Spectre 类侧信道攻击的关键防线.
+- Renderer 渲染进程: 负责 HTML/CSS/JS 执行与绘制, 运行在沙箱中, 默认按站点( site, 即 scheme + eTLD+1) 隔离实例——站点隔离( Site Isolation) 让不同站点的页面运行在不同渲染进程( 同一站点下不同源的多个页面仍共用进程), 是缓解 Spectre 类侧信道攻击的关键防线.
 - GPU 进程: 处理光栅化与合成的 GPU 调用, 独立于渲染进程以隔离驱动崩溃.
 - Network Service 进程: 网络栈独立成服务进程.
 - Utility/Plugin 进程: 音视频解码、扩展等按需拆分.
@@ -1283,7 +1283,7 @@ A: CORS 是浏览器实施、服务器配合的跨源放行机制. 核心事实:
 
 - Access-Control-Expose-Headers 决定 JS 能读取哪些非 safelist 响应头( 如 X-Total-Count) .
 - 失败时浏览器只在控制台报错, JS 拿到的只是笼统的网络错误, 不带状态码.
-- Private Network Access: 公网页面访问内网地址需额外预检( Chrome 推进中) .
+- Private Network Access 的后继方案 Local Network Access: 公网页面访问内网/本机地址需用户本地网络权限授权( fetch 可用 targetAddressSpace 提示目标地址空间; Chrome 已由预检方案转向权限提示, 自 142 起逐步推进) .
 - no-cors 模式得到的是 opaque 响应( 不可读、状态为 0) , 仅用于不依赖结果的场景.
 
 ### Q64. 跨域解决方案有哪些
@@ -1487,8 +1487,8 @@ A: Tree-shaking 指打包器在构建期移除未被使用的导出代码( dead 
 A: 核心差异在开发模式的架构:
 
 - webpack dev: 启动时对整个应用做一次完整打包( bundle-based) , 产物存内存由 dev server 提供, 项目越大冷启动越慢.
-- vite dev: 基于浏览器原生 ESM( unbundled) , 启动时只用 esbuild 预构建第三方依赖( CJS 转 ESM、合并小文件减少请求数) , 业务源码按需编译——浏览器请求哪个模块才现场转换哪个, 冷启动与项目规模基本无关.
-- 生产构建: vite 用 Rollup( v6 开始逐步转向 Rolldown) , webpack 用自身; 生产环境仍然打包, 因为纯 ESM 的深层请求瀑布与 HTTP 开销在生产不可接受.
+- vite dev: 基于浏览器原生 ESM( unbundled) , 启动时只预构建第三方依赖( CJS 转 ESM、合并小文件减少请求数, 历史上由 esbuild 承担) , 业务源码按需编译——浏览器请求哪个模块才现场转换哪个, 冷启动与项目规模基本无关.
+- 生产构建: webpack 用自身; vite 在 v7 及之前默认用 Rollup, v8( 2026 年发布) 起默认切换为 Rust 实现的 Rolldown( 兼容大部分 Rollup 插件 API, 开发期依赖预构建也统一由其承担) . 生产环境仍然打包, 因为纯 ESM 的深层请求瀑布与 HTTP 开销在生产不可接受.
 
 HMR( 热模块替换) 原理:
 
@@ -1760,7 +1760,7 @@ A: 自适应限流( Adaptive Rate Limiting) 的核心: 根据系统实时负载�
    - 最小 RT( minRt, 最近窗口内的最小平均响应时间) .
 
 2. 计算系统最大承载能力:
-   - maxInFlight = maxPass _ minRt / 1000( Little's Law: L = lambda _ W) .
+   - maxInFlight = maxPass \* minRt / 1000( Little's Law: L = lambda \* W) .
    - 即: 系统能同时处理的最大在途请求数 = 最大吞吐量 \* 最小响应时间.
 
 3. 决策逻辑:
@@ -1998,7 +1998,7 @@ function curry(fn) {
 
 考点深挖:
 
-- 旧版( experimentalDecorators) 求值顺序: 参数装饰器 -> 方法/访问器/属性装饰器( 按声明顺序) -> 静态成员先于实例成员 -> 类装饰器最后. 装饰器表达式自上而下求值, 调用自下而上( 洋葱模型) .
+- 旧版( experimentalDecorators) 求值顺序: 实例成员先于静态成员, 每个成员先应用参数装饰器、再应用方法/访问器/属性装饰器( 按声明顺序) , 随后是构造函数的参数装饰器, 类装饰器最后. 装饰器表达式自上而下求值, 调用自下而上( 洋葱模型) .
 - 属性装饰器拿不到 PropertyDescriptor( 因为实例属性不在原型上) , 所以无法拦截赋值.
 - TS 5.0 标准装饰器签名完全不同: (value, context), context 含 kind/name/access/addInitializer, 不再有 target/descriptor 三元组.
 - 装饰器叠加 emitDecoratorMetadata 会生成 design:type / design:paramtypes / design:returntype 元数据( reflect-metadata) , 这是 Angular/NestJS 依赖注入的根基.
@@ -2338,7 +2338,7 @@ function createInfiniteObject(path = []) {
 - setDate 溢出进位是规范行为( MakeDay) , 比手写"每月天数表 + 闰年"可靠得多.
 - 月份 getMonth() 从 0 起——补零前 +1, 经典踩坑点.
 - 跨时区/夏令时切换日, "加一天"与"加 24h"不等价( setDate(+1) 是日历日, +86400000 是物理时长) .
-- 扩展原生原型的争议——生产应封装工具函数或使用 Temporal 提案 API.
+- 扩展原生原型的争议——生产应封装工具函数或使用 Temporal API( 取代 Date 的新标准, Chrome 144+/Firefox 139+ 已原生支持, Safari 尚未).
 
 ### 题目 30| promisify
 
@@ -2405,7 +2405,7 @@ A: TypeScript 编译器( tsc) 本质是一个"带类型擦除的转译器", 从�
    - 类型擦除: 删除所有类型标注、接口、类型别名、as 断言、! 非空断言( 纯删除, 零运行时成本) ;
    - TS 独有语法展开: enum -> IIFE 生成双向映射对象; namespace -> IIFE 闭包; 参数属性( constructor(private x)) -> 构造体内赋值语句;
    - 装饰器( 旧版) : 类与方法调用改写为 \_\_decorate([...], target, key, descriptor) 辅助函数调用; emitDecoratorMetadata 额外注入 Reflect.metadata("design:type", ...);
-   - 语法降级: async/await -> \_\_awaiter + 生成器状态机( target <= ES2017) ; class -> 函数 + 原型赋值( <=ES5) ; ?. / ?? -> 临时变量 + 三元表达式;
+   - 语法降级: async/await -> \_\_awaiter + 生成器状态机( target < ES2017, ES2017 及以上保留原生 async) ; class -> 函数 + 原型赋值( <=ES5) ; ?. / ?? -> 临时变量 + 三元表达式;
    - 模块转换: ESM import/export -> CJS 的 require/exports.x( module: commonjs 时) .
 
 6. 发射( Emitter) : 变换后 AST -> 输出文本, 三种产物:
@@ -2459,9 +2459,10 @@ BigInt: 任意精度整数( 123n) ; 不能与 Number 混算( 显式转换) ; typ
 - Array.prototype.at(-1)、findLast.
 - Object.hasOwn( 替代 hasOwnProperty.call) .
 - 顶层 await( ES2022) ; 类私有字段 #x( 真私有, 运行时不可访问, 与 TS private 的"类型层私有"本质不同) .
-- Object.groupBy / Map.groupBy( ES2024; 原 Array.prototype.group 提案最终改为静态方法落地) ; Promise.withResolvers; structuredClone.
+- Object.groupBy / Map.groupBy( ES2024; 原 Array.prototype.group 提案最终改为静态方法落地) ; Promise.withResolvers( ES2024) ; structuredClone( 注意它是 HTML 标准的 Web API 而非 ECMAScript 特性) .
 - 正则 d 标志( indices, 捕获组起止下标) 、命名捕获组、后行断言.
-- 在途提案: Temporal( 取代 Date) 、Record & Tuple( #{...} 深不可变 + 值相等 ===) 、Decorator( 已落地 TS 5) 、Iterator Helpers( iter.map/filter/take) 、Pattern Matching.
+- ES2025 已落地: Set 集合方法( union/intersection/difference 等) 、Iterator Helpers( Iterator.prototype.map/filter/take 等) 、Promise.try、RegExp.escape、Float16Array、import attributes 与 JSON modules, 现代浏览器基本都已原生支持.
+- 在途提案: Temporal( 取代 Date, 仍处 Stage 3; Chrome 144+/Firefox 139+ 已原生提供, Safari 尚未) 、Record & Tuple( #{...} 深不可变 + 值相等 ===) 、Decorator( Stage 3, 已落地 TS 5) 、Pattern Matching.
 
 ### Q92. 正则引擎与灾难性回溯
 
@@ -2471,7 +2472,7 @@ A: NFA 回溯模型: JS 正则是回溯式 NFA——贪婪量词先尽量多吃,
 
 识别与防御:
 
-- 危险信号: (x+)+、(x|y)_ 内部分支可匹配相同前缀、._._._ 连续贪婪.
+- 危险信号: (x+)+、(x|y)\* 内部分支可匹配相同前缀、.\*.\*.\* 连续贪婪.
 - 防御: 改写为原子化结构( a+ 外不再套量词) 、限定长度 {1,64}、用 possessive 思路拆匹配、输入长度校验、worker 中执行 + 超时杀掉( JS 正则无超时参数) .
 - 工具: safe-regex、recheck 静态分析.
 
@@ -2490,7 +2491,7 @@ A: fetch 的坑( 高频) :
 - HTTP 错误状态不 reject: 404/500 照常 resolve, 要检查 response.ok 或 status——只有网络故障/CORS/DNS 失败才 reject.
 - 凭证策略: fetch 默认 credentials: 'same-origin'( 同源请求带 Cookie, 跨源不带) , 跨源要带 Cookie 需显式 credentials: 'include'.
 - 无原生超时: 用 AbortController + setTimeout 自实现.
-- 无上传进度( ReadableStream 只有下载进度; 上传进度要用 XHR 或 duplex: 'half' 流式 body) .
+- 无上传进度事件( 响应体 ReadableStream 只有下载进度; duplex: 'half' 只是允许流式发送请求体, 仍拿不到网络层上传进度, 精确进度要用 XHR 的 upload.onprogress) .
 - 响应体只能读一次( bodyUsed, clone() 备份) .
 
 AbortController( 现代取消模型) :

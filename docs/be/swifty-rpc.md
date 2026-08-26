@@ -2,7 +2,7 @@
 
 > 本机器路径: `$HOME/github/swifty.go/swifty_rpc`
 > 基于项目 `github.com/hangtiancheng/swifty.go/swifty_rpc` 源码整理, 覆盖线协议、传输层多路复用、Future 异步模型、流式 RPC、熔断/限流/负载均衡、etcd 服务发现等核心主题.
-> 公开 API: `pkg/rpc` | 实现细节: `internal/`
+> 公开 API: `pkg/rpc` (框架门面) 与 `pkg/api` (Arith 示例服务, README Quick Start 基于它) | 实现细节: `internal/`
 
 ## 一、整体架构与设计哲学
 
@@ -357,7 +357,7 @@ func (tc *TCPConnection) Close() error {
 - 适用场景: 服务端 `Stop()` 强制关闭所有连接时, 不希望等待大量 TIME_WAIT; 连接异常断开时, 快速释放资源.
 - 代价: 对端正在 `Read` 的 goroutine 收到 "connection reset by peer" 而非 EOF, 无法区分"对端正常关闭"和"网络异常".
 
-这是一个偏向资源回收速度的设计选择, 牺牲了优雅关闭的语义. `GracefulStop` 通过 `SetReadDeadline` 中断读阻塞, 让连接自然退出, 避免了 RST.
+这是一个偏向资源回收速度的设计选择, 牺牲了优雅关闭的语义. `GracefulStop` 通过 `SetReadDeadline` 打断空闲连接的阻塞读, 让正在处理中的 handler( 含活跃流) 自然完成后再退出连接 goroutine, 避免了 `Stop` 那样在请求处理中途强拆连接; 但连接最终仍经 `Handle` 的 `defer conn.Close()` 走 `TCPConnection.Close` 的 `SetLinger(0)`, 客户端在 TCP 层收到的仍是 RST 而非 EOF.
 
 ---
 
@@ -408,7 +408,7 @@ future.OnComplete(func(err error) {
 1. 恰好一次: `OnComplete` 存储在 Future 的单一 slot 中, `Done` 幂等保证回调最多触发一次.
 2. 锁外执行: `Done` 在释放 `mu` 之后才调用 `onComplete`, 避免回调内部 (断路器加锁) 与 Future 锁形成死锁.
 3. 即时触发: 如果注册 `OnComplete` 时 Future 已经完成, 回调立即执行, 不会丢失.
-4. 完整覆盖: 响应错误、超时 (通过强制 Done) 都会触发回调; 发送失败( 连接池 Acquire 失败或 `SendAsyncWithCodec` 返回 err) 时 Future 尚未创建, 直接在 `invokeAsync` 中调用 `br.RecordFailure()` (invoke.go:163-166, 183-187), 不经回调. 断路器统计不遗漏.
+4. 完整覆盖: 响应错误、超时 (通过强制 Done) 都会触发回调; 发送失败( 连接池 Acquire 失败或 `SendAsyncWithCodec` 返回 err) 时 Future 尚未创建, 直接在 `invokeAsync` 中调用 `br.RecordFailure()` (invoke.go:163-166, 183-186), 不经回调. 断路器统计基本不遗漏, 唯一盲区是 `codec.Marshal(args)` 序列化失败( invoke.go:169-172, InvokeStream 同理) : 既不 RecordFailure 也不创建 Future, 该次已通过 `breaker.Allow()` 的调用不会计入窗口.
 
 ### Q17: InvokeAsync 的超时看门狗是如何工作的?
 

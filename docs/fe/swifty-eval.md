@@ -238,7 +238,7 @@ BaseEvaluator.evaluate (src/evaluator/base-evaluator.ts:78-112):
 
 - system prompt 末尾追加输出语言指令 (中文模式) (src/i18n/index.ts:29-33)
 - 响应先过 `extractJsonObject` 容错提取 (代码围栏/前后缀噪音), 再过 `judgeVerdictSchema` 校验
-- schema 用 `z.union([z.number(), z.string().pipe(z.coerce.number())])` 兼容裁判把 0.9 输出成 "0.9" 的情况 (src/evaluator/base-evaluator.ts:13-20)
+- schema 用 `z.union([z.number(), z.string().trim().min(1).pipe(z.coerce.number())])` 兼容裁判把 0.9 输出成 "0.9" 的情况 (src/evaluator/base-evaluator.ts:13-20)
 - 分数 clamp 到 [0, 1] (src/evaluator/base-evaluator.ts:28-30, 133)
 
 ### Q11: constraintCompliance 维度为什么用规则 + LLM 混合评测?
@@ -267,7 +267,7 @@ Scorer (src/evaluator/scorer.ts):
 1. `aggregate`: 按 DIMENSION_KEYS 权威顺序遍历评测 Map 生成 EvaluationScore 数组 (src/evaluator/scorer.ts:34-52). 顺序由类型常量而非 Map 迭代序决定, 报告维度顺序确定 —— 修复了 Python 原版"按完成顺序输出导致每次不一样"的问题 (注释见 src/evaluator/scorer.ts:29-33)
 2. `calculateTotal`: sum(rawScore * weight) * 100, 输出 0-100 (src/evaluator/scorer.ts:55-60)
 3. `createResult`: rawScore < 0.7 (RECOMMENDATION_THRESHOLD) 的维度生成一条改进建议文案 (src/evaluator/scorer.ts:12, 62-78), 供报告"建议"章节使用
-4. HTML 报告同样以 0.7 为及格线着色 (PASS_THRESHOLD, src/report/html-report.tsx:13)
+4. HTML 报告同样以 0.7 为及格线着色 (PASS_THRESHOLD, src/report/html-report.tsx:12)
 
 每个维度的 evidence 就是保留样本的裁判理由列表, 报告据此做到"每个分数都有可解释依据".
 
@@ -364,7 +364,7 @@ MarkdownGenerator 提供 generate (单结果) 与 generateBatch (多画像合并
 3. 对话转写: 每组对话一张表 (轮次/角色/内容/备注), 轮次号按模型发言递增 (src/report/markdown-generator.ts:11-30, 170-185)
 4. 改进建议: 跨画像去重 (Set) 后按字典序输出 (src/report/markdown-generator.ts:187-199)
 
-防破坏: `escapeMarkdownTableCell` 把 `|` 转义为 `\|`、换行压成空格, 保证对话内容里的竖线和换行不会撑破表格 (src/report/common.ts:26-29).
+防破坏: `escapeMarkdownTableCell` 把 `|` 转义为 `\|`、换行压成空格, 保证对话内容里的竖线和换行不会撑破表格 (src/report/common.ts:32-34).
 
 文件命名: `timestampedPath` 在扩展名前插入 `_YYYYMMDD_HHMMSS` (如 evaluation_report_20260825_161730.md), 无扩展名则直接追加 (src/pipeline/generate-reports.ts:15-21); 输出目录 mkdir recursive, 两个报告路径都保证存在 (修复 Python 原版只为 Markdown 建目录的问题, src/pipeline/generate-reports.ts:36-39).
 
@@ -372,15 +372,15 @@ MarkdownGenerator 提供 generate (单结果) 与 generateBatch (多画像合并
 
 答:
 
-HtmlGenerator.generateBatch 空结果渲染占位页, 否则调 `renderHtmlReport(results, now())` (src/report/html-generator.ts:19-26). html-report.tsx 用 `renderToStaticMarkup` 把 React 组件渲染成静态标记 (src/report/html-report.tsx:1-9), 产物是打开即用的自包含 HTML.
+HtmlGenerator.generateBatch 空结果渲染占位页, 否则调 `renderHtmlReport(results, now())` (src/report/html-generator.ts:19-26). html-report.tsx 用 `renderToStaticMarkup` 把 React 组件渲染成静态标记 (src/report/html-report.tsx:2, 457-472), 产物是打开即用的自包含 HTML.
 
 技术细节:
 
-1. Chart.js 4.5.0 从 jsdelivr CDN 加载并带 SRI integrity 校验 (版本锁定防供应链漂移), Tailwind 走 @tailwindcss/browser@4 CDN; Tailwind 无法表达的主题规则 (details 折叠箭头、打印样式、prefers-reduced-motion) 写在 `type="text/tailwindcss"` 的 THEME_CSS 里, 含完整设计令牌 (@theme 颜色/字体族) (src/report/html-report.tsx:15-49)
-2. 每组对话一个雷达图: 图表数据以 JSON payload 塞进隐藏 DOM 节点 (CHART_DATA_ID, src/report/html-report.tsx:19, 426), 内联 bootstrap 脚本从节点读数据初始化 canvas (CHART_BOOTSTRAP, src/report/html-report.tsx:58-60); 脚本是纯静态文本不含插值数据, 所以内联安全
-3. 全部用户可控文本 (对话内容、裁判理由) 经 `escapeHtml` 转义 & < > " ' 后再插值, 防止对话内容注入脚本 (src/report/common.ts:18-24) —— 修复 Python 原版的未转义插值
-4. 维度得分以 0.7 为及格线着色, 与推荐建议阈值一致 (PASS_THRESHOLD, src/report/html-report.tsx:13)
-5. 转写用 details/summary 折叠, 长对话不淹没有效信息
+1. Chart.js 4.5.0 从 jsdelivr CDN 加载并带 SRI integrity 校验 (版本锁定防供应链漂移), Tailwind 走 @tailwindcss/browser@4 CDN; Tailwind 无法表达的主题规则 (details 折叠箭头、打印样式、prefers-reduced-motion) 写在 `type="text/tailwindcss"` 的 THEME_CSS 里, 含完整设计令牌 (@theme 颜色/字体族) (src/report/html-report.tsx:14-18, 26-52)
+2. 每组对话一个雷达图: 图表数据以 JSON payload 塞进隐藏 DOM 节点 (CHART_DATA_ID, src/report/html-report.tsx:19, 426), 内联 bootstrap 脚本从节点读数据初始化 canvas (CHART_BOOTSTRAP, src/report/html-report.tsx:58-111); 脚本是纯静态文本不含插值数据, 所以内联安全
+3. 全部用户可控文本 (对话内容、裁判理由) 以 JSX 文本节点插值, `renderToStaticMarkup` 序列化时自动转义 & < >, 防止对话内容注入脚本; 雷达图 JSON payload 额外把 < 转义为 \u003c, 防止内容里的 </script> 提前终止脚本上下文 (src/report/html-report.tsx:117-133) —— 修复 Python 原版的未转义插值. `escapeHtml` (src/report/common.ts:22-29) 作为纯函数从 index.ts 导出, 但 SSR 路径并不调用它
+4. 维度得分以 0.7 为及格线着色, 与推荐建议阈值一致 (PASS_THRESHOLD, src/report/html-report.tsx:12)
+5. 转写用 details/summary 组织, 默认带 open 属性展开、可点击折叠收起, summary 行附终止原因与轮数 (src/report/html-report.tsx:278-309)
 
 为什么用 React 而不是模板字符串: 8 维度 x 多画像的卡片/表格/雷达图嵌套结构, 组件化比字符串拼接可维护; 且 react/react-dom 是运行时依赖而非 devDependency, 原因即 SSR 需要 (package.json).
 
@@ -391,7 +391,7 @@ HtmlGenerator.generateBatch 空结果渲染占位页, 否则调 `renderHtmlRepor
 自实现的极简全局 locale (src/i18n/index.ts):
 
 1. 模块级可变状态 `currentLanguage` (默认 "en"), `configureI18n` 设置, `getMessages` 按 locale 返回 ZH_MESSAGES 或 EN_MESSAGES (src/i18n/index.ts:8-23)
-2. Messages 接口不只是静态文案: 函数属性承担参数化文案 (如 `recommendation(label)`、`charLimitViolationReason(violations, total, maxChars)`、`dimensionHeading(...)`), 两套目录 (zh/en) 由同一接口约束, 共 212 行 (src/i18n/messages.ts:27-76)
+2. Messages 接口不只是静态文案: 函数属性承担参数化文案 (如 `recommendation(label)`、`charLimitViolationReason(violations, total, maxChars)`、`dimensionHeading(...)`), 两套目录 (zh/en) 由同一接口约束, 共 212 行 (src/i18n/messages.ts:8-76)
 3. 双语覆盖两个面: 报告文案 (标题/表头/标签/终止原因) 与 LLM 输出语言 —— `withOutputLanguageDirective` 在中文模式下给所有 system prompt 追加 "Please respond in Simplified Chinese throughout.", 英文模式原样返回 (src/i18n/index.ts:6, 29-33). 裁判理由、模拟用户发言因此能跟随配置语言
 4. 连行为数据都本地化: 占位符采样名 sampleRiderNames 中英文各一套 (src/i18n/messages.ts:139, 211)
 
@@ -432,7 +432,7 @@ zod v4 特性 `prefault` 用于 evaluation/output 整节缺省 (src/config.ts:68
 
 三层结构:
 
-1. 画像间: 串行 for 循环 (src/pipeline/run-evaluation.ts:53) —— 评测是重 IO 长任务 (每画像最多 30 轮对话 x 每轮 2 次 LLM 调用), 串行可控且日志可读
+1. 画像间: 串行 for 循环 (src/pipeline/run-evaluation.ts:53) —— 评测是重 IO 长任务 (每画像最多 30 轮, 每轮模型与模拟用户各至多一次 LLM 调用, minRounds 后每轮还可能叠加一次拒绝判定), 串行可控且日志可读
 2. 维度间: mapWithConcurrency 并发, maxWorkers 默认 4 (src/evaluator/registry.ts:17)
 3. 维度内: evalCount 次采样串行 for 循环 (src/evaluator/base-evaluator.ts:84), 避免单维度瞬时并发放大限流概率; 限流兜底由 LLMClient 指数退避负责
 
@@ -469,19 +469,19 @@ zod v4 特性 `prefault` 用于 evaluation/output 整节缺省 (src/config.ts:68
 
 README.md Migration notes 逐条列出的修复, 均可在代码中指认对应实现:
 
-| Python 原版缺陷                      | TS 版修复与代码位置                                                                                                               |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| HTML 报告只渲染第一个画像的得分      | generateBatch 全量渲染, 每画像独立得分卡/维度表/雷达图 (src/report/html-generator.ts:19-26)                                       |
-| 裁判调用失败静默计 0 分毒化均值      | 失败样本剔除, 失败原因浮出到 evidence (src/evaluator/base-evaluator.ts:84-110)                                                    |
-| Markdown 围栏 JSON 解析失败          | extractJsonObject 候选级联 (src/utils/json.ts:26-61)                                                                              |
-| 达到轮数上限时多生成一条被丢弃的回复 | 循环结构保证最后一轮 user 回复后即检查终止 (src/engine/dialogue-engine.ts:114-145)                                                |
-| 拒绝检测用被测模型自审               | refusalJudge 独立注入裁判客户端 (src/engine/dialogue-engine.ts:62-66; src/pipeline/run-evaluation.ts:57)                          |
-| 报告维度顺序不确定 (按完成顺序)      | Scorer 按 DIMENSION_KEYS 权威顺序聚合 (src/evaluator/scorer.ts:34-52)                                                             |
-| 画像概率字段是死配置                 | 百分比注入模拟器 prompt (src/simulator/user-simulator.ts:13-18)                                                                   |
-| 仅支持 ${rider_name} 占位符          | resolvePlaceholders 通用 ${name} + placeholders 注入 (src/engine/dialogue-engine.ts:31-39)                                        |
-| 库代码里 sys.exit()                  | 类型化错误上抛, CLI 边界统一处理 (src/main.ts:82-85)                                                                              |
-| 报告插值未转义 (XSS/表格破坏)        | escapeHtml + escapeMarkdownTableCell (src/report/common.ts:18-29); Chart.js CDN 版本锁定 + SRI (src/report/html-report.tsx:15-19) |
-| 输出目录只为 Markdown 创建           | 两个报告路径都 mkdir recursive (src/pipeline/generate-reports.ts:36-39)                                                           |
+| Python 原版缺陷                      | TS 版修复与代码位置                                                                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| HTML 报告只渲染第一个画像的得分      | generateBatch 全量渲染, 每画像独立得分卡/维度表/雷达图 (src/report/html-generator.ts:19-26)                                                                                                                                    |
+| 裁判调用失败静默计 0 分毒化均值      | 失败样本剔除, 失败原因浮出到 evidence (src/evaluator/base-evaluator.ts:84-110)                                                                                                                                                 |
+| Markdown 围栏 JSON 解析失败          | extractJsonObject 候选级联 (src/utils/json.ts:26-61)                                                                                                                                                                           |
+| 达到轮数上限时多生成一条被丢弃的回复 | 循环结构保证最后一轮 user 回复后即检查终止 (src/engine/dialogue-engine.ts:114-145)                                                                                                                                             |
+| 拒绝检测用被测模型自审               | refusalJudge 独立注入裁判客户端 (src/engine/dialogue-engine.ts:62-66; src/pipeline/run-evaluation.ts:57)                                                                                                                       |
+| 报告维度顺序不确定 (按完成顺序)      | Scorer 按 DIMENSION_KEYS 权威顺序聚合 (src/evaluator/scorer.ts:34-52)                                                                                                                                                          |
+| 画像概率字段是死配置                 | 百分比注入模拟器 prompt (src/simulator/user-simulator.ts:13-18)                                                                                                                                                                |
+| 仅支持 ${rider_name} 占位符          | resolvePlaceholders 通用 ${name} + placeholders 注入 (src/engine/dialogue-engine.ts:31-39)                                                                                                                                     |
+| 库代码里 sys.exit()                  | 类型化错误上抛, CLI 边界统一处理 (src/main.ts:82-85)                                                                                                                                                                           |
+| 报告插值未转义 (XSS/表格破坏)        | HTML 侧靠 React SSR 文本自动转义 + 图表 JSON 转义 < (src/report/html-report.tsx:117-133); Markdown 单元格 escapeMarkdownTableCell (src/report/common.ts:32-34); Chart.js CDN 版本锁定 + SRI (src/report/html-report.tsx:14-17) |
+| 输出目录只为 Markdown 创建           | 两个报告路径都 mkdir recursive (src/pipeline/generate-reports.ts:36-39)                                                                                                                                                        |
 
 回答思路提示: 这道题考察的是"迁移不是翻译" —— 每条修复都是先定位原版的行为缺陷, 再用 TS 的类型系统 (zod 边界校验)、错误类型体系与依赖注入固化下来.
 

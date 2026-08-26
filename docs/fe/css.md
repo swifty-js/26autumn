@@ -328,6 +328,8 @@ BFC (Block Formatting Context, 块级格式化上下文) 是页面中的一块�
 - `contain: layout` / `content` / `strict`
 - 多列容器 (`column-count` 非 `auto`) 等
 
+精确性补充: 严格来说 flex/grid 容器建立的是独立的 flex/grid 格式化上下文, 效果与 BFC 等价 (同样不与浮动重叠、隔断 margin 合并); 另外 flex/grid 容器的直接子项 (flex item / grid item) 会各自建立新的 BFC.
+
 BFC 内部布局规则:
 
 - 盒子在垂直方向一个接一个排列
@@ -562,7 +564,7 @@ A:
 
 - `static`: 默认值, 正常文档流, `top/right/bottom/left/z-index` 无效
 - `relative`: 仍在文档流中占位, 相对自身原位置偏移, 常用于给 absolute 后代做定位基准, 同时提升层叠优先级
-- `absolute`: 脱离文档流, 相对最近的非 `static` 祖先 (其包含块) 定位; 若无则相对初始包含块 (可视区大小的根容器)
+- `absolute`: 脱离文档流, 相对最近的非 `static` 祖先的 padding box 定位 (其包含块; 带 `transform`/`filter` 等的祖先同样会成为包含块); 若无则相对初始包含块 — 尺寸与视口相同, 但锚定在文档顶部, 会随页面滚动而不是固定在可视区
 - `fixed`: 脱离文档流, 相对视口定位, 滚动不移动
 - `sticky`: 粘性定位, 是 relative 与 fixed 的混合体
 
@@ -594,7 +596,7 @@ A:
 - `mix-blend-mode` 非 `normal`
 - `isolation: isolate`
 - `will-change` 值为上述属性
-- `contain: layout` / `paint` / `strict`
+- `contain: layout` / `paint` / `content` / `strict`
 - `-webkit-overflow-scrolling: touch` 等历史属性
 
 同一层叠上下文内的绘制顺序 (从下到上):
@@ -1149,7 +1151,7 @@ A:
 CSS 原子化 (Tailwind CSS 核心原理):
 
 - 思想: 每个类只做一个样式声明, 如 `flex`、`mt-4` (margin-top: 1rem)、`text-red-500`, 通过组合大量原子类拼装 UI, 不写自定义 CSS
-- 实现: 构建期扫描所有源码文件 (content 配置的 glob, 用正则提取类名 token), JIT (Just-In-Time) 按需生成对应的工具类 CSS 规则, 输出一份静态样式表; 未使用的类不会出现在产物中, 产物体积随项目增长趋于对数级收敛
+- 实现: 构建期扫描所有源码文件 (v3 需在 content 配置中声明 glob, v4 起默认自动探测源文件), 用正则提取类名 token, JIT (Just-In-Time) 按需生成对应的工具类 CSS 规则, 输出一份静态样式表; 未使用的类不会出现在产物中, 产物体积只随用到的不同工具类数量增长, 随项目变大很快收敛
 - 变体机制: `hover:`、`md:`、`dark:` 等前缀编译为伪类/媒体查询包裹的规则; 动态值通过 CSS 变量注入 (如 `bg-[var(--brand)]`)
 - 产物是纯静态 CSS, 零运行时
 
@@ -1186,7 +1188,7 @@ CSS 原子化 ≈ CSS Modules > 编译时 css-in-js > 运行时 css-in-js
 4. 缓存不友好: 动态生成的类名随内容变化, 浏览器无法像静态文件那样长缓存; 库本身还有额外的 runtime 包体积
 5. React 并发渲染的副作用约束: 渲染期间插入样式是副作用, React 18 为此专门提供了 `useInsertionEffect`, 说明该模式与并发特性存在本质张力, 处理不当会出现样式闪烁 (FOUC)
 
-补充结论: 这不是说 css-in-js 一无是处 — 它的动态样式表达力、与组件共存亡的维护性仍适合强主题化、强动态的场景; 但性能敏感、SSR、大体量项目应优先选静态方案 (Tailwind / CSS Modules / 编译时 css-in-js), 这也是 styled-components 官方也转向推荐静态抽取方案的行业背景.
+补充结论: 这不是说 css-in-js 一无是处 — 它的动态样式表达力、与组件共存亡的维护性仍适合强主题化、强动态的场景; 但性能敏感、SSR、大体量项目应优先选静态方案 (Tailwind / CSS Modules / 编译时 css-in-js), 这也是社区公开反思运行时 css-in-js (如 "Why We're Breaking Up with CSS-in-JS" 一文) 并整体转向静态方案的大背景.
 
 ### 24. Web Component 如何实现样式隔离?
 
@@ -1317,7 +1319,7 @@ PostCSS 是一个用 JS 插件生态转换 CSS 的工具平台. 工作流: 把 C
 - `cssnano`: 压缩优化 (去注释、合并规则、压缩颜色/单位/计算值)
 - `postcss-pxtorem` / `postcss-px-to-viewport`: 移动端适配, 构建期把 px 批量换算为 rem/vw
 - `postcss-modules`: CSS Modules 的底层实现之一
-- `tailwindcss`: Tailwind 本身就是一个 PostCSS 插件, 这也是它能嵌入任意构建工具的原因
+- `tailwindcss` / `@tailwindcss/postcss`: Tailwind 通过官方 PostCSS 插件接入任意构建链 (v3 内置于 tailwindcss 包; v4 起核心为独立的高性能引擎, PostCSS 插件拆分为 `@tailwindcss/postcss`, 另提供 Vite 插件与 CLI 接入方式)
 - `stylelint` 的自动修复也跑在 PostCSS 之上
 
 自定义插件示例 (感受 AST 操作):
@@ -1365,7 +1367,7 @@ SCSS 变量 (编译期):
 - 编译时被静态替换为字面量, 产物中不存在, 浏览器无感知
 - 无法运行时修改, 改主题必须重新编译
 - 但可以参与编译期运算、循环、mixin 参数等逻辑, 表达力更强
-- 有词法作用域 (`!global`、`!default`)
+- 有作用域概念: 变量有块级作用域, `!global` 显式提升为全局, `!default` 声明可被后续赋值覆盖的默认值 (两者机制不同)
 
 工程实践 (二者结合): 用 SCSS 变量管理设计 token 的"事实来源", 编译输出为 CSS 变量, 运行时主题/动态需求全部走 CSS 变量:
 
@@ -1694,10 +1696,9 @@ A:
 ```css
 @layer third-party, app;
 
-@layer third-party {
-  @import "normalize.css";
-  @import "ui-library.css";
-}
+/* @import 不能嵌在 @layer 块内 (会被忽略), 需用 layer() 导入条件指定归属层 */
+@import "normalize.css" layer(third-party);
+@import "ui-library.css" layer(third-party);
 
 @layer app {
   .btn {
@@ -1930,13 +1931,13 @@ transform 和 position 都可以改变元素的视觉位置, 但工作原理、�
 
 核心区别:
 
-| 维度       | transform                | position                         |
-| ---------- | ------------------------ | -------------------------------- |
-| 影响布局   | 不影响, 元素仍占据原位置 | 影响 (absolute/fixed 脱离文档流) |
-| 渲染阶段   | 合成阶段 (Composite)     | 布局阶段 (Layout)                |
-| 性能       | 高, 可 GPU 加速          | 低, 触发回流                     |
-| 百分比参照 | 元素自身尺寸             | 包含块尺寸                       |
-| 层叠上下文 | 创建                     | absolute/fixed 创建              |
+| 维度       | transform                | position                                                    |
+| ---------- | ------------------------ | ----------------------------------------------------------- |
+| 影响布局   | 不影响, 元素仍占据原位置 | 影响 (absolute/fixed 脱离文档流)                            |
+| 渲染阶段   | 合成阶段 (Composite)     | 布局阶段 (Layout)                                           |
+| 性能       | 高, 可 GPU 加速          | 低, 触发回流                                                |
+| 百分比参照 | 元素自身尺寸             | 包含块尺寸                                                  |
+| 层叠上下文 | 非 none 值即创建         | fixed/sticky 总是创建; absolute/relative 需 z-index 非 auto |
 
 详细对比:
 
@@ -2082,7 +2083,7 @@ A:
 
 - 参照物: 容器 vs 视口
 - 关注点: 组件自适应性 vs 页面整体布局
-- 容器查询需要显式声明 `container-type`, 且 `inline-size` 会对容器施加 size containment — 容器尺寸不再由内容撑开 (inline 轴), 使用时要确保容器有确定宽度来源, 否则会塌成 0
+- 容器查询需要显式声明 `container-type`, 且 `inline-size` 会对容器施加布局、样式包含与行内尺寸包含 (inline-size containment, 完整的 size containment 由 `container-type: size` 提供) — 容器的行内尺寸不再由内容撑开, 使用时要确保容器有确定宽度来源 (浮动、inline-block、绝对定位等收缩场景下会塌成 0)
 - 不能查询自身, 只能影响容器的后代元素
 - 浏览器支持: 2023 年起主流浏览器已全部支持, 可用于生产
 
@@ -2383,7 +2384,7 @@ if (CSS.supports("(display: grid) and (gap: 10px)")) {
 
 - @supports 是浏览器原生 API, 无需引入第三方库
 - Modernizr 通过 JavaScript 检测, 可以检测更多特性 (包括 HTML5 特性)
-- @supports 只能检测 CSS 属性, 无法检测 JavaScript API
+- @supports 能检测 CSS 特性 (属性值对、`selector()`、`font-tech()` 等), 无法检测 JavaScript API
 - 现代项目中, @supports 已能覆盖大部分 CSS 特性检测需求
 
 ### 46. 什么是 CSS 的 scroll-snap?
@@ -2689,7 +2690,7 @@ CSS 原生嵌套 (CSS Nesting Module) 已在 2023 年被主流浏览器全部支
 - 运行时机: 原生嵌套由浏览器解析, 零构建; SCSS 嵌套在编译期展开为平铺选择器
 - `&` 语义: 原生嵌套中嵌套选择器隐式等价于 `:is(父选择器) 子选择器`, 因此特异性按 `:is()` 规则取父选择器列表中最高者, 与 SCSS 纯文本拼接的展开结果可能不同 (如父选择器是 `.a, #b` 时, 原生嵌套里两个分支的特异性都按 `#b` 计算)
 - 字符串拼接: SCSS 支持 `&-title` 拼接类名 (BEM 常用), 原生嵌套不支持——`&` 是选择器引用不是字符串, 这是迁移时最大的不兼容点
-- 早期语法要求嵌套规则以符号开头 (`& div`), 现行规范已放开, 可直接写元素选择器嵌套
+- 早期语法不允许嵌套选择器直接以元素选择器开头 (需写作 `& div`; 类名/ID 等符号开头的选择器则可省略 `&`), 现行规范已放开, 可直接写元素选择器嵌套
 
 工程建议: 新项目可用原生嵌套逐步替代 SCSS 的嵌套需求; 涉及 BEM 拼接、循环与 mixin 的场景仍需预处理器或 PostCSS 插件降级 (postcss-nesting).
 

@@ -18,7 +18,7 @@ A: swifty_http 是一个受 Koa.js 启发的 Go HTTP 框架, 核心设计理念�
 ```
 Application (swifty.go)
   ├── router (router.go + trie.go)    -- 路由注册与匹配
-  ├── Router/Group (group.go)         -- 路由分组、前缀、静态文件
+  ├── Router (group.go)            -- 嵌套 Router 实现路由分组、前缀、静态文件
   ├── Context (context.go)            -- 请求上下文
   ├── Response (response.go)          -- 延迟响应序列化
   ├── Logger / Recovery               -- 内置中间件
@@ -178,7 +178,7 @@ key := method + "-" + pattern
 
 `parsePattern` 按 `/` 分割并过滤空段, 遇到 `*` 开头段则截断后续. 规范化确保 `/users`、`/users/`、`//users` 映射到同一个 key.
 
-如果不做规范化, 先注册 `/users/` 再注册 `/users`, trie 叶节点的 pattern 会被覆盖为 `/users`, 但 handlers map 中的 key 是 `GET-/users/`, 导致查找时用 `GET-/users` 找不到 handler——路由静默不可达.
+如果不做规范化, 先注册 `/users/` 再注册 `/users`, 两次注册走同一条 trie 路径( 段都是 `users`) , 后一次会把 trie 叶节点的 pattern 覆盖为 `/users`; 查找时按最终 pattern 拼 key `GET-/users`, 命中的是后注册的 handler——先注册的 handler 永远不会被命中, 被静默遮蔽.
 
 参数提取( `router.go:68-92`) :
 
@@ -438,7 +438,7 @@ func (ctx *Context) SSE() *SSEWriter {
 }
 ```
 
-设置 `flushed = true` 阻止 `respond()` 干预; 同时设置 `Status` 和 `statusSet` 使状态码不被后续逻辑覆盖. 类型断言获取 `http.Flusher`( `net/http` 的 ResponseWriter 实现了此接口) . 写入 SSE 标准 header 前, 先将上游中间件通过 `ctx.Set()` 缓冲的延迟 header 刷到 ResponseWriter, 避免丢失( 如 CORS header) .
+设置 `flushed = true` 阻止 `respond()` 干预; 同时设置 `Status` 和 `statusSet` 使状态码不被后续逻辑覆盖. 类型断言获取 `http.Flusher`( `net/http` 的 ResponseWriter 实现了此接口) . 设置完三个 SSE 标准 header 之后、`WriteHeader(200)` 之前, 把上游中间件通过 `ctx.Set()` 缓冲的延迟 header 刷入 ResponseWriter( 如 CORS header) ; 由于延迟 header 后写, 同名 key( 如上游设置过的 Content-Type) 会覆盖 SSE 的默认值.
 
 线程安全: 每个写入方法( Event、Data、JSON、ID、Retry、Comment) 都持有 `sync.Mutex`:
 

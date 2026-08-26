@@ -158,8 +158,8 @@ class LruStore implements Store {
 
 双层 (L1/L2) 解决扫描污染问题 (类似 2Q 算法):
 
-- L1 (近期层/probationary): 新写入的数据进入 L1, 容量较大 (默认 `capPerBucket = 512`), 类似 2Q 的 A1in
-- L2 (频繁层/frequent): 被再次访问的数据从 L1 提升到 L2 (默认 `level2Cap = 256`), 类似 2Q 的 Am
+- L1 (近期层/probationary): 新写入的数据进入 L1, 容量较大 (Cache 层默认 `capPerBucket = 512`, LruStore 兜底默认为 1024), 类似 2Q 的 A1in
+- L2 (频繁层/frequent): 被再次访问的数据从 L1 提升到 L2 (Cache 层默认 `level2Cap = 256`, LruStore 兜底默认为 1024), 类似 2Q 的 Am
 - get 命中 L1 时, 数据从 L1 移除并提升到 L2 (证明该 key 有重复访问价值)
 - get 命中 L2 时, 仅调整位置到最近使用端 (LRU 语义)
 - 一次性扫描 (scan) 的数据只经过 L1, 不会被再次访问因此不会进入 L2, 避免挤占频繁访问的热数据
@@ -186,7 +186,7 @@ class InternalCache {
 
 Q: 字节预算 (byte budget) 淘汰是如何工作的?
 
-每个桶有独立的字节预算 `bucketMaxBytes = Math.floor(maxBytes / (mask + 1))` (最小为 1; mask+1 即实际桶数):
+每个桶有独立的字节预算 `bucketMaxBytes = Math.max(1, Math.floor(maxBytes / (mask + 1)))` (仅当 `maxBytes > 0` 时; `maxBytes <= 0` 时预算为 0, 整体禁用字节预算淘汰; mask+1 即实际桶数):
 
 1. `setWithExpiration` 写入新数据后, 累加该桶的 `bucketBytes`
 2. 如果超出预算, 循环淘汰: 先尝试 L1 的 `evictTail()`, 返回 null 再用 L2 的 `evictTail()`
