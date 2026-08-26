@@ -2,7 +2,7 @@
 
 ## 背景
 
-ToD 搜索推荐平台是一个 React SPA, 页面报错后排查链路长: 用户反馈模糊、错误堆栈被压缩、无法复现操作路径. 该工作的目标是建立「JSError 上报 -> 现场还原 -> 大模型自动修复」的闭环:
+Tiktok 搜索推荐平台是一个 React SPA, 页面报错后排查链路长: 用户反馈模糊、错误堆栈被压缩、无法复现操作路径. 该工作的目标是建立「JSError 上报 -> 现场还原 -> 大模型自动修复」的闭环:
 
 1. 前端接入监控 SDK 上报 JSError, 携带尽可能完整的错误信息
 2. 使用 rrweb 录制错误发生前的页面操作, 还原故障现场
@@ -1137,7 +1137,7 @@ const [{ record }, pako] = await Promise.all([
 
 ## Q6: monaco editor 发版后资源加载错误, 如何分析与解决?
 
-答: 真实业务场景: ToD 搜索推荐平台内有大量基于 monaco editor 的 web 编辑器页面 (规则配置、DSL 编辑等). monaco 的运行时资源分两部分: 编辑器本体 (editor.main, 提供 UI 与编辑能力) 和各语言的 web worker (editor.worker 基础 worker、ts.worker/json.worker/css.worker 等语言服务 worker, 承载语法高亮、代码补全、类型检查). 这些脚本平时命中浏览器缓存, 体验无感; 但前端发版后集中出现资源加载错误, 且问题集中在一种路径上: 用户不是从 / 根路径跳转进来, 而是直接访问 /path/to/web/editor 直连进入编辑器页面, 此时语法高亮等 worker 脚本尚未就绪, monaco 抛出资源加载错误.
+答: 真实业务场景: Tiktok 搜索推荐平台内有大量基于 monaco editor 的 web 编辑器页面 (规则配置、DSL 编辑等). monaco 的运行时资源分两部分: 编辑器本体 (editor.main, 提供 UI 与编辑能力) 和各语言的 web worker (editor.worker 基础 worker、ts.worker/json.worker/css.worker 等语言服务 worker, 承载语法高亮、代码补全、类型检查). 这些脚本平时命中浏览器缓存, 体验无感; 但前端发版后集中出现资源加载错误, 且问题集中在一种路径上: 用户不是从 / 根路径跳转进来, 而是直接访问 /path/to/web/editor 直连进入编辑器页面, 此时语法高亮等 worker 脚本尚未就绪, monaco 抛出资源加载错误.
 
 这类错误的本质是「懒加载资源在需要的那一刻还没下载完」: 文件都存在 (版本一致), 但 monaco 的 worker 是按需创建的独立请求, 直连进入编辑器页面时脚本还没下载完就被 monaco 调用, 抛出 worker 不可用错误. 发版后缓存失效需要重新请求, 把这个竞态暴露得更明显.
 
@@ -1273,7 +1273,7 @@ const EditorPage = lazy(() => retryImport(() => import("./pages/Editor")));
 
 webpack 中可配合 html-webpack-plugin 的注入或用 preload-webpack-plugin 自动为路由 chunk 生成 modulepreload 标签
 
-适用场景: modulepreload 用低优先级下载, 不阻塞 HTML 解析和首屏渲染, 但会和首屏资源竞争带宽. 如果首屏本身包含编辑器, modulepreload 能让它和首屏一起尽早下载, 值得用. 但 ToD 平台首屏是搜索推荐页, 编辑器是其他路由, 首屏不包含编辑器——此时 modulepreload 几百 KB 的 monaco-vendor 会挤占首屏资源带宽, 弱网下间接拖慢首屏, 不建议用, 改用 requestIdleCallback 在首屏完成后再预取
+适用场景: modulepreload 用低优先级下载, 不阻塞 HTML 解析和首屏渲染, 但会和首屏资源竞争带宽. 如果首屏本身包含编辑器, modulepreload 能让它和首屏一起尽早下载, 值得用. 但 Tiktok 平台首屏是搜索推荐页, 编辑器是其他路由, 首屏不包含编辑器——此时 modulepreload 几百 KB 的 monaco-vendor 会挤占首屏资源带宽, 弱网下间接拖慢首屏, 不建议用, 改用 requestIdleCallback 在首屏完成后再预取
 
 - requestIdleCallback 时机预取: 相比 modulepreload 在 HTML 渲染后立即开始下载, requestIdleCallback 在首屏渲染完成、浏览器空闲后才触发, 不和首屏资源竞争带宽, 适合首屏不包含编辑器的场景. 在首屏指标 (LCP) 上报完成后的空闲时机预取编辑器相关资源: 编辑器页面 chunk 是 webpack chunk 用 import() 预取, worker 脚本是 CDN URL 不在 webpack 打包体系里, 用 fetch() 预取到 HTTP 缓存. requestIdleCallback 带 timeout 兜底参数, 避免页面一直不空闲导致预取被无限延迟:
 
@@ -1305,7 +1305,7 @@ function prefetchEditorAssets() {
 reportLCP().then(prefetchEditorAssets);
 ```
 
-两者的选择取决于首屏是否包含编辑器: 首屏包含编辑器时用 modulepreload 让它和首屏一起尽早下载; 首屏不包含编辑器时 (ToD 平台场景) 用 requestIdleCallback 在首屏完成后预取, 不与首屏竞争带宽. requestIdleCallback 回调里同时预取编辑器页面 chunk (import()) 和 worker 脚本 (fetch CDN URL), 竞态根源是 worker 脚本没就绪, 预取 worker 是最直接的缓解
+两者的选择取决于首屏是否包含编辑器: 首屏包含编辑器时用 modulepreload 让它和首屏一起尽早下载; 首屏不包含编辑器时 (Tiktok 平台场景) 用 requestIdleCallback 在首屏完成后预取, 不与首屏竞争带宽. requestIdleCallback 回调里同时预取编辑器页面 chunk (import()) 和 worker 脚本 (fetch CDN URL), 竞态根源是 worker 脚本没就绪, 预取 worker 是最直接的缓解
 
 - monaco 本体拆为独立 vendor chunk: webpack 的 splitChunks 把 monaco-editor 单独拆出来, 编辑器页面 chunk 只剩业务代码 (React 组件、页面布局、调用后端 API 等), 不再包含 monaco 库:
 
@@ -1330,7 +1330,7 @@ monaco 体积大 (几百 KB), 拆成独立 chunk 后跨多个编辑器页面共�
 
 ## Q7: SPA 首屏渲染时间 (FSP) 如何计算?
 
-答: 真实业务场景: ToD 搜索推荐平台是 React SPA, 首屏内容由 JS 执行后动态渲染, 不是 HTML 直出的. 传统的 DOMContentLoaded 只表示 HTML 解析完成, load 事件表示所有资源 (包括非首屏图片、iframe) 加载完毕, 都不能准确反映用户看到首屏内容的时间. LCP (Largest Contentful Paint) 虽然更接近, 但浏览器按元素面积自动选“最大内容元素”, 候选元素仅限视口内 (视口外的大图不会成为候选), 仍可能选到骨架屏占位等不代表首屏真正完成的元素. swifty-sentry 用 MutationObserver 自行计算 FSP (First Screen Paint), 只关心首屏视口内可见元素的出现时间.
+答: 真实业务场景: Tiktok 搜索推荐平台是 React SPA, 首屏内容由 JS 执行后动态渲染, 不是 HTML 直出的. 传统的 DOMContentLoaded 只表示 HTML 解析完成, load 事件表示所有资源 (包括非首屏图片、iframe) 加载完毕, 都不能准确反映用户看到首屏内容的时间. LCP (Largest Contentful Paint) 虽然更接近, 但浏览器按元素面积自动选“最大内容元素”, 候选元素仅限视口内 (视口外的大图不会成为候选), 仍可能选到骨架屏占位等不代表首屏真正完成的元素. swifty-sentry 用 MutationObserver 自行计算 FSP (First Screen Paint), 只关心首屏视口内可见元素的出现时间.
 
 ### FSP 的计算原理
 
@@ -1792,3 +1792,645 @@ Lab 用 headless 浏览器运行页面, 收集运行时数据, 产出性能指�
 - 页面卸载时的上报: 浏览器在 unload 时会忽略异步 ajax 请求, 同步 ajax 在现代浏览器中已被禁用, 使用 navigator.sendBeacon 解决. sendBeacon 专为统计和诊断代码设计, 保证在文档卸载期间仍能发送数据
 
 经过以上优化后, SDK 对业务 FCP、LCP、LOAD 等性能的影响降到了最低.
+
+# 视频切片与 LLM 聚类标签: 真实实现记录
+
+> 本机器 demo 路径: $HOME/github/26autumn/packages/tags
+
+## 项目背景
+
+需求来自抖音 Debug 平台的"评估算法消费质量": 推荐算法分发视频/直播间内容, 需要回答算法消费的内容质量到底怎么样. 直接对整条视频或整场直播做分析不现实 (一场直播动辄 4~8 小时), 所以链路是:
+
+视频/直播录制文件 -> 切片 -> 每个切片产出聚类标签 -> 标签与消费指标关联, 评估算法消费质量
+
+为了验证这条链路, 在 packages/tags 下用 Golang 实现了一个完整可运行的单机版本 (Go module 路径是 github.com/hangtiancheng/26autumn/docs/tags, 与目录名不一致, 代码中的 import 路径以此为准): 输入一个长视频 (实测 24 分 08 秒的 React Conf 演讲视频), 按固定时长切片, 每个切片抽代表帧调用多模态大模型, 产出 1 到多个简短中文聚类标签, 输出 JSON 结果和 Markdown 报告. 实测 25 个切片全部产出标签, 端到端耗时约 3 分钟.
+
+## 一. 技术选型
+
+### 1. 大模型调用: eino 框架
+
+大模型调用方式参考 swifty_agent (internal/ai/models), 使用字节 cloudwego 的 eino 框架:
+
+- eino 核心库定义统一的 model.ChatModel 接口和 schema.Message 消息结构
+- eino-ext/components/model/openai 提供任意 OpenAI 兼容端点的实现 (base_url 原样使用, 通常带 /v1)
+- eino-ext/components/model/claude 提供 Anthropic 实现 (SDK 自动追加 /v1/messages, base_url 不带 /v1)
+- 通过配置文件的 model_provider 字段在两者之间切换, 业务代码只依赖 model.ChatModel 接口, 不感知具体供应商
+
+llm 工厂 (internal/llm/model.go) 的职责就是根据配置构造 ChatModel, 后续所有调用方只面对接口. 实测接入了阿里云 MaaS 的 OpenAI 兼容端点, 模型 qwen3.7-flash (多模态).
+
+### 2. 视频处理: Go 编排 + ffmpeg 子进程
+
+Go 社区没有成熟的纯 Go 视频编解码库, 社区共识是 "Go 负责编排, ffmpeg 负责切割":
+
+- 时长探测: ffprobe -show_entries format=duration, 输出纯数字, Go 侧 ParseFloat
+- 抽帧: ffmpeg -ss <时间戳> -i <视频> -frames:v 1 -vf "scale=768:-2,format=yuvj420p" -q:v 4 -f image2 out.jpg
+- Go 侧用 exec.CommandContext 驱动子进程, 捕获 stderr 便于排错, ctx 取消可级联杀掉 ffmpeg 进程
+
+不选 cgo 绑定 (goav、gmf) 的原因: 交叉编译困难, 与 ffmpeg 版本强耦合, 生产环境维护成本高. 生产项目也可以用 u2takey/ffmpeg-go 这类进程封装库, 本项目为了透明直接用 exec.
+
+### 3. 项目结构
+
+```
+packages/tags/
+├── main.go                      # CLI: -config -input -output -segment -frames -concurrency
+├── go.mod / go.sum              # module github.com/hangtiancheng/26autumn/docs/tags
+├── Makefile                     # build + release, 6 平台交叉编译 (darwin/linux/windows x amd64/arm64)
+├── config.json                  # 模型端点 + 切片参数 (gitignore, 含 api_key)
+├── config.example.jsonc         # 带注释的配置参考
+├── internal/
+│   ├── config/config.go         # 配置加载、默认值、校验
+│   ├── llm/model.go             # eino ChatModel 工厂 (openai/anthropic 双供应商)
+│   ├── slicer/slicer.go         # ffprobe 时长、分段规划、ffmpeg 抽帧
+│   ├── labeler/labeler.go       # 多模态消息构造、JSON 解析、重试、兜底
+│   └── pipeline/pipeline.go     # 并发编排、结果聚合、JSON/Markdown 输出
+├── dist/                        # make release 产出的跨平台二进制
+└── output/
+    ├── frames/                  # 每个切片的代表帧 (seg0000_f0.jpg ...)
+    ├── tags_result.json         # 结构化结果
+    └── tags_report.md           # 人读的时间线报告
+```
+
+## 二. 切片实现 (internal/slicer)
+
+### 1. 时长探测与分段规划
+
+ProbeDuration 用 ffprobe 拿容器时长 (实测视频 1447.72 秒). PlanSegments 按 segment_seconds (默认 60 秒) 把 [0, duration] 切成等长区间, 两个细节:
+
+- 最后一个切片允许短于粒度 (实测最后一片只有 8 秒)
+- 尾部碎片小于 1 秒时并入前一个切片, 避免产生无意义的超短切片
+
+24 分 08 秒的视频切成 25 个切片. 固定时长切片的好处是天然幂等: 切片序号和时间区间可以由时长直接算出, 重跑不需要任何状态.
+
+### 2. 代表帧抽取: 中点采样
+
+每个切片不做逐帧分析, 抽 frames_per_segment (默认 3) 张代表帧, 采样位置是:
+
+```
+t(k) = start + span * (k + 0.5) / n,  k = 0, 1, ..., n-1
+```
+
+即把切片等分成 n 段, 每段取中点. 中点采样刻意避开切片边界, 因为边界处常见转场黑帧、上一场景残影.
+
+抽帧命令的关键参数:
+
+- -ss 放在 -i 之前: 快速 seek 模式, 先定位到最近关键帧再解码, 速度远快于逐帧解码
+- scale=768:-2: 缩放到宽 768px, 高等比, -2 保证偶数 (编码器要求); 降低分辨率直接降低 VLM 的 token 成本
+- format=yuvj420p: 强制转成全范围 JPEG 色彩空间, 否则 ffmpeg 9 的 mjpeg 编码器会拒绝 limited-range YUV 输入 (实测踩坑, 见第四节)
+- -q:v 4: JPEG 质量, 4 在清晰度和体积之间平衡, 单帧实测约 12~36KB
+
+### 3. 损坏尾部的回退重试
+
+实测发现视频文件尾部 H264 流损坏 (容器声明时长 1447.7 秒, 实际约 1440.5 秒后不可解码), 最后一个切片的 3 个采样点全部落在不可解码区. 更隐蔽的是: ffmpeg 此时退出码为 0, 只是输出空文件, 不检查文件大小就会误判成功.
+
+对策是时间戳回退重试: 某采样点抽不出帧 (输出文件为空) 时, 时间戳减 1 秒重试, 最多 8 次, 允许回退到切片起点之前 5 秒 (保证尾部被截断的切片仍能拿到邻近帧). 修复后最后一个切片成功产出标签"React 2025 大会 / 技术会议 / 会议标题页".
+
+## 三. 聚类标签生产 (internal/labeler)
+
+### 1. 多模态消息构造
+
+eino 的 schema.Message 用 UserInputMultiContent 字段承载多模态输入, 每个切片的用户消息由 1 个文本 part + N 个图片 part 组成:
+
+- 文本 part: 说明切片序号、时间范围、帧数, 要求按时间顺序分析
+- 图片 part: 代表帧读成 bytes 后 base64 编码, 填入 MessageInputImage 的 Base64Data 字段, MIMEType 为 image/jpeg, Detail 设为 auto 让服务端自行决定图像质量档位
+
+System Prompt 定义角色和输出规范:
+
+```
+你是一名视频内容分析专家, 负责分析视频切片的代表帧, 产出聚类标签.
+
+要求:
+1. 只输出严格的 JSON, 不要输出任何其他内容, 格式: {"labels": ["标签1", "标签2"], "summary": "一句话描述"}
+2. labels 为该切片的聚类标签数组, 必须包含 1 到 3 个标签
+3. 每个标签是简短的中文描述, 不超过 12 个字, 概括画面内容、场景或主题
+4. 标签应具备聚类价值, 同类内容应产出相同或相近的标签, 避免过于具体的专有名词
+5. summary 为对该切片内容的一句话中文总结, 不超过 50 字
+```
+
+第 4 条是聚类标签和普通标签的区别: 提示词显式要求标签可复用、可归并, 抑制模型输出过于具体的专有名词, 为后续标签归并减轻压力.
+
+### 2. 结构化输出的解析与校验
+
+模型回复不保证干净, parseResult 做三层防御:
+
+1. 提取: 取回复中第一个 { 到最后一个 } 之间的子串, 容忍 markdown 代码围栏和前后废话
+2. 反序列化: json.Unmarshal 到 {labels, summary} 结构
+3. 归一化校验: 每个标签 trim、去空、去重, 数量上限 5 个; labels 为空视为非法
+
+### 3. 重试与兜底: 保证每片必有标签
+
+需求是每个切片必须有 1 到多个标签, 实现上用两级保障:
+
+- 解析失败时最多重试 2 次, 重试消息里附带上一次的错误原因, 让模型纠正
+- 重试仍失败则返回兜底标签"未能识别内容", summary 记录失败原因
+
+同理, pipeline 层面抽帧失败、LLM 网络错误等硬失败也不中止整个任务, 该切片降级为兜底标签, 其余切片照常产出. 单次失败只损失一个切片, 不损失整个任务.
+
+## 四. 真实踩坑记录
+
+### 1. 文本模型拒绝图片输入 (400)
+
+第一次接入的模型 (idealab 的 Peach) 是纯文本模型, 多模态请求直接 400: "The current model only supports text modality and does not support image input". 教训: 接入前必须确认模型是多模态 (VLM); 如果只有文本模型, 需要先在外部做 OCR/图像描述, 把视觉信息转成文本再进提示词.
+
+### 2. mjpeg 编码器拒绝 limited-range YUV
+
+ffmpeg 9 抽帧报错 "Non full-range YUV is non-standard", 原因是源视频是 limited-range 色彩, 而 mjpeg 编码器要求全范围. 修复: 滤镜链追加 format=yuvj420p 强制转换. 这类问题与 ffmpeg 大版本强相关, 升级 ffmpeg 后回归测试抽帧环节是必要的.
+
+### 3. ffmpeg 退出码 0 但输出为空
+
+文件尾部损坏时, ffmpeg seek 过去解不出帧, 退出码仍是 0, 输出 0 字节文件. 只看退出码会误判成功, 必须 stat 文件大小. 这是"子进程封装"模式的典型盲区: 退出码不等于业务成功, 产物校验不可少.
+
+### 4. 并发乱序与结果对齐
+
+25 个切片并发 2 处理, 完成顺序完全乱序 (日志里 segment 9 先于 segment 1 完成). 结果数组按切片下标写入而非追加, 最后按 index 排序输出, 报告时间线始终有序.
+
+## 五. 实测结果
+
+24 分 08 秒视频, 60 秒粒度, 25 个切片, 每片 3 帧, 并发 2, 端到端约 3 分钟, 25/25 产出标签. 标签质量摘录:
+
+| 切片 | 时间范围            | 聚类标签                                               |
+| ---- | ------------------- | ------------------------------------------------------ |
+| 1    | 00:00:00 - 00:01:00 | React大会 / 赞助商列表 / 并发技术                      |
+| 4    | 00:03:00 - 00:04:00 | React会议演讲 / 性能测试演示 / 交互界面展示            |
+| 10   | 00:09:00 - 00:10:00 | React技术大会 / React编译器优化 / React Forest原型     |
+| 16   | 00:15:00 - 00:16:00 | React技术大会 / React Fir介绍 / 增量渲染技术           |
+| 24   | 00:23:00 - 00:24:00 | React大会技术演讲 / React更新机制与未来 / 演讲结束致谢 |
+| 25   | 00:24:00 - 00:24:08 | React 2025 大会 / 技术会议 / 会议标题页                |
+
+可以看到: 场景语义识别准确 (赞助商页、代码演示、架构图、致谢页都能区分); 标签具备聚类价值 ("React会议演讲"、"性能对比分析"在多个切片复现); 连只出现一次的项目名 (React Forest、React Fir) 也从画面文字中读了出来, 说明 VLM 自带 OCR 能力, 对演讲类视频尤其有效.
+
+## 六. 大型企业项目中的优化方向
+
+单机验证版跑通后, 放到大型企业场景 (日均数万小时直播录制、标签供算法在线消费) 下, 以下每个方向都有明确的优化空间.
+
+### 1. 切片层: 从固定时长到内容感知
+
+- 现状: 固定 60 秒切片, 会把完整事件拦腰切断
+- 优化: 两级切片. 先固定时长粗切控制成本, 再用内容信号精切: ffmpeg 的 scene 滤镜检测场景突变、blackdetect/freezedetect 检测黑场冻结、音轨 VAD 检测静音段; 直播场景还可叠加互动信号 (弹幕密度突增、礼物事件、上链接时间戳), 这些业务事件比画面信号更能定义"内容段落"
+- 切点吸附到最近 I 帧后流拷贝, 无损且速度接近磁盘 IO; 需要帧级精度时才对小段重编码
+
+### 2. 标签层: 从逐片打标到 embedding 聚类
+
+#### 2.1 逐片打标的三个问题
+
+单机验证版采用的是逐片打标: 每个切片独立调用一次 VLM, 直接产出标签. 这条路线有三个结构性问题:
+
+- 成本线性增长: N 个切片就是 N 次多模态调用, 每次携带 3 张图片 (base64 后每张图片几百到上千 token), 调用量和 token 消耗都与切片数严格成正比, 没有任何规模效应
+- 标签措辞不稳定: 模型每次调用都看不到其他切片, 没有全局视角, 同类内容会产出不同措辞的标签. 实测 25 个切片里同一个"React 大会演讲"场景就出现了 "React技术大会"、"React Conf 2025 演讲"、"React大会演讲" 三种写法, 直接按字符串聚合会把同类内容拆成三个簇
+- 无法发现未知模式: 标签完全依赖提示词引导, 数据里存在什么内容分布, 系统自己暴露不出来
+
+#### 2.2 embedding 聚类的总体架构
+
+改造方向是 BERTopic 式链路, 核心思想: 标签不是"生成"出来的, 而是先让数据自己聚成簇, 再让 LLM 给每个簇"命名". 五步流水线:
+
+```
+切片代表帧 -> 多模态表示 -> embedding 向量 -> UMAP 降维 -> HDBSCAN 聚类 -> LLM 簇级命名
+```
+
+关键转变: LLM 从"每个切片的标注员"变成"每个簇的命名者", 调用量从切片数量级降到簇数量级.
+
+#### 2.3 切片表示: 两条路线
+
+路线 A, 视觉 embedding: 代表帧直接过多模态 embedding 模型 (CLIP 类, 例如 OpenAI CLIP、中文场景的 Chinese-CLIP、BGE-VL), 输出定长向量. 优点是便宜、可批量、完全离线; 缺点是画面相似但语义不同的内容会靠得很近 (两页不同的代码截图视觉 embedding 几乎一样).
+
+路线 B, 描述转文本 embedding: 先用 VLM 对代表帧生成结构化描述 (画面内容、是否有人出镜、屏幕文字/OCR 结果、图表类型), 描述文本再过文本 embedding 模型 (BGE、text-embedding 类). 优点是语义密度高, 演讲、代码、图表类视频效果尤其好 (实测 VLM 能读出屏幕上的项目名); 缺点是多一次模型调用.
+
+选型建议:
+
+- 演讲、教程、代码演示类内容: 路线 B 为主, 语义都在屏幕文字里
+- 秀场、带货直播: 路线 A 为主, 画面本身就是内容, 再叠加 ASR 转写文本 embedding
+- 混合场景: 两路向量拼接 (或分别聚类再交叉验证), 视觉和语义互补
+
+注意路线 B 里 VLM 仍然被使用, 但职责从"打标签"降级为"生成描述": 描述不要求措辞稳定 (稳定性交给聚类), 可以用更便宜的小模型, 也可以走批量推理接口, 单价远低于在线多模态打标.
+
+#### 2.4 降维与聚类
+
+embedding 维度通常 768~2048, 高维空间里距离区分度差 (维度灾难), 直接聚类效果不稳定, 先降维:
+
+- UMAP: n_components 取 5~20, metric 用 cosine. UMAP 保留局部邻域结构, 比 PCA 更适合聚类前置降维
+- 距离度量必须用 cosine: embedding 的模长无意义, 方向才承载语义
+
+聚类算法选型:
+
+| 算法                      | 是否需要预设簇数 | 噪声处理             | 适用场景                                    |
+| ------------------------- | ---------------- | -------------------- | ------------------------------------------- |
+| HDBSCAN                   | 不需要           | 离群点标为 -1 噪声簇 | 首选, 内容分布未知时让数据自己暴露结构      |
+| K-Means / MiniBatchKMeans | 需要             | 无                   | 簇数可控的运营场景, 用轮廓系数/肘部法则选 k |
+| 层次聚类 + 余弦阈值       | 不需要           | 单样本簇即离群       | 小规模数据, 且能产出标签层级树              |
+
+HDBSCAN 的关键参数 min_cluster_size 按数据量定: 万级切片设 10~50, 含义是"少于这个数的模式不值得单独成簇", 过小的簇并入噪声簇走人工审查或二次归并. 噪声簇不是垃圾, 它往往就是新出现的内容模式 (新梗、新玩法), 是运营最关心的部分.
+
+#### 2.5 LLM 簇级命名
+
+对每个簇:
+
+1. 采样: 取离簇质心最近的 K 个切片 (medoid, 比 centroid 附近随机采样更有代表性), 连同它们的文本描述、时间分布、簇规模组成上下文
+2. Prompt 要求输出 JSON: {label, definition, boundary}, label 是简短中文标签, definition 是簇的定义 (什么样的切片属于这个簇), boundary 给出边界判例 (什么样的内容不算这个簇). definition 和 boundary 是留给后续增量归簇和人工抽检用的
+3. 注入已有标签体系, 优先复用已有标签, 控制标签膨胀
+
+调用次数 = 簇数. 内容平台的自然簇数通常在几百到几千量级, 与切片总量 (百万级) 相差三到四个数量级.
+
+#### 2.6 成本量化对比
+
+以"日均 1 万场直播, 平均 2 小时, 1 分钟切片粒度"估算, 日增切片 120 万:
+
+| 项目             | 逐片打标                              | embedding 聚类                                                       |
+| ---------------- | ------------------------------------- | -------------------------------------------------------------------- |
+| 多模态大模型调用 | 120 万次/日                           | 约 2000 次/日 (簇级命名)                                             |
+| token 消耗       | 每次约 1500 token (3 帧), 约 18 亿/日 | 约 300 万/日                                                         |
+| embedding 计算   | 0                                     | 120 万次, 但走自部署模型或批量接口, 单价比在线大模型低两到三个数量级 |
+| 标签稳定性       | 需要事后归并                          | 天然收敛                                                             |
+
+LLM 在线调用量从 120 万次/日降到约 2000 次/日, 约 600 倍, 接近三个数量级 (簇数随内容多样性增长, 且增量场景下新簇命名还有长尾调用).
+
+#### 2.7 增量归簇与标签漂移治理
+
+全量重聚是标签漂移的根源: 每天重新聚类, 同一个内容模式今天的簇编号和标签都可能变, 下游消费方 (算法、报表) 无法对齐历史. 治理方式:
+
+- 簇质心作为固定锚点: 新切片算 embedding 后, 与已有簇质心算 cosine 相似度, 高于阈值 τ (典型 0.75~0.85) 直接归入已有簇, 复用该簇标签, 零 LLM 调用
+- 低于阈值的切片进缓冲池, 缓冲池积累到一定量后局部聚类: 成簇的走 LLM 命名流程产出新标签, 不成簇的标记为噪声待审
+- 周期性 (例如每周) 全量校准: 检查簇间是否出现合并机会 (两个簇质心过近) 或分裂迹象 (簇内方差过大), 维护旧标签到新标签的映射表, 历史数据可回溯
+- τ 的取值用抽检标定: 抽 100 对"相似度在阈值附近"的切片对让人工判断是否同类, 调整 τ 使误归簇率可接受
+
+这套机制下, 标签体系是单调生长的: 老标签永远稳定, 新内容模式以新标签的形式被显式发现, 而不是在全量重聚中悄悄漂移.
+
+#### 2.8 工程分工
+
+embedding 和聚类的生态在 Python (sentence-transformers、umap-learn、hdbscan、scikit-learn), Go 侧没有成熟的 HDBSCAN 实现, 合理的分工是:
+
+- Python 微服务: 负责 embedding 计算、降维、聚类、增量归簇, 对外暴露两个接口: 批量切片归簇 (输入切片 id + 代表帧/描述, 输出簇 id)、触发簇命名 (对新簇调用 LLM 产出标签)
+- Go 服务: 负责任务编排、切片元数据管理、标签结果落库、对外提供查询, 与 Python 服务之间走 RPC/HTTP
+- LLM 调用放在哪一侧都可以, 保持与 swifty_agent 一致的 eino 调用方式则放在 Go 侧, Python 服务只产出"待命名簇 + 代表样本"
+
+单机验证版 (packages/tags) 可以看作这条链路的第 1 步和第 5 步的直连 (表示 -> LLM), 省略了中间的 embedding/聚类层; 企业版把中间层补齐, 就得到完整的成本与稳定性收益.
+
+### 3. 标签体系治理
+
+- 现状: 标签完全自由生成, 会无限膨胀
+- 优化: 维护标签体系表 (taxonomy). Prompt 中注入已有标签列表, 要求优先复用, 确实无法归类才新建并走审核; 标签分层级 (一级类目 + 二级细分), 一次调用同时产出; 定期跑标签归并任务 (embedding 相似度 + LLM 判断同义), 合并后维护旧标签到新标签的映射, 历史数据可回溯
+
+### 4. 任务调度: 从进程内 goroutine 到分布式队列
+
+- 现状: 单机 goroutine + 信号量限并发, 进程挂了全部重来
+- 优化: 切片级任务进消息队列 (Kafka 或内部队列), 无状态 worker 池消费, 按 (video_id, segment_index) 幂等; 任务表记录状态机 (pending/extracting/labeling/done/failed), 支持断点续跑: 已完成的切片直接跳过, 重跑成本从全量降到增量
+- 长视频 (小时级) 按切片粒度分散到多台 worker, 单机串行的瓶颈被彻底消除
+
+### 5. 可靠性: 重试、限流、熔断、死信
+
+- 现状: 解析失败重试 2 次, 无网络层退避, 无限流
+- 优化:
+  - LLM 调用加指数退避重试, 区分可重试错误 (429、5xx、超时) 和不可重试错误 (400 参数错误)
+  - 按供应商 QPS/TPM 配额做令牌桶限流, 多模型多端点间做故障转移 (主端点熔断后切备用端点)
+  - 多次失败的任务进死信队列, 人工介入而不是无限重试烧钱
+  - ffmpeg 子进程加超时 (context 级联取消), 防止个别损坏文件卡死 worker
+
+### 6. 成本控制
+
+- 模型分层: 轻量 VLM 或规则先过滤明显低价值切片 (纯黑场、静态挂机画面直接打规则标签), 只有有价值的切片进大模型
+- 缓存: 代表帧感知哈希 (pHash) 作为缓存键, 相同画面的切片 (挂机直播大量存在) 直接复用标签
+- 抽帧降采样: 分辨率 (768px 够用的场景不用 1080p)、帧数 (静态片段 1 帧足够)、JPEG 质量都是可调的成本杠杆
+- 离线资源: 大批量任务调度到低峰时段或竞价实例, 与在线服务资源隔离
+
+### 7. 可观测性
+
+- 指标: 切片耗时分布、抽帧失败率、LLM 调用成功率/延迟/token 消耗、兜底标签占比 (兜底率突增就是链路出问题的信号)
+- 追踪: 每个切片一条 trace, 串起抽帧、LLM 调用、解析各环节, 排障时能定位到具体切片的具体环节
+- 采样审计: 按一定比例保存代表帧 + 模型原始回复, 供人工回查 badcase
+
+### 8. 质量评估闭环
+
+- 自动评估: LLM-as-judge 用独立 prompt 复核"标签与画面是否一致", 不一致率作为线上质量指标; 聚类侧监控轮廓系数、簇大小分布, 超大簇和单样本簇告警
+- 人工抽检: 按簇分层抽样标注, 人工准确率是最终验收指标
+- 漂移监控: 每日标签分布与前一周对比, 新标签占比、兜底占比、簇数突变都触发告警
+
+### 9. 安全与合规
+
+- api_key 不进配置文件明文, 走密钥管理服务 (KMS/配置中心加密下发), 按环境隔离
+- 视频内容可能含用户隐私, 代表帧和中间产物落对象存储要设生命周期自动过期, 访问走最小权限
+- 标签结果对外输出前过敏感词过滤
+
+### 10. 消费侧: 标签与算法指标关联
+
+- 标签的最终用途是评估算法消费质量: 切片标签与消费数据 (曝光、点击、停留时长、负反馈率) 按切片 id join, 按标签聚合
+- 看两个维度: 算法分发内容的标签分布 (算法在消费什么), 每个标签下的消费质量 (这类内容用户买不买账)
+- 识别问题簇 (例如"挂播无人直播"仍有大量曝光说明过滤有漏洞), 反馈给算法侧调整召回和过滤规则, 形成闭环
+
+## 小结
+
+| 环节   | 单机验证版做法                      | 企业级演进方向                          |
+| ------ | ----------------------------------- | --------------------------------------- |
+| 切片   | 固定 60s + 中点抽 3 帧 + 回退重试   | 内容感知精切, I 帧对齐无损切割          |
+| 标签   | 逐片 VLM 调用, JSON 约束 + 重试兜底 | embedding 聚类 + 簇级总结, 标签体系治理 |
+| 调度   | 单机 goroutine + 信号量             | 消息队列 + 无状态 worker + 断点续跑     |
+| 可靠性 | 解析重试 2 次, 失败降级兜底标签     | 指数退避、限流熔断、死信队列            |
+| 成本   | 缩帧 + 并发控制                     | 模型分层、感知哈希缓存、低峰调度        |
+| 质量   | 人工看报告                          | LLM-as-judge、抽检、漂移监控            |
+
+# 手写 SWR: 预加载 + 请求去重 + Stale-While-Revalidate
+
+> 本机器路径 $HOME/github/26autumn/packages/swr-demo
+> 本文基于 packages/swr-demo 项目, 梳理手写 SWR 数据请求方案的实现思路、与 vercel/swr 等现成方案的选型权衡, 以及 SWR 模式对前端性能的优化原理, 按面试问答形式组织.
+
+## 1. 业务背景: 这个方案解决什么问题
+
+中后台系统中存在大量公用选择器数据源: Staff 用户选择器、推荐算法选择器、向量库选择器. 这类数据有三个共同特征:
+
+1. 多个页面、多个组件同时消费同一份数据
+2. 数据变化频率低( 分钟级甚至小时级) , 短时间内拿到旧数据完全可接受
+3. 首屏渲染强依赖: 选择器没有数据, 页面就没法交互
+
+传统做法是在每个组件的 useEffect 里各自发请求, 会带来三个问题:
+
+- 请求发起时机晚: 要等 JS bundle 下载、解析、React mount 之后才开始, 网络请求与脚本加载串行
+- 同一份数据被多个组件重复请求, 浪费带宽和后端资源
+- 页面切换后组件卸载、内存状态丢失, 再次进入页面又要重新等待完整请求
+
+手写 SWR 方案用约 155 行核心代码( src/swr.ts) 解决这三个问题, 不引入任何第三方数据请求库.
+
+## 2. 手写 SWR 的实现思路
+
+### 2.1 整体结构: 两阶段设计
+
+方案分为预加载阶段和消费阶段, 对应 swr.ts 中的 preload 与 swrFetch 两个函数.
+
+数据结构是一个全局 Map 缓存, 每个 key 对应一条缓存记录:
+
+```typescript
+interface SWREntry<T> {
+  promise: Promise<T>; // 在途请求的 promise( 去重锚点)
+  result: T | undefined; // 已返回的结果( 缓存锚点)
+  timestamp: number; // 请求发起时间
+}
+
+const cache = new Map<string, SWREntry<unknown>>();
+```
+
+一条记录同时持有 promise 和 result 两个锚点, 这是整个方案的关键设计: promise 用于请求在途时的去重, result 用于请求完成后的缓存命中. 真实场景里这两个锚点对应挂在 window 上的 window.xxxPromise 和 window.xxxResult.
+
+### 2.2 预加载阶段: preload
+
+preload 模拟 index.html 的 header 内联脚本. 浏览器解析 HTML 到这段脚本时立即执行, 此时 React 的 bundle 可能还在下载中, fetch 请求与 bundle 下载并行进行:
+
+```typescript
+export function preload() {
+  const startTime = performance.now();
+  const staffPromise = fetchStaff();
+  // ... 三个请求并行发起
+
+  cache.set("staff", {
+    promise: staffPromise,
+    result: undefined,
+    timestamp: startTime,
+  });
+  // ...
+
+  // promise resolve 后把 result 挂载到缓存记录上
+  staffPromise.then((result) => {
+    cache.get("staff")!.result = result;
+  });
+}
+```
+
+要点:
+
+1. 三个请求同时发起, 互不等待, 总耗时取决于最慢的那个
+2. promise 先入缓存, result 在 then 回调中补充, 这样无论消费方什么时候到达, 都能命中 promise 或 result 二者之一
+3. 预加载脚本不依赖任何框架, jQuery 页面、原生 JS 页面都可以写同样的逻辑
+
+### 2.3 消费阶段: swrFetch 的三级降级
+
+swrFetch 是消费侧唯一的入口函数, 按优先级依次判断:
+
+第一级, result 已就绪( 缓存命中) . 立即返回已有数据, 耗时接近 0ms, 同时后台静默发起 revalidate 请求, 新数据回来后更新缓存. 这就是 stale-while-revalidate 的含义: 宁可先给旧数据, 也不让用户等待.
+
+```typescript
+if (entry?.result !== undefined) {
+  const data = entry.result;
+  const revalidate = fetcherMap[key](); // 后台刷新, 不阻塞返回
+  revalidate.then((newResult) => {
+    entry.result = newResult;
+    entry.promise = revalidate;
+    entry.timestamp = performance.now();
+  });
+  return {
+    data,
+    fromCache: true,
+    fromPromise: false,
+    waitedMs: ~0, // 示意, 实际返回 performance.now() - callTime
+  };
+}
+```
+
+第二级, promise 在途( 请求去重) . 预加载的请求还没返回, 但 promise 已经存在, 直接 await 复用这个 promise, 只等待剩余的网络时间. 多个组件同时消费时共享同一个 promise, 天然去重, 不会发出重复请求.
+
+```typescript
+if (entry?.promise) {
+  const data = await entry.promise;
+  // 示意, 实际 waitedMs 返回 performance.now() - callTime
+  return { data, fromCache: false, fromPromise: true, waitedMs: 剩余时间 };
+}
+```
+
+第三级, 冷启动兜底. 缓存里什么都没有( 预加载没执行、或缓存被清) , 重建完整流程: 发请求、写入缓存、等待完整 RTT. 这保证了方案在任何接入状态下都能正确工作, 降级路径完备.
+
+### 2.4 对照组: normalFetch
+
+normalFetch 不做任何缓存和去重, 每次调用都发全新请求, 模拟组件挂载时才在 useEffect 中请求的传统写法. App.tsx 用它与 swrFetch 做同屏对比, 通过 performance.now() 测量各自的 waitedMs, 并在时间线图表里可视化.
+
+### 2.5 Demo 的运行流程
+
+App.tsx 的 run 函数还原了真实时序:
+
+1. clearCache 清空缓存, 模拟页面冷启动
+2. 调用 preload, 模拟 header 脚本提前发请求
+3. await 100ms, 模拟 bundle 下载与 React mount 的耗时, 给预加载留出并行窗口
+4. swrFetch 消费三个数据源, 此时大概率命中 promise 复用甚至 result 缓存
+5. normalFetch 对照组从零发请求, 等待完整 800ms+ 网络延迟
+6. 二次消费按钮再次调用 swrFetch, 此时 result 已就绪, 耗时接近 0ms, 对照组则必须重新等待完整请求
+
+mock-api.ts 用 800ms 加随机 200ms 的延迟模拟网络耗时, 延迟越大, 预加载并行带来的收益越直观.
+
+## 3. 为什么大型存量项目选择手写 SWR 而不是 vercel/swr
+
+这是面试中最核心的追问. 答案不是"vercel/swr 不好", 而是"存量项目的约束条件让现成方案接不进去, 而手写方案恰好绕开了这些约束".
+
+### 3.1 架构约束: MPA 与多技术栈共存
+
+大型存量中后台项目的典型现状:
+
+- 构建产物是多个独立 HTML 入口的 MPA, 不是单页应用. 每个页面是独立的加载单元, 页面之间跳转就是整页刷新
+- jQuery、原生 JS 写的老页面与 React 新页面长期共存, 迁移是逐页进行的
+- React 版本可能停留在 16/17, 无法使用 Suspense data fetching 等新特性
+
+vercel/swr 是一个 React hook 库, useSWR 只能在 React 组件内使用, 且官方推荐搭配 SWRConfig Provider 做全局缓存配置. 这意味着:
+
+- jQuery 页面、原生 JS 页面完全无法消费它的缓存
+- MPA 下每个页面都要单独引入并初始化, 页面之间跳转时内存缓存随整页刷新而丢失
+- 老版本 React 上部分能力受限
+
+手写方案把缓存锚点放在 window 上( demo 里是模块级 Map, 语义等价) , 缓存的生命周期与页面文档绑定而不是与某个框架实例绑定, 任何技术栈的页面都能用同一个 swrFetch(key) 消费.
+
+### 3.2 接入成本: 不动构建、不动框架、不改组件树
+
+现成数据请求库的接入路径通常是: 安装依赖、在应用根部包 Provider、把组件里的 useEffect + fetch 逐个改写成 useSWR hook、处理 loading/error 状态的渲染逻辑. 对一个几百个页面的存量项目, 这是全量改造, 风险和排期都不可接受.
+
+手写方案的接入路径是渐进式的:
+
+1. 在需要优化的那个页面的 header 里加一段内联脚本, 发起预加载并挂载 promise/result
+2. 消费侧调用 swrFetch(key), 一行代码
+3. 不需要 Provider、不需要 hook、不需要改构建配置、不需要升级 React
+4. 哪个页面收益大就先改哪个, 改坏了也只是回退那一个页面
+
+这种"单页面粒度、可灰度、可回退"的接入方式, 是存量项目选型时权重最高的因素.
+
+### 3.3 能力匹配: 只需要三个能力, 不需要整个库
+
+vercel/swr 提供轮询、重试、指数退避、focus 重新校验、乐观更新、分页、无限滚动、依赖请求等完整能力, React Query 还要再加重. 但本场景只需要三件事: 预加载、请求去重、缓存命中后立即返回加后台刷新.
+
+引入完整库属于过度设计, 代价是:
+
+- 包体积: 手写方案核心约 0.5 KB, vercel/swr 约 4.5 KB gzip, React Query 约 12 KB gzip. 对微前端子应用、SDK 类场景这个差距很敏感
+- 心智负担: 团队要学习 hook API、缓存 key 规范、失效策略, 而手写方案的全部逻辑一个文件读完
+- 升级维护: 第三方库的版本升级、breaking change 都要跟进, 手写代码没有外部依赖
+
+面试表述: 选型看的是能力覆盖度与接入成本的比值, 不是功能数量. 当需求是三个能力、而库提供三十个能力时, 多出来的二十七个能力不是收益, 是体积、复杂度和维护成本.
+
+### 3.4 预加载时机: header 内联脚本是现成库覆盖不到的
+
+这是技术上最本质的一点. vercel/swr 的请求生命周期从 React 组件渲染时才真正开始( 即使有 prefetch 能力, 也要等 bundle 加载并执行) . 而手写方案把请求发起点提前到 HTML 解析阶段的 header 内联脚本, 此时 bundle 还在下载, 网络请求与脚本加载并行.
+
+这个时间窗口是任何运行在 JS bundle 内部的库都无法利用的, 因为库本身就是 bundle 的一部分. 要让请求早于 bundle 发出, 只能用不依赖 bundle 的内联脚本, 而消费侧需要一个能"认领"这个早期 promise 的机制, 这正是手写 swrFetch 做的事.
+
+### 3.5 什么时候应该选 vercel/swr
+
+保持客观, 说明边界:
+
+- 纯 SPA、React 18+、团队已经统一使用数据请求库的新项目
+- 需要乐观更新、mutation 后缓存失效、轮询、请求重试等复杂能力
+- 需要 devtools、缓存生命周期管理( LRU 淘汰、gcTime)
+
+手写方案明确不覆盖这些场景, 它的定位是"存量项目里低成本拿到预加载、去重、缓存三个收益"的战术工具, 不是 React Query 的替代品.
+
+## 4. SWR 对前端性能的优化
+
+### 4.1 关键路径并行化: 请求与 bundle 下载并行
+
+传统时序是串行的: HTML 解析、bundle 下载、bundle 执行、React mount、useEffect 触发 fetch、等待完整 RTT、渲染数据. 网络请求排在整条链路的尾部.
+
+SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、执行并行. 以 demo 的数据估算( 网络延迟 800ms, bundle 下载加执行约 100ms, 即 demo 模拟的 mount 延迟) :
+
+| 阶段         | SWR 组                                | 对照组                         |
+| ------------ | ------------------------------------- | ------------------------------ |
+| 数据就绪时间 | 约 800ms( 请求与 bundle 并行, 取 max) | 约 900ms( 100ms 加 800ms 串行) |
+| 二次消费     | 约 0ms( 缓存命中)                     | 约 800ms( 重新请求)            |
+
+网络延迟越大、bundle 越大, 并行化收益越大. 弱网环境下差距可达数秒. 这本质上是把关键路径上的两段串行等待改成了并行, 与 HTTP 资源 preload 提示、script defer 是同一类优化思路.
+
+### 4.2 请求去重: 共享在途 promise
+
+多个组件同时消费同一 key 时, 第一个消费者创建 promise 并写入缓存, 后续消费者直接 await 同一个 promise. N 个组件只产生 1 个网络请求.
+
+收益有两层: 前端层面减少了 N-1 次响应解析和状态更新; 后端层面减少了 N-1 次接口调用, 对公用选择器这种被全系统高频消费的接口, 去重直接降低了后端 QPS.
+
+实现上依赖 promise 的可共享性: promise 是惰性求值的句柄, 多次 await 同一个 promise 不会重新执行请求逻辑, 只会各自注册 then 回调.
+
+### 4.3 Stale-While-Revalidate: 用缓存消除等待
+
+命中 result 缓存时立即返回旧数据, 耗时接近 0ms, 同时后台静默发起新请求更新缓存. 性能收益和体验收益叠加:
+
+- 用户永远看不到 skeleton 和 loading 态, 二次进入页面瞬间有数据
+- 后台 revalidate 不阻塞当前渲染, 新数据在下次消费时生效
+- 对变化频率低的数据( 选择器选项、配置项) , 绝大多数消费拿到的数据其实都是新的, stale 窗口极短
+
+这个策略成立的前提是业务能容忍短暂的旧数据. 面试中要主动点出这一点: SWR 是拿一致性换延迟的权衡, 适合读多写少、容忍最终一致的场景; 下单、支付、库存这类强一致场景不能用.
+
+### 4.4 对核心 Web 指标的影响
+
+- LCP / FCP 相关的首屏可交互时间: 选择器数据就绪前页面不可交互, 预加载直接缩短这段时间
+- TBT 不受影响: 方案只是提前和合并网络请求, 不增加主线程长任务
+- 带宽: 去重减少了重复请求的响应体积传输
+
+### 4.5 与其他预加载手段的对比
+
+面试可能追问"为什么不直接用 link rel=preload", 可以对比:
+
+- link rel=preload 只能预加载资源( 脚本、字体、图片) , 无法预加载 XHR/fetch 接口数据
+- HTTP 缓存( Cache-Control) 能覆盖二次访问, 但首次访问仍需完整 RTT, 且无法与 bundle 下载并行调度, 也没有 promise 级别的去重
+- React 18 的 useDeferredValue、Suspense 都不解决"请求早于 bundle"的问题
+- header 内联 fetch 加 window 挂载 promise, 是接口数据预加载的最直接形态, SWR 消费机制让它能被框架代码无缝认领
+
+## 5. 面试追问与回答要点
+
+追问一: 缓存挂 window 上不怕污染全局吗?
+
+回答: 真实项目会用带命名空间的 key( 如 `window.__SWR__.staff`) , demo 里用模块级 Map 是等价的封装. 全局挂载是手段不是目的, 目的是让缓存脱离任何框架实例的生命周期, MPA 页面跳转、jQuery 与 React 混用都能共享.
+
+追问二: revalidate 失败怎么办, 缓存会一直是旧数据吗?
+
+回答: demo 里 revalidate 的 then 只在成功时更新缓存, 失败保留旧数据, 下次消费再重试. 生产实现应补 catch, 并可加 timestamp 判断数据陈旧程度, 超过阈值( 如 10 分钟) 就降级为阻塞式重新请求, 避免无限使用过期数据.
+
+追问三: 两个组件几乎同时调用 swrFetch, 会不会竞态发两个请求?
+
+回答: 不会. 判断 promise 是否存在和写入缓存都在同一个同步代码块里完成, JS 单线程加事件循环模型保证了 swrFetch 的同步判断段不会被打断, 第二个调用进入时缓存里已有 promise, 走复用分支.
+
+追问四: 这个方案怎么做缓存失效?
+
+回答: 当前实现是"每次命中都后台刷新"的激进策略, 适合低频变化数据. 可扩展的方向: 基于 timestamp 的 TTL 判断, TTL 内不 revalidate; 暴露 invalidate(key) 方法供 mutation 后主动失效; 按 key 配置不同的过期策略. 这些都是几十行代码内可以完成的演进, 不需要引入完整库.
+
+追问五: 如果项目后来升级到了 React 18 的 SPA, 这个方案还有价值吗?
+
+回答: 预加载部分依然有价值, header 内联请求早于 bundle 的时间窗口与框架无关; 消费侧可以逐步替换为 useSWR 或 React Query, 并用它们的初始数据注入能力( SWR 的 fallbackData、React Query 的 initialData) 认领 window 上的预加载结果, 两套机制可以平滑过渡.
+
+追问六: 和 React Query 的 prefetchQuery 有什么区别?
+
+回答: prefetchQuery 运行在 bundle 内部, 最早也只能在应用初始化时触发, 无法早于 bundle 下载; 且强依赖 QueryClientProvider, 非 React 页面无法使用. 手写方案的预加载发生在 HTML 解析阶段, 消费入口是普通函数, 这两点差异正是存量 MPA 项目选择它的原因.
+
+## 6. 手写前端性能监控: 思路与选型
+
+本节基于对外部生产项目 boot.ts 监控代码的转述( 该文件不在 swr-demo 仓库中) , 梳理手写性能监控的实现思路、大型企业项目选择手写而非第三方 SDK 的原因, 以及在 swr-demo 中的等价实现.
+
+### 6.1 boot.ts 的监控思路拆解
+
+boot.ts 的监控代码由五个部分组成, 全部基于浏览器原生 Performance API, 没有依赖任何监控 SDK 的采集能力.
+
+第一部分, 启动打点. 脚本入口第一行就执行 performance.mark('boot-start'), 在整个启动流程( 加载库文件、登录校验、菜单预取、prepare 执行) 完成后打 boot-end, 再用 performance.measure 计算启动总耗时. measure 封装了 try/catch, mark 不存在时不会抛错中断业务.
+
+第二部分, 长任务监听. 用 PerformanceObserver 观察 longtask 类型的条目, 只上报 duration 超过 50ms 的任务( 对齐 INP 与 TBT 的 50ms 阈值) , 上报内容附带当前页面路径和业务码 bizCode, 便于按页面维度归因卡顿. 监听在启动采集完成时 disconnect, 避免后续用户交互的长任务污染启动阶段数据.
+
+第三部分, 资源加载采样. 记录前 12 秒内执行的模块, 按 0.003 的采样率上报模块路径, 用于离线分析"哪些模块值得做预加载". 这是监控反哺优化的典型用法: 先采样观测, 再决定预加载清单.
+
+第四部分, 关键指标采集. 启动完成后一次性采集三类数据:
+
+- Navigation Timing: 从 navigation 条目拆解文档自身的 DNS 耗时、请求排队时间、请求耗时
+- Resource Timing: 先 setResourceTimingBufferSize(500) 扩大缓冲区防止条目被丢弃, 再从 resource 条目中按 URL 匹配找出关键接口请求( checkAccess、findMenuList 等) 的耗时, 并对并行发起的四个菜单请求排序找出最慢的那个, 定位启动链路的瓶颈
+- 自定义 measure: 启动总耗时与启动起点
+
+第五部分, 队列化上报. 所有数据推入 window 上的队列, 格式统一为 action 加 arguments 的事件结构, 由后加载的监控 SDK 异步消费. 上报动作全部包在 try/catch 中, 监控代码的任何异常都不会影响业务启动.
+
+### 6.3 swr-demo 的监控接入实现
+
+swr-demo 按 boot.ts 的同构思路接入了等价的手写监控, 核心文件是 src/perf-monitor.ts, 对应关系如下:
+
+| boot.ts                          | swr-demo                         | 说明                                                                                                                 |
+| -------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| window.PERF_QUEUE                | PERF_QUEUE 数组                  | 队列化上报, demo 中打印到控制台                                                                                      |
+| longTaskObserver                 | observeLongTasks                 | PerformanceObserver 观察 longtask, 50ms 阈值上报                                                                     |
+| performance.mark boot-start/end  | swr-boot-start/end               | main.tsx 入口打起点, 每轮 run 会 resetBootMarks 后在 run 内重打, measure 实际以 run 内的起点为准; SWR 数据就绪打终点 |
+| performanceMeasure 封装          | 同名函数                         | measure 加 try/catch, 取最后一条同名条目                                                                             |
+| seedAemlog                       | collectAndReport                 | 启动完成后一次性采集 Navigation/Resource Timing 并上报                                                               |
+| setResourceTimingBufferSize(500) | setResourceTimingBufferSize(200) | 扩大缓冲区防条目丢弃                                                                                                 |
+| 监测 checkAccess.json 耗时       | fetchPerfPing 探测请求           | preload 中并行发起真实 fetch, 从 resource 条目中按 URL 匹配采集耗时                                                  |
+| PluginPerf.markWithEntry         | report 函数                      | 统一事件格式 p1/c1-c5/p4                                                                                             |
+
+接入点分布:
+
+- src/main.tsx: 入口最早时机调用 initPerfMonitor 启动长任务监听, 并打 swr-boot-start( 该点每轮实验前被 resetBootMarks 清除, 实际参与 measure 的起点是 run 内重打的点)
+- src/swr.ts 的 preload: 并行发起 perf-ping 探测请求, 模拟 boot.ts 中被单独监测的登录校验接口
+- src/App.tsx 的 run: 每轮实验前 resetBootMarks 清除旧打点, SWR 组数据就绪时打 swr-boot-end 并调用 collectAndReport, 采集结果渲染为页面底部的监控面板
+
+实测输出( 本地 dev 环境) : 启动总耗时约 883ms, 即最慢网络请求的等待时间( 800ms 基础延迟加至多 200ms 随机) , 100ms 模拟 mount 延迟与网络请求并行而被覆盖; perf-ping 探测请求约 25ms, 启动期间捕获 1 个长任务( React 首次渲染) , PERF_QUEUE 单轮上报 3 条( 每长任务 1 条 main-thread-blocking, 加 swr-demo-boot 与 performance-index 各 1 条; 队列不清空, 多轮运行会累计) . 控制台可见 main-thread-blocking、swr-demo-boot、performance-index 三类事件, 与 boot.ts 的上报结构一致.
+
+面试表述: 这套监控和手写 SWR 体现的是同一个工程判断, 在存量约束下, 用最小的自研代码精准采集业务真正关心的指标, 比引入通用重型方案更合适; 两者的公共底座都是浏览器原生能力( Performance API、promise、全局挂载) , 这也是它们能在任何技术栈里工作的原因.
+
+## 7. 一句话总结
+
+手写 SWR 的本质是把"接口数据预加载"从框架生命周期里解放出来: 用 header 内联脚本让请求与 bundle 下载并行, 用 promise 挂载实现跨组件请求去重, 用 result 缓存加后台刷新实现零等待的二次消费. 在大型存量 MPA 项目里, 它以约 0.5 KB 的体积、零框架依赖、单页面粒度的渐进接入成本, 拿到了 vercel/swr 这类 hook 库在该架构下拿不到的收益, 是典型的"约束驱动选型"案例.

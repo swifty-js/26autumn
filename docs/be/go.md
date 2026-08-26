@@ -1,6 +1,8 @@
 # Go 高级后端工程师面试 QA
 
 > 本文面向高级 Go 后端工程师面试, 由"Golang 面试题"与"底层原理专题"两份文档合并而成, 覆盖语言基础、slice/map/string/interface、GMP 调度、channel、context、sync、内存模型、内存分配与逃逸、GC、defer/panic/recover、跨平台编译、泛型、工程实践、死锁、工具链与高频编码题. 文中运行时行为以 Go 1.22+ 为基准, 并标注关键版本差异; 部分工程实践结合作者的 Go 项目 swifty.go (swifty_cache: groupcache 风格分布式缓存; swifty_rpc: TCP 自研 RPC 框架) 中经核实的真实源码模式说明.
+> 本机器路径: `$HOME/github/swifty.go/swifty_cache`
+> 本机器路径: `$HOME/github/swifty.go/swifty_rpc`
 
 ## 1. Go 语言基础
 

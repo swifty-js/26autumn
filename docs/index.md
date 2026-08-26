@@ -51,8 +51,8 @@ Swifty 后端框架相关的深度面试题, 包括 HTTP、RPC、Cache、Agent �
 实习与工作期间的技术记录、源码解析和竞品调研.
 
 - [视频切片与 LLM 聚类标签](docs/0.md)
-- [ToD 设备性能数据采集: perfetto](docs/1.md)
-- [ToD 数据链路: Kafka、Hive、ClickHouse、MySQL、Redis](docs/2.md)
+- [Tiktok 设备性能数据采集: perfetto](docs/1.md)
+- [Tiktok 数据链路: Kafka、Hive、ClickHouse、MySQL、Redis](docs/2.md)
 - [RPC 原理与优势](docs/3.md)
 - [为什么要引入 BFF 层](docs/4.md)
 - [虚拟滚动: 原理与不定高实现](docs/5.md)
