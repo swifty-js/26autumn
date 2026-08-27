@@ -5,7 +5,7 @@ import {
   MERMAID_TAG,
 } from "@lark.js/docs";
 import { defineConfig } from "vitepress";
-import { excludePrivatePages, privateDocsPlugin } from "@swifty.js/docs";
+import { privateDocsPlugin } from "@swifty.js/docs";
 
 export default defineConfig({
   srcDir: "docs",
@@ -44,9 +44,6 @@ export default defineConfig({
     sidebar: buildSidebar("docs"),
     search: {
       provider: "local",
-      // Local search reads markdown straight from disk, so private pages
-      // must be excluded explicitly.
-      options: { _render: excludePrivatePages },
     },
     outline: {
       level: [2, 3],
