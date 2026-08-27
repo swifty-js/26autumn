@@ -2479,7 +2479,7 @@ A: NFA 回溯模型: JS 正则是回溯式 NFA——贪婪量词先尽量多吃,
 其他深挖:
 
 - lastIndex 与 g/y 标志: 全局正则在 exec/test 间共享 lastIndex( 同一个正则对象连续 test 结果交替的坑) .
-- 命名捕获组 (?<year>\d{4}) 与 matchAll( 返回迭代器, 避免 exec 循环) .
+- 命名捕获组 (?`<year>`\d{4}) 与 matchAll( 返回迭代器, 避免 exec 循环) .
 - Unicode: u 标志下 . 匹配码点( 含代理对) 、\p{Script=Han} 属性类.
 - v 标志( ES2024) : 字符集运算 [\p{ASCII}--[aeiou]].
 - 性能: 编译正则缓存( 字面量只编译一次) 、避免不必要捕获组( 用 (?:...)) .

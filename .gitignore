@@ -4,6 +4,9 @@ logs/
 
 .astro/
 .swifty-docs/
+.vitepress/cache/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
 
 # npm/yarn/pnpm 调试日志
 npm-debug.log*
@@ -194,6 +197,7 @@ rules.ninja
 *.swo
 
 **/.vitepress/cache/
+**/.vitepress/dist/
 swifty-vscode/swifty-vscode-*.vsix
 
 tsconfig.tsbuildinfo

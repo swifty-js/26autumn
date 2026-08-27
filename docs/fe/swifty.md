@@ -147,7 +147,7 @@ main.tsx ──┬── TUI      → Ink <App>, 消费 AgentEvent → React sta
 3. 排空旁路通知: 把两类异步消息 drain 成 system-reminder 注入对话 —— Hook 引擎排队的通知( `hookEngine.drainNotifications()`) 和团队邮箱消息( `notificationFn()`) .
 4. 生命周期钩子: 依次 fire `turn_start`、`pre_send`.
 5. Layer 1 — 自动压缩: `manageContext()` 估算 token, 超过自动阈值则执行压缩, 压缩后重新注入长期记忆. 注意此处不做预算修剪 —— 工具结果在入历史时已完成预算处理( agent.ts 注释 "Tool results are already budget-processed at the time they enter history") , transcript 里的消息尺寸是终态, 直接从它们估算 token 即可.
-6. 调用 LLM 流式接口: `client.stream()` 返回 AsyncGenerator<StreamEvent>, Agent 把内部事件映射为 AgentEvent 转发给消费方( `text_delta→stream_text`、`thinking_delta→thinking_text`、`tool_call_complete→tool_use` 等) , 同时累积 `fullText`、`thinkingBlocks`、`toolUses`、`stopReason`.
+6. 调用 LLM 流式接口: `client.stream()` 返回 AsyncGenerator`<StreamEvent>`, Agent 把内部事件映射为 AgentEvent 转发给消费方( `text_delta→stream_text`、`thinking_delta→thinking_text`、`tool_call_complete→tool_use` 等) , 同时累积 `fullText`、`thinkingBlocks`、`toolUses`、`stopReason`.
 7. 错误自愈( 见 Q9) : `ContextTooLongError` → 强制压缩重试; `RateLimitError` → 按 Retry-After 等待重试.
 8. post_receive 钩子.
 9. assistant 消息落历史: `addAssistantFull(fullText, thinkingBlocks, toolUses)`.

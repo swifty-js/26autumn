@@ -130,7 +130,7 @@ spa/db2.ts 是手写的轻量 PostgREST 客户端 (QueryBuilder 链式 from/sele
 
 1. 系统提示词 = ChartPark 助手角色 + 数据访问规则 + A2UI_PROMPT_SECTION (由 shadcn 包的 direct-json 生成器产出, 内嵌完整协议 schema 与 catalog 契约 + Table 组件 few-shot 示例) + 当前用户身份
 2. 工具循环最多 MAX_TURNS=6 轮: 三个 InsForge 工具 list_tables / describe_table / run_sql. run_sql 接受 $1/$2 占位符 SQL, 走 admin rawSql 无语句白名单 (产品要求该页面向模型开放完整数据库能力), 结果按 MAX_ROWS=200 截断并标记 truncated
-3. 文本与 A2UI 共用一条输出通道: 模型在回复中追加 <a2ui-json>[...]</a2ui-json> 标签块. createA2uiStreamFilter 是有状态流过滤器——普通文本即时透传 (仅扣留可能是标签前缀的尾部), 标签块静默缓冲直到闭合, 跨 chunk 的部分标签不丢
+3. 文本与 A2UI 共用一条输出通道: 模型在回复中追加 `<a2ui-json>`[...]`</a2ui-json>` 标签块. createA2uiStreamFilter 是有状态流过滤器——普通文本即时透传 (仅扣留可能是标签前缀的尾部), 标签块静默缓冲直到闭合, 跨 chunk 的部分标签不丢
 4. 完整块经 parseA2uiBlock 校验: 每条消息 version 必须为 "v0.9" 且恰好包含四个信封键之一; 失败触发 correctA2uiBlock 一次纠错重试 (回灌错误要求只输出修正块), 仍失败降级为 notice 事件 ("Failed to render the interactive view"), 绝不伪造 UI
 5. SSE 事件: connected/message/a2ui/tool/notice/error/done; 工具调用在前端折叠展示 ("N InsForge queries executed")
 

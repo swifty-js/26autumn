@@ -1567,7 +1567,7 @@ export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
 
 要点:
 
-- direct-json 模式: LLM 在 markdown 回复后追加一个 <a2ui-json>[...]</a2ui-json> 标签块 (JSON 消息数组) , 与文本共用同一输出通道
+- direct-json 模式: LLM 在 markdown 回复后追加一个 `<a2ui-json>[...]</a2ui-json>` 标签块 (JSON 消息数组) , 与文本共用同一输出通道
 - prompt 内嵌完整 schema 契约 + 3 个由 builder 函数生成的 few-shot 示例 (告警列表、QPS 指标报告、静默表单) . builder 化的好处: 改 UI 结构只需改 builder, prompt 自动同步
 - removeStrictValidation 去掉 closed-object 约束, 避免 LLM 因无害的额外字段被过度拒绝
 - 服务端从 SHADCN_PROMPT_CATALOG 取出的 catalogId 与客户端 shadcnCatalog 严格一致, 否则 renderer 抛 "Catalog not found"
@@ -1575,7 +1575,7 @@ export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
 两条生成管线:
 
 - 非流式 POST /api/chat: RAG 检索 + 历史记忆 -> generateText (tools + 25 步上限) -> extractA2ui 切出标签块并用 A2uiMessageListSchema.safeParse 校验 -> 返回 { answer, a2ui }
-- 流式 POST /api/chat_stream: createA2uiStreamFilter() 是一个有状态流过滤器 —— 普通文本即时透传 (仅扣留可能是标签前缀的尾部) , <a2ui-json> 块静默缓冲直到闭合标签; 跨 chunk 的部分标签扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃. 完整块校验后以 SSE event: a2ui 一次性下发
+- 流式 POST /api/chat_stream: createA2uiStreamFilter() 是一个有状态流过滤器 —— 普通文本即时透传 (仅扣留可能是标签前缀的尾部) , `<a2ui-json>` 块静默缓冲直到闭合标签; 跨 chunk 的部分标签扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃. 完整块校验后以 SSE event: a2ui 一次性下发
 
 纠错重试: 块校验失败时调用 correctA2uiBlock —— 关闭工具的一次重试, 把错误信息回灌模型要求只输出修正块; 仍失败则降级为 notice 提示, 绝不伪造 UI 数据. 这正是 v0.9 prompt-first 取向 (schema 嵌入 prompt, 生成后校验修复) 在应用层的标准落地.
 
@@ -2095,15 +2095,15 @@ export const A2UI_PROMPT_SECTION = generateSystemPrompt("direct-json", {
 
 要点:
 
-- 采用 "direct-json" 生成模式: LLM 在 markdown 回复之后追加一个 <a2ui-json>[...]</a2ui-json> 标签块( JSON 消息数组) , 与文本共用同一输出通道, 而非独立通道.
+- 采用 "direct-json" 生成模式: LLM 在 markdown 回复之后追加一个 `<a2ui-json>[...]</a2ui-json>` 标签块( JSON 消息数组) , 与文本共用同一输出通道, 而非独立通道.
 - prompt 内嵌完整的 server-to-client schema + common types + shadcn catalog schema 契约, 外加 3 个由 builder 函数生成的 few-shot 示例( 告警列表、QPS 指标报告、静默表单) . builder 化的好处是: 改 UI 结构只需改 builder, prompt 自动同步.
 - removeStrictValidation 去掉 closed-object 约束, 避免 LLM 因无害的额外字段被过度拒绝.
 - 另有 A2UI_ACTION_SYSTEM_PROMPT: 通过 allowedMessages: ["UpdateComponentsMessage", "UpdateDataModelMessage"] 裁剪 schema, 使 action 场景下 createSurface/deleteSurface 根本无法通过校验.
 
 两条生成管线:
 
-- 非流式 POST /api/chat → lib/ai/pipelines/chat.ts: RAG 检索( lib/redis/retriever.ts) + 历史记忆 → generateText( tools + 25 步上限) → extractA2ui( raw) 从完整输出中切出 <a2ui-json> 块并用 @a2ui/web_core/v0_9 的 A2uiMessageListSchema.safeParse 校验 → 返回 { answer: cleanText, a2ui }.
-- 流式 POST /api/chat_stream → chatStream() async generator, 其中 createA2uiStreamFilter()( lib/ai/a2ui/extract.ts) 是一个有状态流过滤器: 普通文本即时透传( 仅扣留可能是标签前缀的尾部) , <a2ui-json> 块内容静默缓冲直到闭合标签; 完整块经 parseA2uiBlock 校验后以 {type:"a2ui", messages} 事件一次性 yield; SSE 用 event: a2ui + data 发送( 共 connected/message/a2ui/done/error 五种事件, connected 在流开始时最先发送) . 注释细节: 部分标签跨 chunk 时扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃.
+- 非流式 POST /api/chat → lib/ai/pipelines/chat.ts: RAG 检索( lib/redis/retriever.ts) + 历史记忆 → generateText( tools + 25 步上限) → extractA2ui( raw) 从完整输出中切出 `<a2ui-json>` 块并用 @a2ui/web_core/v0_9 的 A2uiMessageListSchema.safeParse 校验 → 返回 { answer: cleanText, a2ui }.
+- 流式 POST /api/chat_stream → chatStream() async generator, 其中 createA2uiStreamFilter()( lib/ai/a2ui/extract.ts) 是一个有状态流过滤器: 普通文本即时透传( 仅扣留可能是标签前缀的尾部) , `<a2ui-json>` 块内容静默缓冲直到闭合标签; 完整块经 parseA2uiBlock 校验后以 {type:"a2ui", messages} 事件一次性 yield; SSE 用 event: a2ui + data 发送( 共 connected/message/a2ui/done/error 五种事件, connected 在流开始时最先发送) . 注释细节: 部分标签跨 chunk 时扣留, 未闭合块在 flush 时还原为纯文本而非静默丢弃.
 
 纠错重试: 块校验失败时调用 correctA2uiBlock( lib/ai/a2ui/correct.ts) ——关闭工具的一次重试, 把错误信息回灌给模型要求只输出修正块; 仍失败则降级为 notice( "> Failed to render the interactive view..." ) , 绝不伪造 UI 数据.
 
@@ -2133,7 +2133,7 @@ POST /api/ai_ops → lib/ai/pipelines/plan-execute-replan: Planner( think 模型
 
 其他 API: chat( 非流式) 、chat_stream( SSE) 、a2ui_action、ai_ops、upload( 知识库上传) 、log/metrics( sentry/Prometheus) ; 统一响应形状 { message, data } . 工具三层拆分( lib/ai/tools/) : schemas.ts( zod) → operations.ts( 纯函数) → index.ts( AI SDK tool) , 含 get_current_time、mysql_crud、query_internal_docs( RAG) 、query_prometheus_alerts, 另有经 MCP SDK 引入的 SSE 日志工具. instrumentation.ts 启动时把 data/docs/ 文档全部 embedding 入 Redis 向量库.
 
-文档要点: README.md 逐字列出各条管线的 prompt 并给出架构图; AGENTS.md 的 "A2UI integration (v0.9)" 一节记录关键约定( 单 <a2ui-json> 块、safeParse 校验、zod v3/v4 红线、纠错只重试一次且失败诚实降级、Memory 保存带标签的原始文本) . 注意 AGENTS.md 有两处已过时: 它称 action 序列化为 [UI_ACTION] 走聊天通道、renderer 在 components/a2ui-view.tsx——现行代码已改为 onRawAction → /api/a2ui_action 带外链路, renderer 来自 @swifty.js/a2ui-shadcn 包.
+文档要点: README.md 逐字列出各条管线的 prompt 并给出架构图; AGENTS.md 的 "A2UI integration (v0.9)" 一节记录关键约定( 单 `<a2ui-json>` 块、safeParse 校验、zod v3/v4 红线、纠错只重试一次且失败诚实降级、Memory 保存带标签的原始文本) . 注意 AGENTS.md 有两处已过时: 它称 action 序列化为 [UI_ACTION] 走聊天通道、renderer 在 components/a2ui-view.tsx——现行代码已改为 onRawAction → /api/a2ui_action 带外链路, renderer 来自 @swifty.js/a2ui-shadcn 包.
 
 验证手段: /gallery 页面无后端渲染全部 shadcn 扩展组件( Alert/Avatar/Badge/Table/Accordion/Drawer/Sheet/Popover/Calendar/Combobox/Command/Chart 等, 消息顺序 createSurface → updateDataModel → updateComponents) .
 

@@ -38,7 +38,7 @@
 | 模块         | 路径                      | 职责                                                   |
 | ------------ | ------------------------- | ------------------------------------------------------ |
 | SDK 生命周期 | `core/sdk-lifecycle.ts`   | init/destroy/enablePlugin 入口                         |
-| 事件总线     | `core/bus.ts`             | 基于 Map<EventType, Set<Handler>> 的发布订阅           |
+| 事件总线     | `core/bus.ts`             | 基于 Map<EventType, Set`<Handler>`> 的发布订阅         |
 | 猴子补丁调度 | `core/decorates.ts`       | 统一安装/卸载浏览器 API 拦截                           |
 | HTTP 拦截    | `core/decorate-http.ts`   | XHR/Fetch 请求监控                                     |
 | 路由拦截     | `core/decorate-route.ts`  | History 路由变化监听( Hash 模式在 `core/decorates.ts`) |
