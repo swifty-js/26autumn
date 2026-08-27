@@ -2096,7 +2096,7 @@ function flat(arr, depth = 1) {
 
 - 字段初始化时机( [[Define]] 语义) : 基类在构造体开头初始化; 派生类在 super() 返回后立即初始化——所以派生类字段必然覆盖父类构造期间对同名属性的写入.
 - 父类构造函数中调用 this.run() 触发动态派发到子类方法, 此时子类字段尚未初始化——这是 Java/C# 中都存在的"构造器调用虚方法"反模式.
-- class fields 使用 [[Define]]( 定义在实例自身) , 而构造体内 this.x = ... 是 [[Set]]——同名场景下行为差异( 如原型上有 setter 时, field 不触发 setter, 赋值会触发) .
+- class fields 使用 `[[Define]]`( 定义在实例自身) , 而构造体内 this.x = ... 是 `[[Set]]`——同名场景下行为差异( 如原型上有 setter 时, field 不触发 setter, 赋值会触发) .
 
 ### 题目 13| 手写 new 操作符
 

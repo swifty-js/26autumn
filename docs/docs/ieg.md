@@ -1,5 +1,5 @@
 ---
-protected: true
+private: true
 ---
 
 # IEG 工作: NoSQL 管理端四项工程实践

@@ -397,8 +397,8 @@ app.listen(10002, "0.0.0.0");
 
 Server 启动后提供两个端点:
 
-- `GET http://localhost:10002/.well-known/agent-card.json` AgentCard, 声明 Server 能力 (支持的 A2A 扩展、MIME 类型等)
-- `POST http://localhost:10002/a2a` A2A JSON-RPC 端点, 处理 `message/send` / `message/stream` 请求
+- `GET /.well-known/agent-card.json` AgentCard, 声明 Server 能力 (支持的 A2A 扩展、MIME 类型等)
+- `POST /a2a` A2A JSON-RPC 端点, 处理 `message/send` / `message/stream` 请求
 
 AgentCard 中声明支持的 A2UI 扩展 (例如 `https://a2ui.org/a2a-extension/a2ui/v0.9`), Client 通过读取 AgentCard 得知 Server 支持 A2UI.
 
@@ -634,7 +634,7 @@ export const plugin = (): Plugin => ({
 
       // 懒初始化 A2A Client (读取 Server 的 AgentCard)
       const client = await A2AClient.fromCardUrl(
-        "http://localhost:10002/.well-known/agent-card.json",
+        "/.well-known/agent-card.json",
         { fetchImpl: fetchWithCustomHeader },
       );
 
@@ -2007,7 +2007,7 @@ ActionSchema 的 wire 形态为 { event: { name, context? } }( context 值可再
 1. 组件触发: Button 的 onClick={props.action} → binder 产出 A2uiClientAction( strict schema: {name, surfaceId, sourceComponentId, timestamp, context}) .
 2. MessageProcessor 的 actionHandler → A2uiView: 要么调 onRawAction( action) 交给宿主应用, 要么用 buildQueryFromAction 转成文本: "[a2ui_action] {name}\ncontext: {JSON}".
 3. demo( app/App.tsx) 中 onRawAction 把 { version: "v0.9", action } 交给 A2UIClient.send( src/client.ts) , POST 到相对路径 /a2a.
-4. middleware/a2a.ts( Vite dev 插件) 把裸文本/裸 action JSON 包装成 A2A 信封 {message:{messageId, contextId?, role:"user", parts, kind}}: JSON 事件变 {kind:"data", mimeType:"application/a2ui+json"} part, 文本变 {kind:"text"} part; 附带 X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.9 头, 代理到 A2A_SERVER_URL( 默认 http://localhost:10002, 即 packages/server) .
+4. middleware/a2a.ts( Vite dev 插件) 把裸文本/裸 action JSON 包装成 A2A 信封 {message:{messageId, contextId?, role:"user", parts, kind}}: JSON 事件变 {kind:"data", mimeType:"application/a2ui+json"} part, 文本变 {kind:"text"} part; 附带 X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.9 头, 代理到 A2A_SERVER_URL( 默认 `http://localhost:10002`, 即 packages/server) .
 5. 响应为 SSE 或一次性 JSON; A2UIClient 解析 parts: status-update 捕获 contextId( 后续用 X-A2A-Context-Id 头回传实现多轮会话) , data part 经 A2uiMessageSchema.safeParse 后成为新的 A2UI 消息, 支持 onChunk 流式增量渲染, 并对重复 createSurface 去重.
 
 #### 2.7 prompt 生成端

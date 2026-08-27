@@ -1,5 +1,5 @@
 ---
-protected: true
+private: true
 ---
 
 # Swiftx — 技术笔记

@@ -5,15 +5,18 @@ import {
   MERMAID_TAG,
 } from "@lark.js/docs";
 import { defineConfig } from "vitepress";
+import { excludePrivatePages, privateDocsPlugin } from "@swifty.js/docs";
 
 export default defineConfig({
+  srcDir: "docs",
   title: "技术学习笔记",
   base: "/26autumn/",
   lang: "zh-CN",
   cleanUrls: true,
   lastUpdated: true,
-  ignoreDeadLinks: true,
+  ignoreDeadLinks: false,
   markdown: {
+    lineNumbers: true,
     config: installMermaidFence,
   },
   vue: {
@@ -24,12 +27,16 @@ export default defineConfig({
     },
   },
   vite: {
+    plugins: [
+      // @ts-expect-error
+      privateDocsPlugin(),
+    ],
     optimizeDeps: {
-      exclude: ["@lark.js/docs"],
+      exclude: ["@swifty.js/anti-copy", "@lark.js/docs"],
       include: ["@lark.js/docs > mermaid"],
     },
     ssr: {
-      noExternal: ["@lark.js/docs"],
+      noExternal: ["@swifty.js/anti-copy", "@lark.js/docs"],
     },
   },
   themeConfig: {
@@ -37,6 +44,9 @@ export default defineConfig({
     sidebar: buildSidebar("docs"),
     search: {
       provider: "local",
+      // Local search reads markdown straight from disk, so private pages
+      // must be excluded explicitly.
+      options: { _render: excludePrivatePages },
     },
     outline: {
       level: [2, 3],

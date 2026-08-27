@@ -1,5 +1,5 @@
 ---
-protected: true
+private: true
 ---
 
 # Data 工作: JSError 自动修复、视频切片聚类标签与手写 SWR

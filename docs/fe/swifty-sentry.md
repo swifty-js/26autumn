@@ -746,7 +746,7 @@ class MinHeap<T extends { timestamp: number }> {
 | ----------------------- | ------------------------------------- | ------------------------------- |
 | 插入( 未满)             | O(1) push                             | O(log n) heapifyUp              |
 | 插入( 已满, 需淘汰最旧) | O(n) shift + O(1) push 或 O(n) splice | O(log n) 替换堆顶 + heapifyDown |
-| 查找最旧元素            | O(1) [0](有序数组) 或 O(n)            | O(1) heap[0]                    |
+| 查找最旧元素            | O(1) `[0]`(有序数组) 或 O(n)          | O(1) heap[0]                    |
 | 导出有序结果            | O(1)( 已排序) 或 O(n log n)           | O(n log n) sort                 |
 | 空间                    | O(n)                                  | O(n)                            |
 

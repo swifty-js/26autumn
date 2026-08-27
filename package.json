@@ -11,9 +11,9 @@
   "type": "module",
   "author": "https://github.com/swifty-js",
   "scripts": {
-    "dev": "vitepress dev docs",
-    "build": "vitepress build docs",
-    "preview": "vitepress preview docs",
+    "dev": "DOCS_PASSWORD=pass vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
     "git:commit": "git add -A && git commit -m \"feat: Introduce new features\"",
     "git:push": "pnpm git:commit && git push origin main",
     "format": "prettier -w ./ --experimental-cli",
@@ -21,6 +21,8 @@
   },
   "devDependencies": {
     "@lark.js/docs": "^0.0.26",
+    "@swifty.js/anti-copy": "latest",
+    "@swifty.js/docs": "^0.0.14",
     "@types/node": "24.13.3",
     "husky": "^9.1.7",
     "prettier": "^3.9.6",

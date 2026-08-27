@@ -1,5 +1,5 @@
 ---
-protected: true
+private: true
 ---
 
 # Tiktok 工作: 设备性能采集、数据链路、RPC、BFF 与虚拟滚动
