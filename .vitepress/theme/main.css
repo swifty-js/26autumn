@@ -1,0 +1,13 @@
+:root {
+  --font-sans:
+    "Iosevka", "Maple Mono", Menlo, "Cascadia Code", "PingFang SC",
+    "Microsoft YaHei" !important;
+  --font-mono:
+    "Iosevka", "Maple Mono", Menlo, "Cascadia Code", "PingFang SC",
+    "Microsoft YaHei" !important;
+  --vp-c-brand-1: #4285f4;
+  --vp-c-brand-2: #5e97f6;
+  --vp-c-brand-3: #3367d6;
+  --vp-font-family-base: var(--font-sans);
+  --vp-font-family-mono: var(--font-mono);
+}

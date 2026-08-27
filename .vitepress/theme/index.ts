@@ -3,6 +3,7 @@
 import type { Theme } from "vitepress";
 import larkTheme from "@lark.js/docs/theme";
 import { applyAntiCopy } from "@swifty.js/anti-copy/vitepress";
+import "./main.css";
 
 const theme: Theme = {
   extends: larkTheme,
