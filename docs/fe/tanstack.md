@@ -17,7 +17,7 @@ TanStack Start 是在 TanStack Router 上加了一层全栈能力：SSR、流式
 
 ### 最重要的一条前提
 
-**默认情况下所有代码都是同构的（isomorphic），会同时进客户端和服务端两份产物。** 路由的 `loader` 在 SSR 时跑在服务端，在客户端导航时跑在浏览器里，是同一份代码。
+默认情况下所有代码都是同构的（isomorphic），会同时进客户端和服务端两份产物。 路由的 `loader` 在 SSR 时跑在服务端，在客户端导航时跑在浏览器里，是同一份代码。
 
 这条前提是绝大多数误用的根源。要让代码只在服务端跑，唯一可靠的手段是把它放进 `createServerFn`。本项目 `src/routes/index.tsx` 的写法就是标准形态：
 
@@ -156,7 +156,7 @@ Nitro 在这里承担的是“把一份 fetch handler 变成真正的服务器�
 
 服务端的全部入口是 `createStartHandler`，它返回一个 `(request: Request) => Promise<Response>`。请求进来后按顺序判断（`start-server-core/dist/esm/createStartHandler.js`）：
 
-**第一段，server function。** 如果路径以 `TSS_SERVER_FN_BASE` 开头，取出后面的 ID 交给 `handleServerAction`：
+第一段，server function。 如果路径以 `TSS_SERVER_FN_BASE` 开头，取出后面的 ID 交给 `handleServerAction`：
 
 ```js
 if (SERVER_FN_BASE && url.pathname.startsWith(SERVER_FN_BASE)) {
@@ -165,9 +165,9 @@ if (SERVER_FN_BASE && url.pathname.startsWith(SERVER_FN_BASE)) {
 }
 ```
 
-**第二段，server route。** 走 `handleServerRoutes`，匹配文件路由上的 `server.handlers`（GET/POST/…）。如果命中就返回它的 `Response`。
+第二段，server route。 走 `handleServerRoutes`，匹配文件路由上的 `server.handlers`（GET/POST/…）。如果命中就返回它的 `Response`。
 
-**第三段，SSR。** 前两段都没接住，才进 `executeRouter`：创建 router 实例、`router.load()` 跑 `beforeLoad`/`loader`、渲染并流式输出 HTML，同时把 loader 数据脱水（dehydrate）进 HTML。
+第三段，SSR。 前两段都没接住，才进 `executeRouter`：创建 router 实例、`router.load()` 跑 `beforeLoad`/`loader`、渲染并流式输出 HTML，同时把 loader 数据脱水（dehydrate）进 HTML。
 
 顺序意味着：server function 的 URL 前缀会优先于任何同名页面路由，server route 会优先于页面渲染。
 
@@ -233,7 +233,7 @@ var createSsrRpc = (functionId) => {
 };
 ```
 
-服务端渲染时调用 server function，是从 manifest 里查出函数直接在进程内调用，**没有 HTTP 往返**。这就是为什么官方反复强调不要在 loader 里 `fetch('/api/...')`：那样才真的会产生一次自己打自己的网络请求，而直接调用 server function 不会。
+服务端渲染时调用 server function，是从 manifest 里查出函数直接在进程内调用，没有 HTTP 往返。这就是为什么官方反复强调不要在 loader 里 `fetch('/api/...')`：那样才真的会产生一次自己打自己的网络请求，而直接调用 server function 不会。
 
 服务端的 manifest 是编译期生成的（`start-compiler/server-fn-resolver-module.js`），在本项目 `.output/server/_ssr/ssr.mjs` 里能看到实物：
 
@@ -269,7 +269,7 @@ node -e "console.log(require('node:crypto').createHash('sha256')
 
 和产物里的 manifest key 完全一致。
 
-这带来一个实际影响：**重命名文件或函数会改变 server function 的 URL。** 开发模式下 ID 不是哈希，而是 `{file, export}` 的 base64url 编码，方便调试。
+这带来一个实际影响：重命名文件或函数会改变 server function 的 URL。 开发模式下 ID 不是哈希，而是 `{file, export}` 的 base64url 编码，方便调试。
 
 ### 4.4 线上协议
 
@@ -316,8 +316,8 @@ requestMiddleware: hasStartInstance ? startOptions.requestMiddleware : [defaultC
 
 意思是：
 
-- 项目里**没有** `src/start.ts` 时，框架自动挂上默认的 CSRF 中间件。本项目就是这种情况（`src/start.ts` 不存在），所以上面那个 curl 会吃到 403。
-- 项目里**有** `src/start.ts` 并用了 `createStart` 时，默认中间件被你自己的 `requestMiddleware` 完全替换。如果你没显式加 CSRF，保护就消失了，只会在控制台看到一段警告。
+- 项目里没有 `src/start.ts` 时，框架自动挂上默认的 CSRF 中间件。本项目就是这种情况（`src/start.ts` 不存在），所以上面那个 curl 会吃到 403。
+- 项目里有 `src/start.ts` 并用了 `createStart` 时，默认中间件被你自己的 `requestMiddleware` 完全替换。如果你没显式加 CSRF，保护就消失了，只会在控制台看到一段警告。
 
 所以一旦你为了加全局中间件而引入 `src/start.ts`，必须自己把 CSRF 加回去：
 

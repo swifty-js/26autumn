@@ -1,36 +1,40 @@
 # @swifty.js/sentry 前端监控 SDK 技术笔记
 
-> 本机器路径 `$HOME/github/swifty-sentry/sentry`
+> 本机器路径 `$HOME/github/swifty-sentry/sentry`, 基于 `@swifty.js/sentry` 0.0.7 源码
 
 ## 项目整体架构设计是怎样的? 核心模块有哪些?
 
 @swifty.js/sentry 是一个框架无关的浏览器端监控与分析 SDK, 采用分层架构设计, 核心模块如下:
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Public API Layer                  │
-│  init() / destroy() / traceError() / enablePlugin()      │
-│  + setUserId / setVisitorId / getIdentity / getBaseInfo  │
-│  + tracePerformance / traceCustomEvent / tracePageView   │
-│  + beforeSendData / afterSendData / reportFrameworkError │
-│  + isInitialized / getUserId / getIPs / sendLocal        │
-│  + beforePushEventList                                   │
-├─────────────────────────────────────────────────────┤
-│                   Core Layer                        │
-│  sdk-lifecycle / setup / bus / decorates / handlers │
-├─────────────────────────────────────────────────────┤
-│                  Reporter Layer                     │
-│  DataReporter / transports / offline-cache / batch  │
-├─────────────────────────────────────────────────────┤
-│                  Plugin Layer                       │
+┌───────────────────────────────────────────────------──────┐
+│                   Public API Layer                        │
+│  init / destroy / isInitialized / enablePlugin            │
+│  + traceError / tracePerformance / traceCustomEvent       │
+│  + tracePageView / reportFrameworkError                   │
+│  + setUserId / setVisitorId / getIdentity                 │
+│  + beforeSend / beforeSendBatch / afterSend               │
+│  + flushOfflineCache ( 以及全部类型/枚举 re-export)       │
+├───────────────────────────────────────────────────------──┤
+│                   Core Layer                              │
+│  sdk-lifecycle / setup / bus / decorates / handlers       │
+│  + pv-lifecycle / white-screen / identity                 │
+├───────────────────────────────────────────────────------──┤
+│                  Reporter Layer                           │
+│  DataReporter / transports / offline-cache /              │
+│  server-recovery / flush-scheduler / send-preflight       │
+├────────────────────────────────────────────────────------─┤
+│                  Plugin Layer                             │
 │  PerformancePlugin / ScreenRecordPlugin / ExposurePlugin  │
-├─────────────────────────────────────────────────────┤
-│                  Framework Layer                    │
-│  react.ts / vue.ts / vite.ts / webpack              │
-├─────────────────────────────────────────────────────┤
-│                  Utils Layer                        │
-│  data-structures / session / base64 / throttle      │
-└─────────────────────────────────────────────────────┘
+├──────────────────────────────────────────────────------───┤
+│                  Framework / Node Layer                   │
+│  react.ts / vue.ts / vite.ts / webpack.ts                 │
+│  + node/dev-endpoint / source-map ( Node-only)            │
+├──────────────────────────────────────────────────------───┤
+│                  Utils Layer                              │
+│  data-structures / session / uuid / throttle /            │
+│  click-data / dom2str / logger                            │
+└──────────────────────────────────────────────────------───┘
 ```
 
 核心模块职责:
@@ -42,6 +46,8 @@
 | 猴子补丁调度 | `core/decorates.ts`       | 统一安装/卸载浏览器 API 拦截                           |
 | HTTP 拦截    | `core/decorate-http.ts`   | XHR/Fetch 请求监控                                     |
 | 路由拦截     | `core/decorate-route.ts`  | History 路由变化监听( Hash 模式在 `core/decorates.ts`) |
+| PV 生命周期  | `core/pv-lifecycle.ts`    | PageLoad/路由 PV/停留时长                              |
+| 白屏检测     | `core/white-screen.ts`    | 视口采样点检测( setup 直接启动, 不走总线)              |
 | 数据上报器   | `reporter/index.ts`       | 批量队列、传输选择、离线缓存                           |
 | 插件注册     | `core/plugin-registry.ts` | 插件 Set 管理与生命周期                                |
 | 配置校验     | `core/options-schema.ts`  | Zod schema 运行时校验                                  |
@@ -51,7 +57,7 @@
 1. 发布订阅解耦: 数据采集( Producer) 与数据处理( Consumer) 通过事件总线完全解耦
 2. 可插拔插件: 性能、录屏、曝光等重功能以插件形式按需加载
 3. 框架无关核心: 核心不依赖任何框架, 通过独立入口文件提供框架集成
-4. 多出口构建: package.json exports 提供 `.`、`./react`、`./vue`、`./plugins` 等多个入口
+4. 多出口构建: package.json exports 提供 `.`、`./plugins`、`./react`、`./vue`、`./vite`、`./webpack` 六个入口, 每个入口都有 ESM/CJS/类型三套产物
 
 ---
 
@@ -64,19 +70,27 @@ export function init(options: InitOptions): void {
   // 1. 单例守卫( 最先检查, 避免重复 parse 开销)
   if (isInitialized()) return;
 
-  // 2. 合并默认配置 + Zod 校验
-  const parsedOptions = optionsSchema.parse({ ...DEFAULT_OPTIONS, ...options });
+  // 2. 剔除显式 undefined 字段( 防止 { userId: undefined } 覆盖默认值)
+  const provided = Object.fromEntries(
+    Object.entries(options).filter(([, value]) => value !== undefined),
+  );
+
+  // 3. 合并默认配置 + Zod 校验
+  const parsedOptions = optionsSchema.parse({
+    ...DEFAULT_OPTIONS,
+    ...provided,
+  });
   sentry.setOptions(parsedOptions);
 
-  // 3. 防护检查
+  // 4. 防护检查
   if (sentry.options.disabled) return; // 用户主动禁用
   if (dsn === "") return; // DSN 为空拒绝初始化
 
-  // 4. 设置面包屑容量, 启动事件订阅和猴子补丁
+  // 5. 设置面包屑容量, 启动事件订阅和猴子补丁
   breadcrumb.capacity = sentry.options.maxBreadcrumbs;
   cleanupSetup = setup();
 
-  // 5. 异步初始化身份识别
+  // 6. 异步初始化身份识别
   void initIdentity();
 }
 ```
@@ -84,14 +98,15 @@ export function init(options: InitOptions): void {
 防护机制:
 
 1. 单例守卫: `isInitialized()` 通过 `cleanupSetup !== null` 判断, 防止重复初始化. 放在最前面是因为重复调用 init 是常见场景( 如 HMR), 提前返回避免不必要的 zod parse 开销
-2. Zod 运行时校验: 所有配置项通过 `optionsSchema.parse()` 校验, 非法配置会抛出明确错误
-3. disabled 开关: 支持通过配置完全禁用 SDK( 适用于 A/B 测试或环境区分)
-4. DSN 非空检查: 上报地址为空时拒绝初始化, 避免无效运行
-5. destroy 完整清理: 销毁时依次执行 `destroyPlugins()` -> `cleanupSetup()` -> `destroyBatchErrorManager()` -> `resetReporter()`, 确保无内存泄漏
+2. 显式 undefined 剔除: `InitOptions` 类型允许字段为 `T | undefined`, init 在合并前过滤掉值为 undefined 的键, 保证它们回落到默认值而不是把默认值冲掉
+3. Zod 运行时校验: 所有配置项通过 `optionsSchema.parse()` 校验, 非法配置会抛出明确错误
+4. disabled 开关: 支持通过配置完全禁用 SDK( 适用于 A/B 测试或环境区分)
+5. DSN 非空检查: 上报地址为空时拒绝初始化, 避免无效运行
+6. destroy 完整清理: 销毁时依次执行 `destroyPlugins()` -> `cleanupSetup()` -> `destroyBatchErrorManager()` -> `resetReporter()`, 再清空面包屑缓冲、错误去重集合并复位 `shouldScreenRecord` 标记, 确保无内存泄漏且下一次 init 从全新状态开始
 
-setup() 的清理函数设计:
+setup() 做了什么:
 
-`setup()` 返回一个 cleanup 函数, 内部收集了所有事件订阅的取消函数和猴子补丁的还原函数. 调用 `destroy()` 时一次性还原所有修改, 保证 SDK 可以安全地从页面中移除.
+`setup()` 按开关安装各事件类型的总线订阅和猴子补丁, 当 `enableWhiteScreen: true` 时直接启动白屏采样, 调用 `initPageView()` 立即上报 PageLoad, 并注册 `pagehide` 监听在页面隐藏时补发当前页停留时长. 它返回一个 cleanup 函数, 内部收集了所有取消订阅函数和补丁还原函数, `destroy()` 时按注册的逆序一次性还原, 保证 SDK 可以安全地从页面中移除.
 
 ---
 
@@ -182,24 +197,49 @@ Fetch 拦截( 全局函数包装) :
 
 ```typescript
 const cleanup = decorateProp(globalThis, "fetch", (oldFetch) => {
-  return async function(url, options) {
-    const httpData = { ...getBaseData(), type: EventType.Fetch, ... };
-    return oldFetch.call(globalThis, url, options)
+  return function (input, options) {
+    const api = getRequestUrl(input); // string | URL.href | Request.url
+    const method = getRequestMethod(input, options); // options.method > Request.method > GET
+    if (shouldIgnoreRequest(method, api)) {
+      return oldFetch.call(globalThis, input, options); // 零开销直通
+    }
+    const httpData = {
+      ...getBaseData(),
+      type: EventType.Fetch,
+      method,
+      api,
+      statusCode: 200,
+    };
+    const startedAt = httpData.timestamp;
+    return oldFetch
+      .call(globalThis, input, options)
       .then((res) => {
-        const resClone = res.clone();  // 关键: clone 避免消费 body
-        httpData.statusCode = resClone.status;
-        httpData.serverTiming = getServerTimingFromHeaders(resClone.headers);
-        resClone.text().then((text) => {
-          httpData.responseData = text;
+        httpData.elapsedTime = Date.now() - startedAt;
+        httpData.statusCode = res.status;
+        httpData.serverTiming = getServerTimingFromHeaders(res.headers);
+        if (isErrorStatusCode(res.status)) {
+          // 仅错误状态( 0 或 >= 400) 捕获请求/响应体
+          httpData.requestData = { body: options?.body };
+          res
+            .clone()
+            .text() // clone 后台读取, 不消费也不延迟业务方的 body
+            .then((text) => {
+              httpData.responseData = truncateBody(text);
+            }) // 截断到 8KB
+            .catch(() => undefined) // 流式响应 clone 读取失败也照常发布
+            .finally(() => pub(EventType.Fetch, httpData));
+        } else {
           pub(EventType.Fetch, httpData);
-        });
-        return res;  // 返回原始 response 给业务代码
+        }
+        return res; // 返回原始 response 给业务代码
       })
       .catch((err) => {
+        httpData.elapsedTime = Date.now() - startedAt;
         httpData.statusCode = 0;
-        httpData.message = err.message;
+        httpData.requestData = { body: options?.body };
+        httpData.message = err instanceof Error ? err.message : "Network error";
         pub(EventType.Fetch, httpData);
-        throw err;  // 继续抛出, 不吞异常
+        throw err; // 继续抛出, 不吞异常
       });
   };
 });
@@ -211,16 +251,20 @@ const cleanup = decorateProp(globalThis, "fetch", (oldFetch) => {
 | --------- | ------------------------------------ | ------------------------------ |
 | 拦截位置  | `XMLHttpRequest.prototype.open/send` | `globalThis.fetch`             |
 | 响应获取  | `loadend` 事件回调                   | Promise `.then()`              |
-| Body 处理 | 直接读取 `this.response`             | 必须 `res.clone()` 后读取      |
-| 错误捕获  | loadend 中 status=0                  | `.catch()` 中设置 statusCode=0 |
+| Body 处理 | 直接读取 `this.response`             | 必须 `res.clone()` 后台读取    |
+| 错误捕获  | loadend 中 status=0 或 >=400         | `.catch()` 中设置 statusCode=0 |
 | 存储方式  | 挂在实例 `this.__sentry__`           | 闭包变量 `httpData`            |
+| 过滤时机  | loadend 回调内检查后跳过发布         | 调用前检查, 直接透传原始 fetch |
+| 计时起点  | send() 时刷新 timestamp( 非 open)    | 发起请求时的 timestamp         |
 
 共同设计要点:
 
-1. 自身请求过滤: `shouldIgnoreRequest()` 过滤发往 DSN 的上报请求, 避免死循环
-2. excludeApis 配置: 支持用户配置排除特定 API 路径
+1. 自身请求过滤: `shouldIgnoreRequest()` 过滤发往 DSN 的 POST 上报请求, 避免死循环
+2. excludeApis 配置: 支持用户配置排除特定 API 路径( 字符串严格相等, 正则 test)
 3. Server-Timing 解析: 从响应头提取服务端性能数据
-4. 可逆装饰: `decorateProp` 返回 cleanup 函数, destroy 时还原原始方法
+4. 错误才带 body: `requestData`( `{ body }`) 与 `responseData` 仅在 statusCode 为 0 或 >= 400 时捕获, 字符串响应截断到 8KB, 单个错误不会撑爆上报载荷
+5. 状态归一化: `transformHttpData()` 按状态码段生成 status( OK/Error) 与 message, 返回新对象不改入参; 默认只有 Status.Error 的请求会被上报, `enableHttpPerformance: true` 时成功请求额外转为 Performance 事件
+6. 可逆装饰: `decorateProp` 返回 cleanup 函数, destroy 时还原原始方法
 
 ---
 
@@ -228,34 +272,42 @@ const cleanup = decorateProp(globalThis, "fetch", (oldFetch) => {
 
 错误类型覆盖:
 
-| 类型               | 来源                     | 实现方式                             |
-| ------------------ | ------------------------ | ------------------------------------ |
-| 运行时 JS 错误     | `window.onerror`         | capture 阶段监听 `error` 事件        |
-| 资源加载错误       | img/script/link 加载失败 | capture 阶段判断 `target.src/href`   |
-| Promise 未捕获异常 | `unhandledrejection`     | 全局事件监听                         |
-| console.error      | 开发者主动输出           | 装饰 `console.error` 提取 Error 对象 |
-| React 组件错误     | ErrorBoundary            | `componentDidCatch` 生命周期         |
-| Vue 组件错误       | errorHandler             | `app.config.errorHandler`            |
+| 类型               | 来源                     | 实现方式                                                    |
+| ------------------ | ------------------------ | ----------------------------------------------------------- |
+| 运行时 JS 错误     | `window.onerror`         | capture 阶段监听 `error` 事件                               |
+| 资源加载错误       | img/script/link 加载失败 | capture 阶段判断 `target.src/href`                          |
+| Promise 未捕获异常 | `unhandledrejection`     | 全局事件监听, 解包 `reason` 再分类                          |
+| console.error      | 开发者主动输出           | 装饰 `console.error` 提取 Error 对象                        |
+| React 组件错误     | ErrorBoundary            | `componentDidCatch` 生命周期                                |
+| Vue 组件错误       | errorHandler             | `app.config.errorHandler`                                   |
+| 其他框架错误       | 业务方主动调用           | `reportFrameworkError({ type: EventType.OtherFrameworks })` |
 
-去重机制( BoundedSet + base64v2 哈希) :
+去重机制( reportOncePerError + BoundedSet) :
 
 ```typescript
-// 生成错误唯一标识
-const errorId = base64v2(
-  `${EventType.Error}-${message}-${filename}-${line}-${column}`,
-);
-
-// BoundedSet 判重( 容量 1000, LRU 淘汰)
-if (!sentry.codeErrors.has(errorId)) {
+// error-dedup.ts: 每个唯一错误键只上报一次
+export function reportOncePerError(errorId: string, report: () => void): void {
+  if (!sentry.options.repeatCodeError && sentry.codeErrors.has(errorId)) {
+    return;
+  }
   sentry.codeErrors.add(errorId);
-  batchErrorManager.push(codeError);
+  report();
 }
+
+// handle-code-error.ts: 键为原始字符串拼接, 不做哈希
+reportOncePerError(
+  `${EventType.Error}-${message}-${filename}-${line}-${column}`,
+  () => {
+    batchErrorManager.push(codeError);
+  },
+);
 ```
 
-- 使用 `base64v2` 编码生成唯一键: window.onerror 路径为 `type-message-filename-line-column`( handle-code-error.ts:104) , Error 实例路径为 `type-name-message`( handle-error.ts:121) , 资源错误路径为 `type-localName-src/href`( handle-error.ts:84)
-- filename 缺失或为 "unknown" 的错误视为来源不明, 跳过去重直接上报( handle-code-error.ts:103-105)
+- 去重键为原始字符串拼接: window.onerror 路径为 `Error-message-filename-line-column`( handle-code-error.ts) , Error 实例/未知错误路径为 `Error-name-message`( handle-error.ts) , 资源错误路径为 `Resource-localName-src|href`( handle-error.ts)
+- filename 缺失或为 "unknown" 的错误视为来源不明, 跳过去重直接进入批量聚合( handle-code-error.ts)
 - `BoundedSet` 容量上限 1000, 超出时淘汰最早插入的条目( 基于 Map 的插入顺序)
 - 可通过 `repeatCodeError: true` 配置关闭去重
+- 面包屑写入发生在去重检查之前: 被去重( 未上报) 的错误依然会留下面包屑, 供后续错误的上下文还原
 
 批量聚合( BatchErrorManager) :
 
@@ -307,11 +359,12 @@ Send 阶段( 入队) :
 payload 进入
     │
     V
-shouldQueuePayload() ─── 采样率检查 + DSN 非空 + 设置录屏标记
+shouldQueuePayload() ─── DSN 非空 + 采样率检查 + 设置录屏标记
     │ (通过)
     V
-runBeforeReportHook() ─── 转换为 IReportData( 附加 url/userId/projectId/sdkVersion/deviceInfo)
-    │                      执行 onBeforeReportData 钩子( 可修改/拒绝)
+runBeforeReportHook() ─── 转换为 IReportData( 附加 url/userId/anonymousId/visitorId/
+    │                      projectId/sdkVersion/deviceInfo, 错误类事件附加 breadcrumbs)
+    │                      执行 beforeSend 钩子( 可修改/返回 false 拒绝)
     V
 events.push(data) ─── 入队
     │
@@ -335,14 +388,14 @@ isFlushing = true
     ├── 离线? ──> 裁剪 + 持久化 + 返回
     │
     V
-takeBatch() ─── 取前 cacheMaxLength 条 + 执行 beforePushEventList 钩子
+takeBatch() ─── 取前 cacheMaxLength 条 + 执行 beforeSendBatch 钩子
     │
     V
-sendBatch() ─── 选择传输通道( 见 Q7)
+sendBatch() ─── 选择传输通道( 见下一节)
     │
-    ├── 失败 ──> 数据回插 events 头部 + 持久化 + 触发 serverRecovery
+    ├── 失败( fetch 拒绝或非 2xx) ──> 数据回插 events 头部 + 持久化 + 触发 serverRecovery
     │
-    ├── 成功 ──> 执行 afterSendData 钩子
+    ├── 成功 ──> 清除 localStorage 持久化镜像 + 执行 afterSend 钩子
     │
     V
 isFlushing = false
@@ -355,53 +408,56 @@ scheduleNextFlush() ─── 队列仍有数据则 100ms 后继续 flush
 
 1. 防并发锁: `isFlushing` 标志位防止多个 flush 同时执行
 2. 批量分片: 每次最多取 `cacheMaxLength`( 默认 10) 条, 避免单次请求过大
-3. 失败回插: 发送失败的数据回插到队列头部, 不丢失
+3. 失败回插: 发送失败的数据回插到队列头部, 不丢失; 发送成功后清除 localStorage 镜像( `hasPersistedCache` 标记) , 避免下个会话重放已送达的数据
 4. 连续 flush: 一批发完后如果还有数据, 100ms 后继续, 形成流水线
-5. 钩子系统: `onBeforeReportData`( 单条修改/拒绝) 、`beforePushEventList`( 批量修改) 、`afterSendData`( 发送后回调)
+5. 钩子系统: `beforeSend`( 单条修改/拒绝) 、`beforeSendBatch`( 批量修改/整批丢弃) 、`afterSend`( 发送成功后回调) , 三者都可在 init options 或同名导出函数中注册, 后写覆盖先写
+6. 同步快路径: 无异步钩子时整条管道从 send() 到传输层保持同步( `isPromise` 守卫代替无条件 await) , 保证 pagehide 时 sendBeacon 能在页面销毁前拿到批次
+7. 跨会话恢复: DataReporter 构造时安装 online/offline 监听( 初始状态取 `navigator.onLine`) , 并把上个会话持久化但未发出的离线缓存重新装回队列
 
 ---
 
-## 上报传输层如何选择通道? 为什么需要多通道策略?
+## 上报传输层如何选择通道? 为什么需要双通道策略?
 
-传输选择逻辑在 `sendBatch()` 方法中:
+传输选择逻辑在 `sendBatch()` 方法中( `reporter/index.ts` + `reporter/transports.ts`) :
 
 ```typescript
+// transports.ts
+export const MAX_KEEPALIVE_BYTES = 60 * 1024; // 60KB
+
+export function getBodyByteLength(body: string): number {
+  return new TextEncoder().encode(body).byteLength; // 字节数而非字符数
+}
+
+// reporter/index.ts
 private sendBatch(finalSendData: readonly IReportData[]): Promise<boolean> | boolean {
-  const isOverBeaconSize = isObjectOverSizeLimit(finalSendData, 60);  // 60KB
+  const body = JSON.stringify(finalSendData); // 只序列化一次, beacon/fetch 复用
+  const withinKeepaliveBudget = getBodyByteLength(body) <= MAX_KEEPALIVE_BYTES;
 
-  // 优先级 1: sendBeacon( < 60KB)
-  if (!isOverBeaconSize && sendBeacon(finalSendData)) return true;
+  // 优先级 1: sendBeacon( <= 60KB 且入队成功)
+  if (withinKeepaliveBudget && sendBeacon(body)) return true;
 
-  // 优先级 2: Image 上报( < 2KB, 需配置开启)
-  if (sentry.options.useImageReport && !isObjectOverSizeLimit(finalSendData, 2)) {
-    reportByImage(finalSendData, this.cbQueue);
-    return true;
-  }
-
-  // 优先级 3: fetch POST( 兜底)
-  return reportByFetch(finalSendData, () => this.handleServerError());
+  // 优先级 2: fetch POST( 兜底, keepalive 视体积而定)
+  return reportByFetch(body, withinKeepaliveBudget, () => this.handleServerError());
 }
 ```
 
-三种通道对比:
+两种通道对比:
 
-| 通道                   | 大小限制 | 优势                                                  | 劣势                                     | 适用场景              |
-| ---------------------- | -------- | ----------------------------------------------------- | ---------------------------------------- | --------------------- |
-| `navigator.sendBeacon` | ~64KB    | 页面卸载时仍可靠发送、不阻塞页面、浏览器调度          | 仅 POST、无法自定义 header、无法获取响应 | 常规批量上报          |
-| Image ( new Image())   | ~2KB     | 跨域无限制、兼容极老浏览器、不受 CSP connect-src 限制 | 仅 GET、URL 长度限制、无法发送复杂数据   | 兜底/跨域受限环境     |
-| `fetch POST`           | 无硬限制 | 可自定义 header、可获取响应状态、支持 keepalive       | 页面卸载时可能中断                       | 大数据量/需要确认送达 |
+| 通道                   | 大小限制       | 优势                                            | 劣势                                      | 适用场景              |
+| ---------------------- | -------------- | ----------------------------------------------- | ----------------------------------------- | --------------------- |
+| `navigator.sendBeacon` | ~64KB 在途预算 | 页面卸载时仍可靠发送、不阻塞页面、浏览器调度    | 仅 POST、无法自定义 header、无法获取响应  | 常规批量上报          |
+| `fetch POST`           | 无硬限制       | 可自定义 header、可获取响应状态、支持 keepalive | 页面卸载时可能中断( 大载荷关闭 keepalive) | 大数据量/需要确认送达 |
 
-为什么需要多通道:
+为什么需要双通道:
 
-1. 页面关闭场景: `beforeunload` 时 fetch 可能被取消, sendBeacon 由浏览器保证发出
-2. CSP 限制: 某些站点 CSP 不允许 connect-src 但允许 img-src
-3. 数据量适配: 小数据用 Image 最轻量, 中等数据用 Beacon 最可靠, 大数据用 Fetch 最灵活
-4. 降级容错: sendBeacon 返回 false( 队列满) 时自动降级到 fetch
+1. 页面关闭场景: pagehide 时 fetch 可能被取消, sendBeacon 由浏览器保证发出; 配合上报管道的同步快路径, 停留时长能在页面销毁前入队发送
+2. 降级容错: sendBeacon 返回 false( 浏览器队列满) 或载荷超 60KB 时自动落到 fetch
+3. 结果可观测: 只有 fetch 能拿到响应状态, 非 2xx 响应会触发失败回插与服务端恢复探测; beacon 的返回值只代表入队成功
 
 fetch 通道的特殊处理:
 
-- 条件性 `keepalive`: 载荷 <= 60KB 时设置 `keepalive: true`( 页面卸载时仍尝试完成请求) ; 超过 60KB 则关闭——Chromium 对 keepalive fetch 有约 64KB 的在途预算, 大载荷( 如屏幕录制) 若强制 keepalive 会被浏览器拒绝, 导致请求永远失败并阻塞队列头部( `transports.ts:44-48`)
-- 失败时触发 `handleServerError()`, 启动定时 HEAD 探测恢复机制
+- 条件性 `keepalive`: 载荷 <= 60KB 时设置 `keepalive: true`( 页面卸载时仍尝试完成请求) ; 超过 60KB 则关闭——Chromium 对 keepalive fetch 有约 64KB 的在途预算, 大载荷( 如屏幕录制) 若强制 keepalive 会被浏览器拒绝, 导致请求永远失败并阻塞队列头部( `transports.ts`)
+- 失败( 拒绝或 `!res.ok`) 时触发 `handleServerError()`, 启动定时 HEAD 探测恢复机制
 
 ---
 
@@ -412,19 +468,21 @@ fetch 通道的特殊处理:
 1. 网络状态监听( network-listener.ts) :
 
 ```typescript
-window.addEventListener("offline", () => setOnline(false));
-window.addEventListener("online", () => {
+callbacks.setOnline(navigator.onLine !== false); // 构造时取初始状态
+globalThis.addEventListener("offline", () => setOnline(false));
+globalThis.addEventListener("online", () => {
   setOnline(true);
-  loadOfflineCache(); // 加载离线期间缓存的数据
-  flush(); // 立即尝试发送
+  flush(); // 立即尝试发送( 离线事件从未离开内存队列, 无需重新加载)
 });
 ```
 
 2. 离线缓存持久化( offline-cache.ts) :
 
 - 存储介质: `localStorage`, key 为 `swifty_sentry_offline_cache`( 可配置 offlineCacheKey)
-- 写入时机: send 阶段发现离线时( 裁剪后写入) 、flush 阶段发现离线或发送失败回插后( 各写入一次)
-- 读取校验: 从 localStorage 加载时使用 Zod schema 校验数据完整性, 损坏数据丢弃
+- 写入时机: send 阶段发现离线时( 裁剪后写入) 、flush 阶段发现离线或发送失败回插后( 各写入一次) ; localStorage 只是内存队列的镜像, 事件本体始终留在队列中
+- 清除时机: 下一次发送成功后清除镜像( `hasPersistedCache` 标记) , 防止后续会话重放已送达数据
+- 读取时机: DataReporter 构造时( 恢复上个会话未发出的数据) 和 `flushOfflineCache()` 手动调用时
+- 读取校验: 从 localStorage 加载时用 Zod schema( reportDataListSchema) 校验; 校验通过才删除缓存键, schema 不合法的缓存原样保留便于排查, 只有 JSON.parse 抛错才直接删除
 - 容量控制: `events.slice(-maxQueueLength)` 限制最大 200 条, 防止撑爆 localStorage
 
 3. 服务端故障恢复( server-recovery.ts) :
@@ -436,10 +494,11 @@ export function scheduleServerRecovery(
 ): ReturnType<typeof setTimeout> {
   callbacks.setOnline(false);
   if (retryTimer) clearTimeout(retryTimer);
-  // setTimeout 单次调度, 失败后递归重新安排下一轮
+  // setTimeout 单次调度, 失败后递归重新安排下一轮; 定时器 unref, 不阻止 Node 进程退出
   const nextRetryTimer = setTimeout(() => {
     testServerAvailable(callbacks);
   }, sentry.options.retryIntervalMilliseconds); // 默认 60s
+  unrefTimer(nextRetryTimer);
   callbacks.setRetryTimer(nextRetryTimer);
   return nextRetryTimer;
 }
@@ -452,8 +511,7 @@ function testServerAvailable(callbacks: ServerRecoveryCallbacks): void {
         return;
       }
       callbacks.setOnline(true);
-      callbacks.loadOfflineCache();
-      void callbacks.flush();
+      void callbacks.flush(); // 恢复后直接冲刷内存队列
     })
     .catch(() => {
       scheduleServerRecovery(undefined, callbacks); // 异常: 递归安排重试
@@ -470,23 +528,27 @@ function testServerAvailable(callbacks: ServerRecoveryCallbacks): void {
 offline 事件 ──> isOnline = false
   │
   V
-后续 send() ──> 数据入队 + 裁剪到 maxQueueLength + 写入 localStorage
+后续 send() ──> 数据入队 + 裁剪到 maxQueueLength + 写入 localStorage 镜像
   │
   V
 网络恢复
   │
-  ├── online 事件 ──> isOnline = true ──> 加载缓存 ──> flush()
+  ├── online 事件 ──> isOnline = true ──> flush() 内存队列
+  │                                        │ (成功)
+  │                                        V
+  │                                   清除 localStorage 镜像
   │
-  └── 或 fetch 失败 ──> scheduleServerRecovery() ──> 60s HEAD 探测
+  └── 或 上报失败( fetch 拒绝/非 2xx) ──> scheduleServerRecovery() ──> 60s HEAD 探测
                                                        │
                                                        V (200 OK)
-                                                   加载缓存 + flush()
+                                                   flush() 内存队列
 ```
 
 设计亮点:
 
 - 区分「客户端离线」和「服务端不可达」两种故障, 分别用 online 事件和 HEAD 探测处理
-- 数据回插机制: flush 失败时 `events = [...finalSendData, ...events].slice(-maxQueueLength)`( reporter/index.ts:119) , 失败批次回插队头; 但总量超过 200 条时最旧数据仍会被淘汰
+- 数据回插机制: flush 失败时 `events = [...finalSendData, ...events].slice(-maxQueueLength)`, 失败批次回插队头; 但总量超过 200 条时最旧数据仍会被淘汰
+- 页面中途刷新也不丢数据: 失败/离线期间 localStorage 始终镜像内存队列, 新会话的 DataReporter 构造时把镜像装回队列继续发送
 - localStorage 有 5MB 限制, 通过 `maxQueueLength=200` 和单条数据大小控制总量
 
 ---
@@ -498,10 +560,9 @@ offline 事件 ──> isOnline = false
 算法原理:
 
 ```typescript
-const sample = () => {
+const countEmptyPoints = (): number => {
   const { innerWidth, innerHeight } = globalThis;
   let emptyPoints = 0;
-
   // 水平方向 9 个点 + 垂直方向 9 个点 = 18 个采样点
   for (let i = 1; i <= 9; i++) {
     const rowElem = document.elementFromPoint(
@@ -515,9 +576,21 @@ const sample = () => {
     if (!rowElem || isRoot(rowElem)) emptyPoints++;
     if (!colElem || isRoot(colElem)) emptyPoints++;
   }
+  return emptyPoints;
+};
 
-  // 18/18 个点都是根元素 → 判定白屏
-  if (emptyPoints >= 18) report();
+const sample = () => {
+  sampleCount++;
+  const isWhiteScreen = countEmptyPoints() >= 18; // 18/18 个点都是空/根元素
+
+  if (!isWhiteScreen) {
+    stopWhiteScreenCheck(); // 出现真实内容, 立即停止采样, 不上报
+    return;
+  }
+  // 连续 10 次全白才上报( 单次全白可能只是渲染慢)
+  if (sampleCount >= MAX_WHITE_SCREEN_SAMPLE_COUNT) {
+    report(); // 上报后同样停止采样
+  }
 };
 ```
 
@@ -526,7 +599,7 @@ const sample = () => {
 - 在视口中心水平线均匀取 9 点( 10%~90% 宽度位置)
 - 在视口中心垂直线均匀取 9 点( 10%~90% 高度位置)
 - 每隔 1 秒采样一次( `WHITE_SCREEN_SAMPLE_INTERVAL = 1000`)
-- 最多采样 10 次( `MAX_WHITE_SCREEN_SAMPLE_COUNT = 10`)
+- 连续 10 次( `MAX_WHITE_SCREEN_SAMPLE_COUNT = 10`) 全白才判定白屏并上报; 任何一次采到真实内容立即停止
 
 根元素判定:
 
@@ -547,27 +620,25 @@ const isRoot = (elem: Element) => {
 
 ```typescript
 if (hasSkeleton) {
-  if (sampleCount === 1) {
-    // 第一次采样: 记录骨架屏的 CSS 选择器集合
-    selectors.forEach((s) => initialSelectors.add(s));
-    return; // 继续采样
-  }
-  // 后续采样: 比较选择器是否变化
-  if (sortedJoin(currentSelectors) === sortedJoin(initialSelectors)) {
-    report(); // 选择器未变化 → 骨架屏卡住 → 白屏
+  // 第 1 次采样: 只记录骨架屏的 CSS 选择器集合作为基线, 不上报
+  if (sampleCount === 1) return;
+  // 后续采样: 选择器集合与基线不同 → 骨架屏已切换为真实内容 → 停止采样
+  if (!selectorsMatchBaseline()) {
+    stopWhiteScreenCheck();
     return;
   }
-  stopSample(); // 选择器变化了 → 正常渲染 → 非白屏
+  // 集合始终与基线相同, 撑到第 10 次采样 → 骨架屏卡住 → 上报白屏
+  if (sampleCount >= MAX_WHITE_SCREEN_SAMPLE_COUNT) report();
 }
 ```
 
-触发链路: setup() 中当 `enableWhiteScreen: true` 时订阅 EventType.WhiteScreen 并调用 decorates.ts 的 `pubWhiteScreen()` 立即发布一个 WhiteScreen 事件, handle-events.ts 的 `handleWhiteScreen` 收到后调用 `checkWhiteScreen()` 启动采样, 采样到白屏时通过回调把最初那条事件交给 reporter 发送.
+触发链路: 白屏检测不走事件总线. `setup()` 在 `enableWhiteScreen: true` 时直接调用 `startWhiteScreenCheck(onReport)` 启动采样, 命中白屏时通过回调把 `EventType.WhiteScreen` 事件( `name: "WhiteScreen"`, `message: "sample count <n>"`, `extra: { sampleCount }`) 交给 reporter 发送; `destroy()` 调用 `stopWhiteScreenCheck()` 清除定时器和未触发的 load 监听.
 
 性能优化:
 
-- 使用 `requestIdleCallback` 在浏览器空闲时执行采样, 避免阻塞主线程
-- 页面 `readyState === "complete"` 后才开始采样
-- 一旦检测到白屏或确认非白屏, 立即停止定时器
+- 使用 `requestIdleCallback` 在浏览器空闲时执行采样( 超时 1000ms) , 且回调内再检查 `deadline.timeRemaining() > 0 || deadline.didTimeout` 才真正采样, 避免阻塞主线程
+- 页面 `readyState === "complete"`( 或 load 事件) 后才开始采样
+- 一旦检测到真实内容或完成上报, 立即停止定时器
 
 ---
 
@@ -578,57 +649,49 @@ FSP( First Screen Paint) 实现在 `plugins/performance/first-screen-paint.ts`, 
 实现原理:
 
 ```typescript
-function observeFirstScreenPaint(callback: Callback): void {
+export function getFirstScreenPaint(
+  callback: (value: number) => void,
+): Cleanup {
+  // 能力降级: 无 MutationObserver 时立即回调 0
+  if (typeof globalThis.MutationObserver !== "function") {
+    callback(0);
+    return noop;
+  }
+
   const excludedElementNames = new Set(["link", "script", "style"]);
-  observer = new MutationObserver((mutationList) => {
-    checkDomChange(callback); // 检测是否渲染完成
+  let latestRenderTime = 0; // 只维护一个「最晚的视口内渲染时间」
 
-    const children: HTMLElement[] = [];
-    for (const mutation of mutationList) {
-      // 过滤条件:
-      // 1. 必须是 HTMLElement
-      // 2. 必须有新增节点( addedNodes.length > 0)
-      // 3. 父节点在视口内
-      // 4. 新增节点在视口内
-      // 5. 排除 link/script/style 非可视元素
-      if (
-        isHTMLElement(node) &&
-        !excluded.has(node.tagName) &&
-        isInViewport(node)
-      ) {
-        children.push(node);
-      }
-    }
-    if (children.length) {
-      entries.push({ children, startTime: performance.now() });
+  const observer = new MutationObserver((mutationList) => {
+    // 过滤条件:
+    // 1. mutation.target 是 HTMLElement 且有新增节点( addedNodes.length > 0)
+    // 2. 父节点在视口内
+    // 3. 新增节点是 HTMLElement、不是 link/script/style、且在视口内
+    if (hasInViewportAddition(mutationList)) {
+      latestRenderTime = performance.now();
     }
   });
+  observer.observe(document, { childList: true, subtree: true });
 
-  observer.observe(document, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-    attributes: true,
-  });
-}
-```
-
-完成判定:
-
-```typescript
-function checkDomChange(callback: Callback): void {
-  cancelAnimationFrame(requestId);
-  requestId = requestAnimationFrame(() => {
+  // rAF 轮询: 文档 complete 时断开 observer 并回调最晚渲染时间
+  const waitForPageReady = () => {
     if (document.readyState === "complete") {
-      observer?.disconnect();
-      const fsp = Math.max(...entries.map((e) => e.startTime)); // 取最晚的可视元素渲染时间
-      callback(fsp);
+      observer.disconnect();
+      callback(latestRenderTime);
       return;
     }
-    checkDomChange(callback); // 未完成则继续监听
-  });
+    requestId = requestAnimationFrame(waitForPageReady);
+  };
+  waitForPageReady();
+
+  // 返回 cleanup: 插件 destroy 时取消未完成的观测( 不再回调)
+  return () => {
+    observer.disconnect();
+    cancelAnimationFrame(requestId);
+  };
 }
 ```
+
+视口判定( isInViewport) : `getBoundingClientRect()` 与视口相交( `right > 0 && bottom > 0 && left < innerWidth && top < innerHeight`) .
 
 FSP vs LCP 对比:
 
@@ -661,9 +724,11 @@ PerformancePlugin 是 SDK 最重的插件, 采集以下指标类别:
 | INP  | 交互到下一次绘制 | `onINP()`  |
 | TTFB | 首字节时间       | `onTTFB()` |
 
+指标载荷携带 `value` 与 `rating`, 且 web-vitals 自带的 metric id 会覆盖 payload 的事件 id, 便于后端归并同一指标的多次上报.
+
 2. Navigation Timing( Performance API) :
 
-从 `performance.getEntriesByType("navigation")` 提取:
+从 `performance.getEntriesByType("navigation")` 提取, 所有值经 `Math.round` 取整并 `Math.max(0, ...)` 钳位非负, 多数以 fetchStart 为基准:
 
 - DNS 查询耗时( domainLookupEnd - domainLookupStart)
 - TCP 连接耗时( connectEnd - connectStart)
@@ -672,19 +737,19 @@ PerformancePlugin 是 SDK 最重的插件, 采集以下指标类别:
 - 内容传输耗时( responseEnd - responseStart)
 - DOM 解析耗时( domInteractive - responseEnd)
 - 资源加载耗时( loadEventStart - domContentLoadedEventEnd)
-- 重定向耗时、Unload 耗时
+- 重定向耗时、Unload 耗时、paintTime( 最后一条 paint entry 相对 fetchStart)
 
 3. Resource Timing( PerformanceObserver) :
 
-- 监听 `resource` 类型的 PerformanceEntry
-- 排除 fetch/xmlhttprequest/beacon 类型( 这些由 HTTP 监控覆盖)
-- 记录每个静态资源的加载耗时、大小、 initiatorType
+- 监听 `resource` 类型的 PerformanceEntry, 每条实时 entry 上报一个 `ResourceTiming` 事件; 页面 ready 时另发一条 `ResourceList` 快照( 缓冲区内全部资源)
+- 排除 fetch/xmlhttprequest/beacon 类型( 这些由 HTTP 监控覆盖) 和包含 DSN 的 URL
+- 记录每个静态资源的加载耗时、大小、initiatorType; `fromCache` 由 `transferSize === 0 || encodedBodySize === 0` 推导
 
 4. Resource Element Fallback( MutationObserver) :
 
 - 针对不支持 PerformanceObserver resource 类型的浏览器
 - 通过 MutationObserver 监听新增的 img/script/link 元素
-- 在元素 load/error 事件中记录耗时
+- 在元素 load/error 事件中上报( 每个 URL 只报一次) , 能查到真实 PerformanceResourceTiming 就复用, 否则用零耗时兜底对象
 
 5. Long Tasks:
 
@@ -693,73 +758,81 @@ PerformancePlugin 是 SDK 最重的插件, 采集以下指标类别:
 
 6. Memory:
 
-- 调用 `performance.measureUserAgentSpecificMemory()`( 需 crossOriginIsolated)
+- 插件 init 时调用一次 `performance.measureUserAgentSpecificMemory()`( Chrome-only, 页面需 crossOriginIsolated)
 - 记录 JS 堆内存使用情况
 
 7. FSP( 自定义首屏时间) :
 
-- 如 Q10 所述的 MutationObserver 方案
+- 如上一节所述的 MutationObserver 方案
 
 8. HTTP 性能( 可选, 非 PerformancePlugin 采集) :
 
 - `enableHttpPerformance: true` 时, `core/handle-http.ts` 把成功的 XHR/Fetch 请求额外上报为 Performance 事件
-- name 为 `HTTP <method>`, value 为 elapsedTime, extra 携带 method/statusCode/serverTiming( `handle-http.ts:54-68`)
+- name 为 `HTTP <method>`, value 为 elapsedTime, extra 携带 method/statusCode/serverTiming
 - 默认关闭( `enableHttpPerformance: false`), 避免全量请求都产生一条性能数据
+
+所有指标统一为 `EventType.Performance` 事件, 由 `name` 区分( LCP/FCP/CLS/INP/TTFB/FSP/NavigationTiming/ResourceList/ResourceTiming/LongTask/Memory) ; 能力检测统一走 `supportsPerformanceEntryType()`( 读取 `PerformanceObserver.supportedEntryTypes`) , 不支持的能力安全跳过; `destroy()` 逆序执行全部 cleanup.
 
 ---
 
-## 面包屑( Breadcrumb) 为什么使用最小堆? 相比数组有什么优势?
+## 面包屑( Breadcrumb) 是如何实现的? 哪些事件会携带面包屑?
 
-面包屑使用容量受限的最小堆( MinHeap) 实现, 位于 `utils/data-structures.ts`.
+面包屑使用容量受限的 FIFO 缓冲( BoundedList) 实现, 位于 `utils/data-structures.ts`; `core/breadcrumb.ts` 在其上派生 Breadcrumb 子类接入 beforeBreadcrumb 钩子.
 
 核心实现:
 
 ```typescript
-class MinHeap<T extends { timestamp: number }> {
-  capacity = 30; // MAX_BREADCRUMBS
-  private heap: T[] = [];
+// utils/data-structures.ts: 始终保留最新的 capacity 条
+export class BoundedList<T> {
+  public capacity: number; // init 时被赋值为 maxBreadcrumbs( 默认 30)
+  private items: T[] = [];
 
-  push(item: T): boolean {
-    if (this.size < this.capacity) {
-      this.heap.push(item);
-      this.heapifyUp(this.size - 1);
-      return true;
+  push(item: T): void {
+    this.items.push(item);
+    if (this.items.length > this.capacity) {
+      this.items.splice(0, this.items.length - this.capacity); // 淘汰最旧
     }
-    // 堆满时: 新数据比堆顶( 最旧) 大则替换
-    if (item.timestamp >= this.heap[0].timestamp) {
-      this.heap[0] = item;
-      this.heapifyDown(0);
-      return true;
-    }
-    return false; // 比最旧的还旧, 丢弃
   }
 
   dump(): T[] {
-    return [...this.heap].sort((a, b) => a.timestamp - b.timestamp);
+    return [...this.items]; // 返回拷贝, 外部无法篡改缓冲
+  }
+
+  clear(): void {
+    this.items = [];
+  }
+}
+
+// core/breadcrumb.ts: 写入前经过 beforeBreadcrumb 钩子
+class Breadcrumb extends BoundedList<IBreadcrumbItem> {
+  override push(data: IBreadcrumbItem): void {
+    const { beforeBreadcrumb } = sentry.options;
+    super.push(beforeBreadcrumb ? beforeBreadcrumb(data) : data);
   }
 }
 ```
 
-与数组方案的对比:
+设计要点:
 
-| 操作                    | 数组方案                              | 最小堆方案                      |
-| ----------------------- | ------------------------------------- | ------------------------------- |
-| 插入( 未满)             | O(1) push                             | O(log n) heapifyUp              |
-| 插入( 已满, 需淘汰最旧) | O(n) shift + O(1) push 或 O(n) splice | O(log n) 替换堆顶 + heapifyDown |
-| 查找最旧元素            | O(1) `[0]`(有序数组) 或 O(n)          | O(1) heap[0]                    |
-| 导出有序结果            | O(1)( 已排序) 或 O(n log n)           | O(n log n) sort                 |
-| 空间                    | O(n)                                  | O(n)                            |
+1. 事件按发生顺序推入, 数组本身即时间有序, dump 无需排序
+2. 容量默认 30( `maxBreadcrumbs` 可配) , 超出时 splice 掉最旧条目, 语义是「始终保留最新的 N 条」
+3. `beforeBreadcrumb` 钩子在入队前同步执行, 业务可脱敏或改写单条面包屑
+4. `destroy()` 时调用 `breadcrumb.clear()`, 会话状态不跨 init 泄漏
 
-选择最小堆的原因:
+userAction 分类( utils/event2breadcrumb.ts) :
 
-1. 高频写入场景: 面包屑在每次 HTTP、点击、错误、路由变化时都会写入, 是高频操作. 堆满后每次插入只需 O(log 30) ≈ 5 次比较, 而数组 shift 是 O(30)
-2. 无需维护全局有序: 面包屑只在上报时需要有序( dump) , 平时只需快速淘汰最旧条目
-3. 容量极小( 30) : 实际差异微乎其微, 但堆的语义更清晰——「始终保留最新的 N 条」
-4. 乱序容忍: 如果事件因异步导致时间戳乱序到达, 堆能正确处理, 而简单数组 push+shift 会错误淘汰
+| EventType                                | BreadcrumbType |
+| ---------------------------------------- | -------------- |
+| Xhr / Fetch                              | Http           |
+| Click                                    | Click          |
+| HashChange / History                     | Route          |
+| Resource                                 | Resource       |
+| Error / Vue / React / UnhandledRejection | Code Error     |
+| 其余( Performance/Custom 等)             | Custom         |
 
 dump() 的调用时机:
 
-`dump()` 返回按时间戳排序的有序面包屑列表. 它在上报数据组装时被调用: `reporter/report-data.ts:59` 中 `data.breadcrumbs = breadcrumb.dump()`. 注意并非每条数据都携带面包屑: 只有错误类事件( Error/UnhandledRejection/Resource/Vue/React/OtherFrameworks, 即 report-data.ts 顶部的 BREADCRUMB_EVENT_TYPES 集合) 会附加, 帮助后端还原故障前的用户操作路径, 也避免面包屑在批量事件上成倍放大载荷体积.
+`dump()` 在上报数据组装时被调用: `reporter/report-data.ts` 中 `data.breadcrumbs = breadcrumb.dump()`. 注意并非每条数据都携带面包屑: 只有错误类事件( Error/UnhandledRejection/Resource/Vue/React/OtherFrameworks, 即 report-data.ts 顶部的 BREADCRUMB_EVENT_TYPES 集合) 会附加, 帮助后端还原故障前的用户操作路径, 也避免面包屑在批量事件上成倍放大载荷体积.
 
 ---
 
@@ -771,47 +844,50 @@ dump() 的调用时机:
 
 ```typescript
 // recorder.ts 核心逻辑( 闭包实现, 非 class)
-function getRollingWindow(
-  events: readonly RecordEvent[],
-  currentTimestamp: number,
-): readonly RecordEvent[] {
-  const minTimestamp = currentTimestamp - sentry.options.screenRecordDurationMs;
-  return events.filter((event) => event.timestamp >= minTimestamp);
-}
-
 export async function recorder(reporter: IDataReporter): Promise<Cleanup> {
   const [{ record }, pako] = await Promise.all([
     import("@rrweb/record"),
     import("pako"),
   ]);
-  let recordWindow: readonly RecordEvent[] = [];
+  const recordWindow: RecordEvent[] = [];
+
+  // 原地裁剪: 把窗口头部早于 minTimestamp 的事件 shift 掉
+  const pruneWindow = (currentTimestamp: number) => {
+    const minTimestamp =
+      currentTimestamp - sentry.options.screenRecordDurationMs;
+    while (
+      recordWindow.length > 0 &&
+      recordWindow[0].timestamp < minTimestamp
+    ) {
+      recordWindow.shift();
+    }
+  };
 
   const stopRecord = record({
-    emit(e, isCheckout) {
-      const result = recordEventSchema.safeParse(e);
+    emit(e) {
+      const result = recordEventSchema.safeParse(e); // looseObject({ timestamp: number })
       if (!result.success) return;
-      recordWindow = getRollingWindow(
-        [...recordWindow, result.data],
-        result.data.timestamp,
-      );
+      recordWindow.push(result.data);
+      pruneWindow(result.data.timestamp);
       if (sentry.shouldScreenRecord && recordWindow.length > 0) {
         reporter.send({
           ...getBaseData(),
           name: "ScreenRecord",
           type: EventType.ScreenRecord,
-          event: zip(recordWindow), // JSON -> gzip -> base64
+          event: zip(recordWindow), // JSON -> gzip -> base64( 32KB 分块编码)
           eventCount: recordWindow.length,
         });
         sentry.shouldScreenRecord = false;
       }
     },
+    recordCanvas: true,
     checkoutEveryNms: sentry.options.screenRecordDurationMs,
   });
   return typeof stopRecord === "function" ? stopRecord : noop;
 }
 ```
 
-设计要点: `recorder` 是闭包而非 class——`recordWindow` 作为闭包变量维护滚动窗口, `getRollingWindow` 是纯函数负责按时间戳过滤. rrweb 的 `record()` 返回停止函数, 直接作为 cleanup 返回给插件的 destroy 链路. 动态 `import("@rrweb/record")` 和 `import("pako")` 并行加载, 避免录制库阻塞主 bundle.
+设计要点: `recorder` 是闭包而非 class——`recordWindow` 作为闭包变量维护滚动窗口, `pruneWindow` 原地 shift 淘汰过期事件( 不复制数组) . rrweb 的 `record()` 返回停止函数, 直接作为 cleanup 返回给插件的 destroy 链路. 动态 `import("@rrweb/record")` 和 `import("pako")` 并行加载, 避免录制库阻塞主 bundle; 加载失败时记录日志并降级为 noop. 插件构造函数接受 `{ durationMs, eventTypes }`, init 时把二者写入 SDK options( 数组拷贝, 实例间不共享引用) .
 
 触发机制:
 
@@ -846,10 +922,6 @@ base64 字符串 → Uint8Array → pako.ungzip() → JSON.parse() → rrweb eve
 
 ```typescript
 export abstract class SentryPlugin {
-  public type: EventType;
-  constructor(type: EventType) {
-    this.type = type;
-  }
   abstract init(): void;
   destroy?(): void;
 }
@@ -919,7 +991,14 @@ enablePlugin(new PerformancePlugin(), new ScreenRecordPlugin());
 React 集成( react.ts) :
 
 ```typescript
-class ReactErrorBoundary extends React.Component {
+export class ReactErrorBoundary extends Component<Props, State> {
+  static displayName = "ReactErrorBoundary"; // 保持 React 16 组件栈可读
+
+  // render 阶段先把 error 写入 state, fallback 立即可见
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
   override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     this.setState({ error, errorInfo });
     // 使用独立的 EventType.React, 原样携带 error 对象与 React 上下文
@@ -931,11 +1010,21 @@ class ReactErrorBoundary extends React.Component {
   }
 
   override render() {
-    if (this.state.error) return this.props.fallback ?? null;
+    const { error, errorInfo } = this.state;
+    if (error) {
+      const { fallback } = this.props;
+      // fallback 支持 ReactNode 或 (error, errorInfo?) => ReactNode 渲染函数;
+      // 渲染函数可能先以 errorInfo undefined 调用一次( getDerivedStateFromError
+      // 阶段 React 尚未交付 ErrorInfo) , componentDidCatch 后再带 errorInfo 渲染
+      if (typeof fallback === "function") return fallback(error, errorInfo);
+      return fallback ?? null;
+    }
     return this.props.children ?? null;
   }
 }
 ```
+
+注意: ErrorBoundary 捕获不到异步回调、事件处理器和 SSR 中的错误, 这些场景用 `traceError` 手动上报.
 
 Vue 集成( vue.ts) :
 
@@ -1009,13 +1098,13 @@ function isIgnoredError(message: string): boolean {
 }
 ```
 
-4. beforeReport 钩子( 用户自定义过滤) :
+4. beforeSend 钩子( 用户自定义过滤) :
 
 ```typescript
 init({
-  onBeforeReportData: (data) => {
+  beforeSend: (data) => {
     if (data.url.includes("/admin")) return false; // 返回 false 拒绝上报
-    return data; // 可修改后返回
+    return data; // 可修改后返回, 也可返回 Promise
   },
 });
 ```
@@ -1028,9 +1117,10 @@ init({
 
 ```
 事件产生 → excludeApis/ignoreErrors( 采集层过滤)
-         → tracesSampleRate( 采样层过滤)
          → BoundedSet 去重( 去重层过滤)
-         → onBeforeReportData( 用户钩子过滤)
+         → tracesSampleRate( 采样层过滤)
+         → beforeSend( 用户钩子过滤)
+         → beforeSendBatch( 批量钩子过滤)
          → 最终上报
 ```
 
@@ -1038,19 +1128,19 @@ init({
 
 ## Reporter 单例为什么使用 Proxy 实现懒加载?
 
-Reporter 的导出使用了一个巧妙的 Proxy 模式:
+Reporter 的导出使用了一个巧妙的 Proxy 模式( `reporter/index.ts`) :
 
 ```typescript
-let _reporter: DataReporter | null = null;
+let instance: DataReporter | null = null;
 
-function getReporter(): DataReporter {
-  if (!_reporter) _reporter = DataReporter.instance;
-  return _reporter;
+export function resetReporter(): void {
+  instance?.dispose(); // 清定时器、摘 online/offline 监听、丢弃队列
+  instance = null;
 }
 
 export default new Proxy({} as DataReporter, {
   get(_target, prop) {
-    const instance = getReporter();
+    instance ??= new DataReporter(); // 首次属性访问时才实例化
     const value = Reflect.get(instance, prop, instance);
     return typeof value === "function" ? value.bind(instance) : value;
   },
@@ -1059,31 +1149,15 @@ export default new Proxy({} as DataReporter, {
 
 为什么需要这种设计:
 
-1. 避免模块加载时副作用: 如果直接 `export default DataReporter.instance`, 则 import 该模块时就会创建实例、注册网络监听器. Proxy 延迟到第一次方法调用时才实例化.
+1. 避免模块加载时副作用: DataReporter 的构造函数会注册 online/offline 监听并从 localStorage 恢复上个会话的离线缓存. 如果直接 `export default new DataReporter()`, import 该模块时这些副作用就会发生——早于 init() 应用配置. Proxy 把实例化推迟到第一次真正使用 reporter 时( 此时 options 已就绪) .
 
-2. 支持 reset: `resetReporter()` 可以将 `_reporter` 置为 null 并调用 `DataReporter.reset()`. 下次访问时 Proxy 会自动创建新实例. 直接导出实例无法实现这种重置.
+2. 支持 reset: `destroy()` 调用 `resetReporter()` 把模块级 `instance` 置空并 dispose 旧实例; 下次访问时 Proxy 自动创建新实例. 直接导出实例无法实现这种重置.
 
 3. 解决循环依赖: 多个模块( handlers、api、plugins) 都需要 reporter, Proxy 作为中间层避免了模块间的循环引用问题.
 
 4. this 绑定保证: `value.bind(instance)` 确保方法调用时 this 指向正确, 使用方可以安全地解构: `const { send } = reporter`.
 
-DataReporter 内部的单例模式:
-
-```typescript
-static #instance: DataReporter | null = null;
-
-static get instance(): DataReporter {
-  if (!this.#instance) this.#instance = new DataReporter();
-  return this.#instance;
-}
-
-static reset(): void {
-  this.#instance?.dispose();
-  this.#instance = null;
-}
-```
-
-使用 `#` 私有静态字段( ES2022) , 外部无法绕过 reset 直接访问旧实例.
+DataReporter 实例的关键字段: 事件队列 `events`、批量定时器 `timeoutID`、恢复探测定时器 `retryTimer`、在线标志 `isOnline`、防并发标志 `isFlushing`、持久化标记 `hasPersistedCache`, 以及构造时生成的实例级 `id`( 出现在每条上报数据的外层 id 字段) .
 
 ---
 
@@ -1120,9 +1194,9 @@ export function getDeclarativeClickData(
     msg: getMessage(trackingTarget), // swifty-sentry-msg > title > textContent > aria-label > 标签名
     triggerPageUrl: location.href,
     x,
-    y, // 元素绝对坐标( getBoundingClientRect + 滚动偏移)
+    y, // 实际被点元素( event.target, 非 HTMLElement 时退回埋点元素) 的绝对坐标: getBoundingClientRect + 滚动偏移
     params: getParams(fallbackPath), // 收集 swifty-sentry-* 自定义参数( view/msg/ev 保留键除外)
-    elementPath: dom2str(trackingTarget), // utils/dom2str.ts: CSS 选择器式祖先路径
+    elementPath: dom2str(trackingTarget), // utils/dom2str.ts: 埋点元素的 CSS 选择器式祖先路径
     triggerTime: Date.now(),
   };
 }
@@ -1171,34 +1245,7 @@ function pubClick(): Cleanup {
 | `visitorId`   | 后端设置( `setVisitorId()`) | 内存         | 业务侧访客标识     |
 | `userId`      | 业务设置( `setUserId()`)    | 内存         | 登录用户标识       |
 
-设备指纹生成( CRC32 Canvas) :
-
-```typescript
-function getClientFingerprint(): string {
-  try {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.textBaseline = "top";
-      ctx.font = "14px 'Arial'";
-      ctx.fillStyle = "#f60";
-      ctx.fillRect(125, 1, 62, 20); // 橙色矩形
-      ctx.fillStyle = "#069";
-      ctx.fillText("@swifty.js/sentry", 2, 15); // 同一段文本绘制两次
-      ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-      ctx.fillText("@swifty.js/sentry", 4, 17);
-      // dataUrl 去掉 base64 前缀, atob 解码后计算 crc32
-      const b64 = canvas.toDataURL().replace("data:image/png;base64,", "");
-      const bin = atob(b64);
-      return crc32(bin).toString(16);
-    }
-  } catch {
-    return getFallbackFingerprint();
-  }
-  return getFallbackFingerprint();
-}
-// 降级: crypto.randomUUID(), 再降级 Date.now() + 随机数
-```
+三者都存放在 `sentry.options` 中, 组装上报数据时逐条附到 IReportData 外层; `getIdentity()` 返回 `{ anonymousId, visitorId, userId, hasAnonymousId, hasVisitorId }`, 其中 has 字段就是 `value !== "unknown"` 的判断.
 
 FingerprintJS 集成:
 
@@ -1222,14 +1269,24 @@ async function initIdentity(): Promise<void> {
 }
 ```
 
-设备信息采集( utils/sentry.ts, 扁平结构) :
+设备信息采集( utils/sentry.ts, 惰性 getter + 扁平结构) :
 
 ```typescript
 import { UAParser } from "ua-parser-js";
 
-constructor() {
+class Sentry implements ISentry {
+  #deviceInfo: IDeviceInfo | null = null;
+
+  // 首次访问( 首条上报组装时) 才解析 UA, 之后缓存复用
+  get deviceInfo(): IDeviceInfo {
+    this.#deviceInfo ??= collectDeviceInfo();
+    return this.#deviceInfo;
+  }
+}
+
+function collectDeviceInfo(): IDeviceInfo {
   const res = new UAParser().getResult();
-  this.deviceInfo = {
+  return {
     browserName: res.browser.name ?? UNKNOWN,
     browserVersion: res.browser.version ?? UNKNOWN,
     osName: res.os.name ?? UNKNOWN,
@@ -1237,7 +1294,6 @@ constructor() {
     userAgent: res.ua,
     deviceModel: res.device.model ?? UNKNOWN,
     deviceType: res.device.type ?? UNKNOWN,
-    fingerprint: getClientFingerprint(), // Canvas 指纹, 见上
     language: getLanguage(), // navigator.language
     screenResolution: getScreenResolution(), // 如 "1920x1080"
   };
@@ -1246,10 +1302,10 @@ constructor() {
 
 设计考量:
 
-1. 隐私合规: FingerprintJS 默认禁用( `enableFingerprint: false`) , 需用户主动开启
-2. 缓存优先: anonymousId 缓存到 localStorage, 避免每次加载都计算
+1. 隐私合规: FingerprintJS 默认禁用( `enableFingerprint: false`) , 需用户主动开启; 关闭时 anonymousId 保持 "unknown"
+2. 缓存优先: anonymousId 缓存到 localStorage, 避免每次加载都计算; 指纹生成失败仅记录日志, 不阻断初始化
 3. 异步非阻塞: `void initIdentity()` 不阻塞 SDK 初始化
-4. 降级策略: Canvas 不可用时降级到 `crypto.randomUUID()`
+4. deviceInfo 惰性采集: UA 解析推迟到第一次上报组装时执行, 且 `sentry` 单例挂到 `globalThis.__sentry__`, 可在控制台直接查看 options 与 deviceInfo
 
 ---
 
@@ -1257,12 +1313,12 @@ constructor() {
 
 构建工具:
 
-- 主构建: Rollup( `rollup.config.ts`)
+- 构建: Rollup( `rollup.config.ts`) , 六个入口( index/react/vue/vite/webpack/plugins)
   - `preserveModules: true`: 保留模块结构, 利于 tree-shaking
-  - 双格式输出: ESM( `.js`) + CJS( `.cjs`)
-  - `rollup-plugin-dts` 生成类型声明
-  - terser 压缩
-- 备选构建: tsup( `tsup.config.ts`)
+  - 双格式输出: ESM( `.js`) + CJS( `.cjs`) , 均经 terser 压缩
+  - 第三个 dts 构建产出类型声明( `rollup-plugin-dts`)
+  - 自定义插件 buildStart 清空 dist, buildEnd 把仓库 `.agents/skills/swifty-sentry` 拷贝到包内 `skills/` 目录( 随 npm 包发布的 agent skill)
+  - 所有运行时依赖( zod/web-vitals/ua-parser-js/rrweb/pako/fingerprintjs/source-map 及 react/vue/vite/webpack) 全部 external, 不打入产物
 
 package.json exports 多入口:
 
@@ -1279,34 +1335,36 @@ package.json exports 多入口:
 }
 ```
 
+( 每个入口实际都带 types/import/require 三个条件; react/vue/vite/webpack 为 optional peerDependencies, react 支持 16-19, vite 支持 7/8, webpack 支持 4/5)
+
 TypeScript 配置:
 
 - `strict: true`: 全量严格模式
 - `target: "ESNext"`: 不降级语法
 - `moduleResolution: "Bundler"`: 适配现代打包工具
-- 所有运行时依赖 externalize, 不打入 bundle
 
 测试工程:
 
 - Vitest + jsdom 环境
-- 15 个测试文件( test/*.test.ts) 覆盖核心模块
+- 17 个测试文件( test/*.test.ts) 覆盖核心模块
 - v8 coverage, 阈值 70%( lines/functions/branches/statements)
 - 自定义 fake: `fake-intersection-observer.ts`、`report-payloads.ts`
 
 依赖管理:
 
-| 依赖                         | 用途            | 体积考量            |
-| ---------------------------- | --------------- | ------------------- |
-| web-vitals                   | Core Web Vitals | ~2KB                |
-| @rrweb/record                | 屏幕录制        | 较大, 插件按需加载  |
-| pako                         | gzip 压缩       | ~45KB, 仅录屏插件用 |
-| ua-parser-js                 | UA 解析         | ~20KB               |
-| @fingerprintjs/fingerprintjs | 设备指纹        | ~50KB, 默认禁用     |
-| zod                          | 运行时校验      | ~13KB               |
+| 依赖                         | 用途            | 体积考量                |
+| ---------------------------- | --------------- | ----------------------- |
+| web-vitals                   | Core Web Vitals | ~2KB                    |
+| @rrweb/record                | 屏幕录制        | 较大, 插件按需加载      |
+| pako                         | gzip 压缩       | ~45KB, 仅录屏插件用     |
+| ua-parser-js                 | UA 解析         | ~20KB                   |
+| @fingerprintjs/fingerprintjs | 设备指纹        | ~50KB, 默认禁用         |
+| zod                          | 运行时校验      | ~13KB                   |
+| source-map                   | 开发期堆栈反解  | Node-only, 不进浏览器包 |
 
 Monorepo 结构:
 
-项目位于 `swifty-sentry` monorepo 的 `sentry` 包下, 与后端服务共享仓库但独立构建发布.
+仓库为 pnpm workspace, 包含 `sentry`( SDK 本体) 、`client`( React demo) 、`server`( 日志接收/反解服务) 三个包, SDK 独立构建发布.
 
 ---
 
@@ -1354,53 +1412,57 @@ LRU 语义:
 
 ---
 
-## CallbackQueue 的设计意图是什么? 为什么使用 requestIdleCallback?
+## 上报管道为什么要保持「同步快路径」? 定时器为什么要 unref?
+
+同步快路径( reporter/promise.ts) :
 
 ```typescript
-class CallbackQueue {
-  private cbList: VoidFunction[] = [];
-  private isFlushing = false;
+// 无异步钩子时, 管道必须从 send() 一路同步走到传输层:
+// 一个无条件 await 会把 sendBeacon 推迟一个微任务,
+// 而 pagehide 触发的停留时长 flush 等不起这个微任务.
+export function isPromise<T>(value: T | Promise<T>): value is Promise<T> {
+  return (
+    value instanceof Promise ||
+    (value !== null &&
+      typeof value === "object" &&
+      "then" in value &&
+      typeof value.then === "function")
+  );
+}
 
-  push(cb: VoidFunction, ctx?: unknown, ...args: unknown[]) {
-    this.cbList.push(cb.bind(ctx, ...args));
-    if (this.isFlushing) return;
-    this.isFlushing = true;
+// 使用方式( reporter/index.ts) :
+const reportResult = runBeforeReportHook(this.id, payload);
+const data = isPromise(reportResult) ? await reportResult : reportResult;
+```
 
-    if (typeof requestIdleCallback !== "function") {
-      Promise.resolve().then(() => this.flushFuncList()); // 降级: 微任务
-      return;
-    }
-    requestIdleCallback(() => this.flushFuncList());
+设计意图:
+
+1. beforeSend/beforeSendBatch 允许返回 Promise, 但绝大多数场景是同步钩子甚至无钩子. 如果代码写成 `await hook(data)`, 即使返回值是同步对象, await 也会强制切一个微任务
+2. pagehide 场景: 页面隐藏时 `flushCurrentPageDwell(true)` -> `send(payload, true)` -> `flush()` -> `sendBeacon`. 这条链路只要中间出现一次微任务切换, 页面就可能在回调恢复前销毁, beacon 永远发不出去
+3. `isPromise` 守卫让同步结果走同步分支、异步结果才 await, 兼顾了钩子灵活性与卸载场景可靠性
+
+定时器 unref( reporter/timer.ts + flush-scheduler.ts) :
+
+```typescript
+export function unrefTimer(timer: ReturnType<typeof setTimeout>): void {
+  if (hasUnref(timer)) {
+    timer.unref(); // 仅 Node 定时器有 unref, 浏览器句柄是 number, 安全跳过
   }
+}
 
-  private flushFuncList() {
-    const oldFuncList = this.cbList;
-    this.cbList = [];
-    this.isFlushing = false;
-    oldFuncList.forEach((func) => func());
-  }
+export function scheduleFlush(previousTimer, delay, flush) {
+  if (previousTimer) clearTimeout(previousTimer);
+  const nextTimer = setTimeout(() => void flush(), delay);
+  unrefTimer(nextTimer);
+  return nextTimer;
 }
 ```
 
 设计意图:
 
-1. 批量合并: 同一帧内多次 push 的回调合并为一次执行, 减少调度开销
-2. 非阻塞执行: 使用 `requestIdleCallback` 在浏览器空闲时执行, 不抢占用户交互的主线程时间
-3. 监控 SDK 的核心原则: 绝不能因为监控逻辑导致业务页面卡顿
-
-使用场景:
-
-主要用于 Image 上报( `reportByImage`) . Image 上报需要创建多个 `new Image()` 并设置 src, 这些 DOM 操作不需要立即执行, 可以延迟到空闲时批量处理.
-
-为什么不用 setTimeout(fn, 0):
-
-- `setTimeout` 最低延迟 4ms( 嵌套超过 5 层) , 且在主线程忙时仍会执行
-- `requestIdleCallback` 真正等到浏览器有空闲时间( `deadline.timeRemaining() > 0`) , 对用户体验影响最小
-- 降级方案使用 `Promise.resolve().then()`( 微任务) , 比 setTimeout 更快且不引入宏任务延迟
-
-isFlushing 的作用:
-
-防止在一个 idle callback 执行期间, 新 push 的回调又触发一次 `requestIdleCallback`. 通过标志位确保一批回调在一个 idle 周期内统一执行.
+1. SDK 会在 SSR/测试等 Node 环境被 import, 批量 flush 定时器( cacheWaitingTime) 和服务端恢复探测定时器( 60s) 如果不 unref, 会阻止 Node 进程正常退出( vitest 挂住、脚本不结束)
+2. `hasUnref` 结构判断兼容两种环境: 浏览器 setTimeout 返回 number, 没有 unref 方法, 直接跳过
+3. `scheduleFlush` 统一「清旧定时器 + 起新定时器 + unref」三件事, send 的延迟批量、flush 后的 100ms 续发、恢复探测的重排都复用同一函数
 
 ---
 
@@ -1412,23 +1474,24 @@ History 模式拦截( decorate-route.ts) :
 
 ```typescript
 export function pubHistory(): Cleanup {
-  // 1. popstate( 前进/后退) : 劫持 globalThis.onpopstate, 而非 addEventListener
-  const oldOnpopstate = globalThis.onpopstate;
   latestHref = getCurrentRouteUrl();
-  globalThis.onpopstate = function (this: Window, ev: PopStateEvent) {
+
+  // 1. popstate( 前进/后退) : addEventListener 标准监听, 不影响用户的 onpopstate
+  const popstateListener = () => {
     const from = latestHref;
     const to = getCurrentRouteUrl();
-    if (from !== to) {
-      latestHref = to;
-      pub(EventType.History, {
-        ...getBaseData(),
-        type: EventType.History,
-        from,
-        to,
-      });
+    if (from === to) {
+      return;
     }
-    return oldOnpopstate?.call(this, ev); // 链式调用原有 handler
+    latestHref = to;
+    pub(EventType.History, {
+      ...getBaseData(),
+      type: EventType.History,
+      from,
+      to,
+    });
   };
+  globalThis.addEventListener("popstate", popstateListener);
 
   // 2. 装饰 pushState 和 replaceState, 二者共用同一个装饰器
   const historyDecorator = (oldPropsVal: History["pushState"]) => {
@@ -1439,10 +1502,10 @@ export function pubHistory(): Cleanup {
       url?: string | URL | null,
     ) {
       if (!url) {
-        return oldPropsVal.call(this, data, unused, url);
+        return oldPropsVal.call(this, data, unused, url); // 无 url 参数不追踪
       }
       const from = latestHref;
-      const to = normalizeRouteUrl(url);
+      const to = normalizeRouteUrl(url); // new URL(url, location.href).href 归一化
       // 先执行原始 pushState/replaceState, 保证事件处理器观察到目标 href
       const result = oldPropsVal.call(this, data, unused, url);
       if (from !== to) {
@@ -1469,7 +1532,7 @@ export function pubHistory(): Cleanup {
   );
 
   return () => {
-    globalThis.onpopstate = oldOnpopstate;
+    globalThis.removeEventListener("popstate", popstateListener);
     cleanupReplaceState();
     cleanupPushState();
   };
@@ -1580,11 +1643,12 @@ reporter.send(
 );
 ```
 
-页面关闭时的停留时长( setup.ts) :
+页面关闭/隐藏时的停留时长( setup.ts) :
 
 ```typescript
-globalThis.addEventListener("beforeunload", () => {
-  // flush 当前页停留时长, immediate = true, 走 sendBeacon 保证发出
+// pagehide 在移动端比 beforeunload 可靠得多( 页签切后台/被杀都会触发)
+globalThis.addEventListener("pagehide", () => {
+  flushCurrentPageDwell(true); // immediate = true, 走 sendBeacon 保证发出
 });
 ```
 
@@ -1598,9 +1662,9 @@ globalThis.addEventListener("beforeunload", () => {
 
 设计要点:
 
-1. 100ms 阈值: 过滤路由重定向( 如 `/` -> `/home`) 产生的极短停留
-2. beforeunload 兜底: 确保用户直接关闭标签页时也能记录停留时长
-3. sendBeacon 保证: 页面关闭时 fetch 可能被取消, sendBeacon 由浏览器保证发出
+1. 100ms 阈值: 过滤路由重定向( 如 `/` -> `/home`) 产生的极短停留( `duration <= 100` 直接丢弃)
+2. pagehide 兜底: 确保用户关闭标签页或切后台时也能记录停留时长, 移动端 beforeunload 不可靠而 pagehide 稳定触发
+3. sendBeacon 保证: 页面关闭时 fetch 可能被取消, sendBeacon 由浏览器保证发出; 上报管道的同步快路径保证这条链路不被微任务打断
 4. SPA 友好: 不依赖页面刷新, 通过路由变化事件追踪单页内的页面切换
 
 ---
@@ -1657,7 +1721,7 @@ globalThis.addEventListener("beforeunload", () => {
 ```typescript
 function getBaseData(): IReportPayload {
   return {
-    id: crypto.randomUUID ? crypto.randomUUID() : getDeviceId(),
+    id: generateUUID(), // 事件级唯一 ID( crypto.randomUUID / getRandomValues v4 / 时间戳兜底)
     deviceId: getDeviceId(), // localStorage 持久化的设备 ID
     sessionId: getSessionId(), // sessionStorage 的会话 ID
     message: "",
@@ -1673,23 +1737,29 @@ function getBaseData(): IReportPayload {
 入队时的外层包装( reporter/report-data.ts) :
 
 ```typescript
-export function payloadToReportData(id, payload): IReportData {
+function payloadToReportData(id, payload): IReportData {
   const { type, name, time, timestamp, message, status } = payload;
-  return {
+  const data: IReportData = {
     type,
     name,
     time,
     timestamp,
     message,
     status,
-    id,
+    id, // 外层 id 为 DataReporter 实例 ID, 事件级 ID 在 payload.id
     url: location.href, // 事件发生时的页面 URL
     userId: sentry.options.userId,
+    anonymousId: sentry.options.anonymousId, // FingerprintJS, 未启用为 "unknown"
+    visitorId: sentry.options.visitorId, // setVisitorId 设置, 默认 "unknown"
     projectId: sentry.options.projectId,
     sdkVersion: SDK_VERSION,
-    deviceInfo: sentry.deviceInfo, // UA 解析 + Canvas 指纹 + 屏幕分辨率
+    deviceInfo: sentry.deviceInfo, // UA 解析 + 语言 + 屏幕分辨率( 惰性采集)
     payload, // 原始采集数据整体挂在 payload 字段
   };
+  if (BREADCRUMB_EVENT_TYPES.has(type)) {
+    data.breadcrumbs = breadcrumb.dump(); // 仅错误类事件附带面包屑
+  }
+  return data;
 }
 ```
 
@@ -1701,13 +1771,16 @@ IReportData
 ├── name: 出错脚本的 filename
 ├── message: 错误消息
 ├── status: "Error"
-├── id / timestamp / time: id 为 DataReporter 实例 ID( reporter/index.ts:37) , 事件级唯一 ID 在 payload.id
+├── id / timestamp / time: id 为 DataReporter 实例 ID, 事件级唯一 ID 在 payload.id
 ├── url: location.href
-├── userId / projectId / sdkVersion: 归属信息
+├── userId / anonymousId / visitorId: 三层身份标识
+├── projectId / sdkVersion: 归属信息
 ├── deviceInfo: { browserName, browserVersion, osName, osVersion,
-│                 userAgent, deviceModel, deviceType, fingerprint,
+│                 userAgent, deviceModel, deviceType,
 │                 language, screenResolution }
+├── breadcrumbs: 故障前操作轨迹( 仅错误类事件携带)
 └── payload:
+    ├── id: 事件级唯一 ID( generateUUID)
     ├── deviceId / sessionId: 设备与会话标识
     ├── line / column: 出错行列号( window.onerror 路径携带, 配合 sourcemap 反解)
     └── extra: Error.stack 堆栈字符串( Error 实例路径携带, 如 traceError/console.error)
@@ -1716,7 +1789,7 @@ IReportData
 设计要点:
 
 1. 双层结构: 外层是统一的检索维度( type/url/userId/deviceInfo) , 内层 payload 保留事件原始细节, 后端可以按外层字段建索引, 按 payload 还原现场
-2. React/Vue 框架错误额外携带 `extra: { error, stack, context }`, context 为 React ErrorInfo( componentStack) 或 Vue 的 instance + info
+2. React/Vue/OtherFrameworks 框架错误额外携带 `extra: { error, stack, context }`, context 为 React ErrorInfo( componentStack) 或 Vue 的 instance + info
 3. 批量错误额外携带 `batchError: true`、`batchErrorLength`、`batchErrorLastHappenTime`
 4. 录屏事件携带 `event`( gzip + base64 的 rrweb 事件流) 和 `eventCount`
 
@@ -1751,9 +1824,10 @@ export async function resolveFrame(loadMap: MapLoader, frame: RawFrame) {
 
 // 3) 整包增强: 对上报批次逐条识别错误类型并附加 sourcemap.frames
 export async function enrichReportData(loadMap, records) {
-  // type === "Error" 且有 line/column: 反解单帧
-  // extra 是堆栈字符串: 反解整条堆栈
-  // type === "React"/"Vue" 且有 stack: 反解整条堆栈
+  // type === "Error" 且有 line/column: 用 record.name( 出错脚本 URL) 反解单帧
+  // payload.extra 是堆栈字符串: 反解整条堆栈
+  // type === "React"/"Vue"/"OtherFrameworks": 从 payload.extra.stack 取堆栈
+  //   ( payload.stack 作为旧版载荷的兜底) 反解整条堆栈
 }
 ```
 
@@ -1791,28 +1865,41 @@ export default defineConfig({
 工作流程:
 
 ```typescript
-export function sentryPlugin({ dsn }: ISentryPluginOptions): Plugin {
-  // 1. 创建 logs/sentry_<timestamp>.jsonl 写流
-  const { fileStream, logFile } = ensureLogStream();
+function buildPlugin({ dsn }: ISentryPluginOptions) {
+  const url = dsn ?? DEFAULT_MOCK_DSN; // 默认 "/sentry"
+  let logStream: LogStreamHandle | null = null;
   return {
     name: "vite-plugin-sentry",
-    // 2. 注册 connect 中间件, 拦截 POST <dsn> 的请求
-    configureServer: configureServer(
-      dsn || sentry.options.dsn || "/sentry",
-      fileStream,
-    ),
+    apply: "serve" as const, // 仅 dev server 生效, vite build 完全不受影响
+    configureServer(server) {
+      // 1. dev server 启动时创建 logs/sentry_<timestamp>.jsonl 写流
+      logStream = createLogStream();
+      // 2. 注册 connect 中间件, 拦截 POST <dsn> 的请求
+      server.middlewares.use(
+        createMockMiddleware(url, logStream.fileStream, (records) =>
+          enrichReportData(server, records),
+        ),
+      );
+    },
     closeBundle() {
-      fileStream?.close();
+      if (logStream) closeLogStream(logStream.fileStream);
     },
   };
 }
+
+export function sentryPlugin(options: ISentryPluginOptions = {}): Plugin {
+  return buildPlugin(options); // vite 8
+}
+export function sentryPlugin7(options: ISentryPluginOptions = {}): Plugin7 {
+  return buildPlugin(options); // vite 7, 同一实现两种类型签名
+}
 ```
 
-中间件逻辑:
+中间件逻辑( node/dev-endpoint.ts, vite/webpack 共用) :
 
 1. 匹配 `req.url === dsn && req.method === "POST"`, 其余请求 `next()` 放行
 2. 收集请求体并 JSON.parse
-3. 调用 `enrichReportData(server, parsedBody)` 用 dev server 内存中的 sourcemap 反解错误堆栈( 见 Q27)
+3. 调用 `enrichReportData(server, parsedBody)` 用 dev server 内存中的 sourcemap 反解错误堆栈( 见上一节)
 4. 反解后的数据以 JSONL 格式追加写入 `logs/sentry_<timestamp>.jsonl`
 5. 反解失败则原样落盘, 始终返回 `{ code: 0, message: "success" }`
 
@@ -1821,7 +1908,7 @@ export function sentryPlugin({ dsn }: ISentryPluginOptions): Plugin {
 1. 本地闭环: 开发阶段无需部署日志后端, SDK 的 dsn 直接指向 dev server 路径即可完整跑通上报链路
 2. 开发期即可看到反解后的源码位置: dev 环境模块未压缩但经过 esbuild/插件转换, 堆栈同样需要 map 反解
 3. JSONL 格式: 一行一条批次记录, 方便 tail 观察与脚本分析( 仓库 logs/ 目录即此类产物)
-4. 同构扩展: 同一套 `source-map/` 核心也供 webpack 侧( `source-map/webpack.ts`) 使用, 只是 MapLoader 来源不同
+4. webpack 侧对等实现( `@swifty.js/sentry/webpack`) : `SentryWebpackPlugin`( 工厂 `sentryPlugin`) 仅在 `compiler.options.devServer` 存在时生效, 包装 `devServer.setupMiddlewares` 把同一个 mock 中间件 unshift 到最前( 刻意不传 path, 避免 webpack-dev-server 剥掉 req.url 前缀破坏精确匹配) , 并 tap `compiler.hooks.assetEmitted` 收集内存文件系统中的 `.map` 产物用于反解( 精确路径 `<path>.map` 优先, 找不到再按 basename 兜底以容忍未知 publicPath) ; 另导出 `sentryMiddleware` 供手动挂载( 无 sourcemap 反解能力)
 
 ---
 
@@ -1900,30 +1987,40 @@ const SESSION_ID_KEY = "swifty_sentry_session_id";
 
 // 设备 ID: localStorage, 跨会话持久
 export function getDeviceId(): string {
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  try {
+    let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!deviceId) {
+      deviceId = generateUUID();
+      localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+    return deviceId;
+  } catch {
+    return generateUUID(); // 存储被禁用时每次返回新 UUID
   }
-  return deviceId;
 }
 
 // 会话 ID: sessionStorage, 标签页级生命周期
 export function getSessionId(): string {
-  let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+  try {
+    let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+    if (!sessionId) {
+      sessionId = generateUUID();
+      sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+    }
+    return sessionId;
+  } catch {
+    return generateUUID();
   }
-  return sessionId;
 }
 ```
 
-| 标识        | 生成方式          | 存储           | 生命周期                       |
-| ----------- | ----------------- | -------------- | ------------------------------ |
-| deviceId    | crypto.randomUUID | localStorage   | 持久, 清缓存前不变             |
-| sessionId   | crypto.randomUUID | sessionStorage | 标签页会话级, 关页即失效       |
-| anonymousId | FingerprintJS     | localStorage   | 持久, 需开启 enableFingerprint |
+`generateUUID()`( utils/uuid.ts) 的三级降级: `crypto.randomUUID`( 仅安全上下文暴露) -> `crypto.getRandomValues` 手写 v4( 让 SDK 在纯 http 页面也可用) -> `Date.now().toString(16) + Math.random()` 兜底( crypto 完全缺失时) .
+
+| 标识        | 生成方式       | 存储           | 生命周期                       |
+| ----------- | -------------- | -------------- | ------------------------------ |
+| deviceId    | generateUUID() | localStorage   | 持久, 清缓存前不变             |
+| sessionId   | generateUUID() | sessionStorage | 标签页会话级, 关页即失效       |
+| anonymousId | FingerprintJS  | localStorage   | 持久, 需开启 enableFingerprint |
 
 设计要点:
 
@@ -2004,53 +2101,12 @@ export const routes: RouteObject[] = [
 
 ---
 
-## getIPs 和 SDK 自身的调试日志是如何实现的?
+## SDK 自身的调试日志( sentryLogger) 是如何实现的?
 
-这是两个容易被忽略但公开导出的辅助能力.
+sentryLogger( utils/logger.ts) 是 SDK 全部内部日志的出口:
 
-getIPs( core/ip.ts, 从主入口导出) :
-
-```typescript
-export function getIPs(timeout = 500): Promise<readonly string[]> {
-  return new Promise((resolve) => {
-    if (typeof globalThis.RTCPeerConnection !== "function") {
-      resolve([]);
-      return;
-    }
-    const ips = new Set<string>();
-    const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
-    const finish = (): void => {
-      peer.onicecandidate = null;
-      peer.close();
-      resolve([...ips]);
-    };
-    peer.onicecandidate = (event) => {
-      if (event.candidate) {
-        collectIps(event.candidate.candidate, ips);
-      }
-    };
-    peer.createDataChannel("@swifty.js/sentry-IP-probe");
-    void peer
-      .createOffer()
-      .then((offer) => peer.setLocalDescription(offer))
-      .catch(finish);
-    setTimeout(finish, Math.max(timeout, 100));
-  });
-}
-```
-
-实现要点:
-
-1. 原理: 建立 WebRTC RTCPeerConnection( STUN 服务器 stun.l.google.com:19302) , 从 ICE candidate 字符串里用正则提取 IPv4/IPv6 地址( ipPattern 同时匹配两种格式)
-2. 超时兜底: 默认 500ms( 下限 100ms) 后强制 finish, close 连接并返回已收集的 IP, 不会悬挂 Promise
-3. 能力降级: 浏览器不支持 RTCPeerConnection 时直接返回空数组
-4. 注意: 该 API 不参与自动上报, 需要业务方主动调用( `const ips = await getIPs()`) ; 现代浏览器的隐私策略( mDNS obfuscation) 可能只返回 .local 地址
-
-sentryLogger( utils/logger.ts) :
-
-1. 开关: 所有日志由 `options.debug` 控制( `globalThis.__sentry__?.options.debug ?? false`), 默认关闭, 生产环境零噪音
-2. 形态: info/success/warn/error 四级, 使用 console.groupCollapsed + 主题色前缀( Iosevka/Maple Mono/Menlo/Cascadia Code 等宽字体) 输出
+1. 开关: 所有日志由 `options.debug` 控制( 每次调用实时读取 `globalThis.__sentry__?.options.debug ?? false`), 默认关闭, 生产环境零噪音; 运行时执行 `globalThis.__sentry__?.setOptions({ debug: true })` 立即生效, 无需重新 init
+2. 形态: info/success/error 三级, 使用 console.groupCollapsed + 主题色前缀( Iosevka/Maple Mono/Menlo/Cascadia Code 等宽字体) 输出
 3. 结构化: 数组数据用 console.table 渲染( 可指定列) , 对象数据嵌套 console.group 展示
 4. 耗时输出: success 级别支持 duration 参数, 上报批次发送成功时会输出 `Time cost Xms`( reporter/index.ts 用 performance.now() 计算 flush 耗时) , 方便定位上报管道的延迟
+5. 防自捕获: error 级别输出走模块加载时提前捕获的原生 `console.error` 引用( 早于 SDK 对 console.error 的装饰) , 因此开启 debug 不会让 SDK 把自己的日志再当成错误上报, 与错误采集侧的重入标志双保险
