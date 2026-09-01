@@ -152,7 +152,7 @@ function sub(type: EventType, handler: TEventHandler): Cleanup {
 
 - 使用 `Set` 而非数组存储 handler, 天然去重且删除为 O(1)
 - 类型约束为 `EventType` 枚举, 编译期即可发现事件名拼写错误
-- 不继承 Node.js EventEmitter, 零依赖且体积更小
+- 不继承 Node.js EventEmitter, 零依赖且体积更小 (TMD 浏览器 SDK 怎么能继承 Node.js EventEmitter?)
 
 ---
 
