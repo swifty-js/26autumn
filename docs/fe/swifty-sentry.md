@@ -560,28 +560,31 @@ offline 事件 ──> isOnline = false
 算法原理:
 
 ```typescript
+const SAMPLE_X_RATIOS = [0.1, 0.5, 0.9] as const;
+const SAMPLE_Y_RATIOS = [0.1, 0.26, 0.42, 0.58, 0.74, 0.9] as const;
+const SAMPLE_POINT_COUNT = SAMPLE_X_RATIOS.length * SAMPLE_Y_RATIOS.length;
+
+let sampleCount = 0;
+
 const countEmptyPoints = (): number => {
   const { innerWidth, innerHeight } = globalThis;
   let emptyPoints = 0;
-  // 水平方向 9 个点 + 垂直方向 9 个点 = 18 个采样点
-  for (let i = 1; i <= 9; i++) {
-    const rowElem = document.elementFromPoint(
-      (innerWidth * i) / 10,
-      innerHeight / 2,
-    );
-    const colElem = document.elementFromPoint(
-      innerWidth / 2,
-      (innerHeight * i) / 10,
-    );
-    if (!rowElem || isRoot(rowElem)) emptyPoints++;
-    if (!colElem || isRoot(colElem)) emptyPoints++;
+  // 3 x 6 网格共 18 个采样点, 外层按行( y )内层按列( x )遍历
+  for (const yRatio of SAMPLE_Y_RATIOS) {
+    for (const xRatio of SAMPLE_X_RATIOS) {
+      const elem = document.elementFromPoint(
+        innerWidth * xRatio,
+        innerHeight * yRatio,
+      );
+      if (!elem || isRoot(elem)) emptyPoints++;
+    }
   }
   return emptyPoints;
 };
 
 const sample = () => {
   sampleCount++;
-  const isWhiteScreen = countEmptyPoints() >= 18; // 18/18 个点都是空/根元素
+  const isWhiteScreen = countEmptyPoints() === SAMPLE_POINT_COUNT; // 18/18 个点都是空/根元素
 
   if (!isWhiteScreen) {
     stopWhiteScreenCheck(); // 出现真实内容, 立即停止采样, 不上报
@@ -596,10 +599,10 @@ const sample = () => {
 
 采样策略:
 
-- 在视口中心水平线均匀取 9 点( 10%~90% 宽度位置)
-- 在视口中心垂直线均匀取 9 点( 10%~90% 高度位置)
-- 每隔 1 秒采样一次( `WHITE_SCREEN_SAMPLE_INTERVAL = 1000`)
-- 连续 10 次( `MAX_WHITE_SCREEN_SAMPLE_COUNT = 10`) 全白才判定白屏并上报; 任何一次采到真实内容立即停止
+- 采样点为确定性的 3 x 6 网格布局: x 轴取 `SAMPLE_X_RATIOS = [0.1, 0.5, 0.9]` 三个位置, y 轴取 `SAMPLE_Y_RATIOS = [0.1, 0.26, 0.42, 0.58, 0.74, 0.9]` 六个位置, 共计 `SAMPLE_POINT_COUNT = 18` 个采样点, 坐标按 `( innerWidth * xRatio, innerHeight * yRatio )` 计算
+- 网格均匀覆盖整个视口, 四角与边缘区域均在采样范围内; 任一采样点返回非根元素即认为页面已渲染真实内容, 立即终止采样且不上报, 降低页面内容偏离视口中心区域时的误报率
+- 采样周期为 1 秒( `WHITE_SCREEN_SAMPLE_INTERVAL = 1000`)
+- 白屏判定条件: 连续 `MAX_WHITE_SCREEN_SAMPLE_COUNT = 10` 次采样中 18 个采样点均为空或根元素, 才判定为白屏并触发上报
 
 根元素判定:
 
