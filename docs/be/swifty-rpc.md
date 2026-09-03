@@ -357,7 +357,7 @@ func (tc *TCPConnection) Close() error {
 - 适用场景: 服务端 `Stop()` 强制关闭所有连接时, 不希望等待大量 TIME_WAIT; 连接异常断开时, 快速释放资源.
 - 代价: 对端正在 `Read` 的 goroutine 收到 "connection reset by peer" 而非 EOF, 无法区分"对端正常关闭"和"网络异常".
 
-这是一个偏向资源回收速度的设计选择, 牺牲了优雅关闭的语义. `GracefulStop` 通过 `SetReadDeadline` 打断空闲连接的阻塞读, 让正在处理中的 handler( 含活跃流) 自然完成后再退出连接 goroutine, 避免了 `Stop` 那样在请求处理中途强拆连接; 但连接最终仍经 `Handle` 的 `defer conn.Close()` 走 `TCPConnection.Close` 的 `SetLinger(0)`, 客户端在 TCP 层收到的仍是 RST 而非 EOF.
+这是一个偏向资源回收速度的设计选择, 牺牲了优雅关闭的语义. `GracefulStop` 通过 `SetReadDeadline` 打断空闲连接的阻塞读, 让正在处理中的 handler (含活跃流) 自然完成后再退出连接 goroutine, 避免了 `Stop` 那样在请求处理中途强拆连接; 但连接最终仍经 `Handle` 的 `defer conn.Close()` 走 `TCPConnection.Close` 的 `SetLinger(0)`, 客户端在 TCP 层收到的仍是 RST 而非 EOF.
 
 ---
 
@@ -408,7 +408,7 @@ future.OnComplete(func(err error) {
 1. 恰好一次: `OnComplete` 存储在 Future 的单一 slot 中, `Done` 幂等保证回调最多触发一次.
 2. 锁外执行: `Done` 在释放 `mu` 之后才调用 `onComplete`, 避免回调内部 (断路器加锁) 与 Future 锁形成死锁.
 3. 即时触发: 如果注册 `OnComplete` 时 Future 已经完成, 回调立即执行, 不会丢失.
-4. 完整覆盖: 响应错误、超时 (通过强制 Done) 都会触发回调; 发送失败( 连接池 Acquire 失败或 `SendAsyncWithCodec` 返回 err) 时 Future 尚未创建, 直接在 `invokeAsync` 中调用 `br.RecordFailure()` (invoke.go:163-166, 183-186), 不经回调. 断路器统计基本不遗漏, 唯一盲区是 `codec.Marshal(args)` 序列化失败( invoke.go:169-172, InvokeStream 同理) : 既不 RecordFailure 也不创建 Future, 该次已通过 `breaker.Allow()` 的调用不会计入窗口.
+4. 完整覆盖: 响应错误、超时 (通过强制 Done) 都会触发回调; 发送失败 (连接池 Acquire 失败或 `SendAsyncWithCodec` 返回 err) 时 Future 尚未创建, 直接在 `invokeAsync` 中调用 `br.RecordFailure()` (invoke.go:163-166, 183-186), 不经回调. 断路器统计基本不遗漏, 唯一盲区是 `codec.Marshal(args)` 序列化失败 (invoke.go:169-172, InvokeStream 同理) : 既不 RecordFailure 也不创建 Future, 该次已通过 `breaker.Allow()` 的调用不会计入窗口.
 
 ### InvokeAsync 的超时看门狗是如何工作的?
 
@@ -473,7 +473,7 @@ Method(req *T, stream ServerStream) error
 反射调用流程:
 
 1. `reflect.New(methodType.In(1).Elem())` 分配请求对象.
-2. `len(body) > 0` 时 `codec.Unmarshal(body, req.Interface())` 反序列化, 空 body 跳过( handler.go:161-165, 188-192) .
+2. `len(body) > 0` 时 `codec.Unmarshal(body, req.Interface())` 反序列化, 空 body 跳过 (handler.go:161-165, 188-192) .
 3. `safeCall(method, args)` 执行 (带 panic 恢复).
 4. 流式: 启动独立 goroutine, 返回 `(nil, true, nil)` 告知 Process 跳过响应写入.
 5. Unary: 返回结果值, 由 Process 序列化并写回.
@@ -1093,7 +1093,7 @@ Watch 持续更新:
 
 选择理由:
 
-- `pending`/`streams`: key 空间不重叠( 每个请求恰好一次 Store + 一次 LoadAndDelete, 读写 1:1, 每个 RequestID 只被一个 goroutine 写入), 这是 sync.Map 的最优场景, 避免了锁竞争.
+- `pending`/`streams`: key 空间不重叠 (每个请求恰好一次 Store + 一次 LoadAndDelete, 读写 1:1, 每个 RequestID 只被一个 goroutine 写入), 这是 sync.Map 的最优场景, 避免了锁竞争.
 - `pools`/`breaker`: 典型的"初始化后只读"模式, LoadOrStore 保证并发安全的懒创建, 之后全是 Load 快路径.
 
 不适用场景: 如果 key 集合频繁变化且读写均匀, 普通 map + RWMutex 可能更优 (sync.Map 的 dirty promotion 有额外开销).

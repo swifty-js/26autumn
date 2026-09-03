@@ -684,7 +684,7 @@ relabel_configs:
   - action: drop # 丢弃指标 (在 metric_relabel_configs 中)
 ```
 
-与 Spring Cloud/Consul 这类"注册中心推送"的区别: Prometheus 是拉模型, SD 只是回答"该去哪里抓", 服务本身不感知监控; target 消失( Pod 删除) 后 instance 自动从 target 列表移除, up 指标随之消失, `absent(up{job=...})` 可用于"目标整个不见了"的告警.
+与 Spring Cloud/Consul 这类"注册中心推送"的区别: Prometheus 是拉模型, SD 只是回答"该去哪里抓", 服务本身不感知监控; target 消失 (Pod 删除) 后 instance 自动从 target 列表移除, up 指标随之消失, `absent(up{job=...})` 可用于"目标整个不见了"的告警.
 
 ### Prometheus 的告警规则和 Alertmanager 是如何协作的?
 

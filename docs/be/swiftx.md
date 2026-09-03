@@ -5,9 +5,9 @@ private: true
 # Swiftx — 技术笔记
 
 > 本机器路径: `$HOME/github/swifty.go/swiftx`
-> 基于 `github.com/hangtiancheng/swifty.go/swiftx` 项目源码分析( Go 1.26, 约 2.9 万行非测试代码, 实测 28,771 行)
+> 基于 `github.com/hangtiancheng/swifty.go/swiftx` 项目源码分析 (Go 1.26, 约 2.9 万行非测试代码, 实测 28,771 行)
 > 技术栈: Go 1.26 / Anthropic SDK / OpenAI SDK / MCP / Bubble Tea TUI
-> 该项目是一个终端 CLI Coding Agent, 具备多模型接入、流式工具执行、双层上下文管理、五层权限体系、OS 级沙箱、长期记忆、多智能体协作( 子代理 / 团队 / git worktree 隔离) 、技能系统与 MCP 集成等能力.
+> 该项目是一个终端 CLI Coding Agent, 具备多模型接入、流式工具执行、双层上下文管理、五层权限体系、OS 级沙箱、长期记忆、多智能体协作 (子代理 / 团队 / git worktree 隔离) 、技能系统与 MCP 集成等能力.
 > 注: 文中行号引用为撰写时的近似位置, 代码迭代后可能存在偏移, 以函数/结构体名称为准.
 
 ## 一、系统架构设计
@@ -16,15 +16,15 @@ private: true
 
 A:
 
-项目是单二进制 Go 程序( `cmd/swiftx`) , 核心按职责分为七块:
+项目是单二进制 Go 程序 (`cmd/swiftx`) , 核心按职责分为七块:
 
-1. Agent 核心( `internal/agent`) : `Agent.Run` 主循环 + `StreamingExecutor` 工具批处理器 + `conversation.Manager` 消息历史.
-2. LLM 抽象层( `internal/llm`) : `Client` 接口统一 anthropic / openai / openai-compat 三种协议, 统一为一套 `StreamEvent` 流式事件模型.
-3. 上下文管理: Layer 1 工具结果预算( `internal/tool_result`) + Layer 2 LLM 摘要压缩( `internal/compact`) , 配合 `internal/session` 的 JSONL 持久化.
-4. 安全层: 五层权限决策( `internal/permissions`) 、OS 级沙箱( `internal/sandbox`, seatbelt/bwrap) 、事件钩子( `internal/hooks`) .
-5. 工具系统( `internal/tools`) : ReadFile/WriteFile/EditFile/Bash/Glob/Grep 内置工具 + MCP 外部工具( `internal/mcp`) + 技能( `internal/skills`) .
-6. 多智能体: 子代理( `internal/subagent`) 、团队( `internal/teams`) 、git worktree 隔离( `internal/worktree`) .
-7. 交互层: bubbletea TUI( `internal/tui`) 、`-p` 非交互模式、基于自研 `swifty_http` 的 `--remote` WebSocket 服务( `internal/remote`) .
+1. Agent 核心 (`internal/agent`) : `Agent.Run` 主循环 + `StreamingExecutor` 工具批处理器 + `conversation.Manager` 消息历史.
+2. LLM 抽象层 (`internal/llm`) : `Client` 接口统一 anthropic / openai / openai-compat 三种协议, 统一为一套 `StreamEvent` 流式事件模型.
+3. 上下文管理: Layer 1 工具结果预算 (`internal/tool_result`) + Layer 2 LLM 摘要压缩 (`internal/compact`) , 配合 `internal/session` 的 JSONL 持久化.
+4. 安全层: 五层权限决策 (`internal/permissions`) 、OS 级沙箱 (`internal/sandbox`, seatbelt/bwrap) 、事件钩子 (`internal/hooks`) .
+5. 工具系统 (`internal/tools`) : ReadFile/WriteFile/EditFile/Bash/Glob/Grep 内置工具 + MCP 外部工具 (`internal/mcp`) + 技能 (`internal/skills`) .
+6. 多智能体: 子代理 (`internal/subagent`) 、团队 (`internal/teams`) 、git worktree 隔离 (`internal/worktree`) .
+7. 交互层: bubbletea TUI (`internal/tui`) 、`-p` 非交互模式、基于自研 `swifty_http` 的 `--remote` WebSocket 服务 (`internal/remote`) .
 
 核心设计原则:
 
@@ -32,7 +32,7 @@ A:
 - 协议无关 LLM 抽象: 单一 `Client` 接口适配 Anthropic / OpenAI / OpenAI-Compatible 三种协议
 - 插件化扩展: Skills (Markdown SOP)、Hooks (生命周期事件)、MCP Servers、Agent Definitions 四种扩展机制
 
-依赖上, 仅引入 anthropic-sdk-go、openai-go、MCP go-sdk、charmbracelet 系( TUI) 等少量库, Agent 循环、权限、压缩、记忆等核心逻辑全部自研.
+依赖上, 仅引入 anthropic-sdk-go、openai-go、MCP go-sdk、charmbracelet 系 (TUI) 等少量库, Agent 循环、权限、压缩、记忆等核心逻辑全部自研.
 
 ---
 
@@ -42,12 +42,12 @@ A:
 
 `cmd/swiftx/main.go:37` 按 flag 分发四种模式:
 
-1. Teammate 工作进程( `--teammate`) : 被团队 Lead 通过 tmux/iTerm 拉起的无头工作进程, 任务从文件邮箱读取, 事件流打到 stderr 供终端面板展示( `cmd/swiftx/teammate.go`) .
-2. Print 模式( `-p/--print`) : 非交互一次性执行, prompt 可来自参数或 stdin, 支持指定输出格式, 适合脚本/CI.
-3. Remote 模式( `--remote [addr]`) : 默认 `:18888`, 用同仓库的 `swifty_http` 框架起 HTTP 服务, `GET /` 提供 Web UI、`GET /ws` 升级 WebSocket 双向转发 Agent 事件( `internal/remote/server.go:158`) .
+1. Teammate 工作进程 (`--teammate`) : 被团队 Lead 通过 tmux/iTerm 拉起的无头工作进程, 任务从文件邮箱读取, 事件流打到 stderr 供终端面板展示 (`cmd/swiftx/teammate.go`) .
+2. Print 模式 (`-p/--print`) : 非交互一次性执行, prompt 可来自参数或 stdin, 支持指定输出格式, 适合脚本/CI.
+3. Remote 模式 (`--remote [addr]`) : 默认 `:18888`, 用同仓库的 `swifty_http` 框架起 HTTP 服务, `GET /` 提供 Web UI、`GET /ws` 升级 WebSocket 双向转发 Agent 事件 (`internal/remote/server.go:158`) .
 4. 默认 TUI 模式: `tea.NewProgram` 启动 bubbletea 终端界面.
 
-四种模式共享同一套 `config.LoadConfig` 配置( providers、permission_mode、mcp_servers、hooks、sandbox、enable_coordinator_mode) , hooks 配置启动时统一 `hooks.Validate` 校验, 非法则降级为无钩子启动而不是崩溃.
+四种模式共享同一套 `config.LoadConfig` 配置 (providers、permission_mode、mcp_servers、hooks、sandbox、enable_coordinator_mode) , hooks 配置启动时统一 `hooks.Validate` 校验, 非法则降级为无钩子启动而不是崩溃.
 
 ---
 
@@ -80,7 +80,7 @@ func (a *Agent) Run(ctx context.Context, conv *conversation.Manager) <-chan Agen
 }
 ```
 
-`Agent.Run`( `internal/agent/agent.go:256`) 返回一个带 32 缓冲的 `<-chan AgentEvent`, 在独立 goroutine 中跑 for 循环. 值得强调的两个细节: 长期记忆通过 `MemoryRecallCh` 与首次 LLM 调用并行预取, 在工具执行完成后非阻塞注入且只消费一次( agent.go:554-560) ; 权限 Ask 决策通过 `PermissionRequestEvent{ResponseCh}` 把一个应答 channel 递给 UI, 实现 HITL 阻塞等待( agent.go:700) .
+`Agent.Run` (`internal/agent/agent.go:256`) 返回一个带 32 缓冲的 `<-chan AgentEvent`, 在独立 goroutine 中跑 for 循环. 值得强调的两个细节: 长期记忆通过 `MemoryRecallCh` 与首次 LLM 调用并行预取, 在工具执行完成后非阻塞注入且只消费一次 (agent.go:554-560) ; 权限 Ask 决策通过 `PermissionRequestEvent{ResponseCh}` 把一个应答 channel 递给 UI, 实现 HITL 阻塞等待 (agent.go:700) .
 
 设计选择的原因:
 
@@ -106,8 +106,8 @@ A:
 
 关键实现细节:
 
-- 主 `AgentEvent` 通道( cap=32) 上的所有事件均为阻塞发送, 缓冲用于吸收 UI 渲染抖动; `PermissionRequestEvent` 携带应答 channel 阻塞等待用户决策( 保证语义正确性)
-- 非阻塞丢弃模式用在子 Agent 进度通道上: `subagent.emitProgress()`( agent_tool.go:506) 用 `select + default` 发送 `SubAgentProgress`, 消费者慢时丢弃进度事件——阻塞发送曾导致 ProgressCh 缓冲填满时子 Agent 循环死锁
+- 主 `AgentEvent` 通道 (cap=32) 上的所有事件均为阻塞发送, 缓冲用于吸收 UI 渲染抖动; `PermissionRequestEvent` 携带应答 channel 阻塞等待用户决策 (保证语义正确性)
+- 非阻塞丢弃模式用在子 Agent 进度通道上: `subagent.emitProgress()` (agent_tool.go:506) 用 `select + default` 发送 `SubAgentProgress`, 消费者慢时丢弃进度事件——阻塞发送曾导致 ProgressCh 缓冲填满时子 Agent 循环死锁
 
 ---
 
@@ -128,7 +128,7 @@ type Client interface {
 
 - Anthropic (`anthropic-sdk-go`): Messages API + Extended Thinking + Prompt Cache
 - OpenAI (`openai-go`): Responses API + Reasoning Summary
-- OpenAI-Compatible: Chat Completions API( 适配 DeepSeek 等第三方)
+- OpenAI-Compatible: Chat Completions API (适配 DeepSeek 等第三方)
 
 关键设计决策:
 
@@ -140,9 +140,9 @@ type Client interface {
    - Anthropic: `input_json_delta` → `ToolCallDelta`
    - OpenAI: `function_call.arguments` delta → `ToolCallDelta`
    - 上层 Agent 只处理统一的 `StreamEvent` 接口
-   - 差异被压到两个边界上: 输入侧, `Registry.GetAllSchemas(protocol)` 把 Anthropic 风格的 `input_schema` 转成 OpenAI 的 `{type:function, parameters}`( `internal/tools/tool.go:182`) ; 输出侧, 各实现把私有 SSE 事件归一成 7 种 `StreamEvent`( TextDelta、ThinkingDelta、ThinkingComplete、ToolCallStart/Delta/Complete、StreamEnd)
+   - 差异被压到两个边界上: 输入侧, `Registry.GetAllSchemas(protocol)` 把 Anthropic 风格的 `input_schema` 转成 OpenAI 的 `{type:function, parameters}` (`internal/tools/tool.go:182`) ; 输出侧, 各实现把私有 SSE 事件归一成 7 种 `StreamEvent` (TextDelta、ThinkingDelta、ThinkingComplete、ToolCallStart/Delta/Complete、StreamEnd)
 
-3. 可选能力用小接口探测: `MaxTokensSetter`( 动态调 max_tokens) 、`contextWindowFetcher`( 仅 Anthropic 实现, 拉取模型窗口) , 体现了 Go 的"隐式小接口 + 类型断言探测可选能力"惯用法, 新增 Provider 只需实现 Stream, Agent 循环零改动.
+3. 可选能力用小接口探测: `MaxTokensSetter` (动态调 max_tokens) 、`contextWindowFetcher` (仅 Anthropic 实现, 拉取模型窗口) , 体现了 Go 的"隐式小接口 + 类型断言探测可选能力"惯用法, 新增 Provider 只需实现 Stream, Agent 循环零改动.
 
 4. Model Resolver 模式:
    ```go
@@ -158,7 +158,7 @@ type Client interface {
 
 A:
 
-问题: HTTP/2 连接可能静默断开( NAT 超时、代理断连) , `stream.Next()` 会永久阻塞.
+问题: HTTP/2 连接可能静默断开 (NAT 超时、代理断连) , `stream.Next()` 会永久阻塞.
 
 解决方案: goroutine-per-read + idle timer
 
@@ -186,10 +186,10 @@ for {
 设计要点:
 
 - 每次 `stream.Next()` 在独立 goroutine 中执行, 主 goroutine 始终可被 timer/ctx 唤醒
-- `nextCh` 容量为 1: 即使主 goroutine 已退出, 读取 goroutine 也不会泄漏( 写入后立即退出)
-- 5 分钟是经验值: 覆盖 LLM 长时间思考( thinking) 场景, 同时不至于让用户等太久
+- `nextCh` 容量为 1: 即使主 goroutine 已退出, 读取 goroutine 也不会泄漏 (写入后立即退出)
+- 5 分钟是经验值: 覆盖 LLM 长时间思考 (thinking) 场景, 同时不至于让用户等太久
 - 计时器重置用了标准的 `if !t.Stop() { drain }` 防泄漏写法
-- 兼容性细节: 某些 OpenAI 兼容网关( 如 MiniMax) 把 InputTokens/缓存字段放在 message_delta 里, 而 SDK 的 `Accumulate` 只拷贝 OutputTokens, 所以手动补丁回填( anthropic.go:289-296)
+- 兼容性细节: 某些 OpenAI 兼容网关 (如 MiniMax) 把 InputTokens/缓存字段放在 message_delta 里, 而 SDK 的 `Accumulate` 只拷贝 OutputTokens, 所以手动补丁回填 (anthropic.go:289-296)
 
 ---
 
@@ -199,22 +199,22 @@ A:
 
 Anthropic Prompt Cache 要求前缀字节完全一致才能命中. Swiftx 的策略:
 
-三个 Cache Breakpoint( `internal/llm/anthropic.go:203-218`) :
+三个 Cache Breakpoint (`internal/llm/anthropic.go:203-218`) :
 
-1. System Prompt 末尾 — 跨 turn 稳定( 最长期稳定的前缀)
+1. System Prompt 末尾 — 跨 turn 稳定 (最长期稳定的前缀)
 2. Tool Schema 列表最后一个 — 跨 turn 稳定
-3. 最后一条 User Message 的最后一个 content block — tail anchor( `markLastUserTailForCache`, anthropic.go:383)
+3. 最后一条 User Message 的最后一个 content block — tail anchor (`markLastUserTailForCache`, anthropic.go:383)
 
 保证字节稳定性的关键机制 — spill preview 的确定性生成:
 
-- Layer 1 预算裁剪时, 对超过阈值的 tool_result 做 spill( 存磁盘, 留 preview)
-- preview 由 `buildSpillPreview` 一次性生成: 相同输入必然产出字节完全一致的输出( `internal/tool_result/budget.go:139-156`) , 且替换文本一旦写入 conversation 历史就绝不再被改写——历史消息不可变, 格式变更只影响新产生的结果
+- Layer 1 预算裁剪时, 对超过阈值的 tool_result 做 spill (存磁盘, 留 preview)
+- preview 由 `buildSpillPreview` 一次性生成: 相同输入必然产出字节完全一致的输出 (`internal/tool_result/budget.go:139-156`) , 且替换文本一旦写入 conversation 历史就绝不再被改写——历史消息不可变, 格式变更只影响新产生的结果
 - 因为 preview 在进入历史的那一刻就是最终形态, 后续每轮请求中该前缀逐字节相同, 天然命中 prompt cache; 不存在"重新计算 preview 导致字节漂移"的问题
 
 Fork 子 Agent 的缓存复用:
 
 - Fork 继承父 Agent 的完整 conversation + tool pool
-- 因为 tool schema 列表相同( `cloneRegistryForFork` 逐字复制注册表, 只把 Agent 工具的 QuerySource 换成 fork 标记) , system prompt 相同, conversation 前缀相同 → 首次请求即可命中父 Agent 已建立的缓存
+- 因为 tool schema 列表相同 (`cloneRegistryForFork` 逐字复制注册表, 只把 Agent 工具的 QuerySource 换成 fork 标记) , system prompt 相同, conversation 前缀相同 → 首次请求即可命中父 Agent 已建立的缓存
 - 共享历史的父子双方看到的请求前缀字节一致, 缓存前缀在两边都命中, 无需传递任何替换决策
 
 ---
@@ -225,23 +225,23 @@ Fork 子 Agent 的缓存复用:
 
 A:
 
-- Layer 1( 工具结果预算) : 结果进入历史的那一刻执行, 细粒度、无 LLM 参与. 把超预算的工具结果外溢到 `.swiftx/sessions/<session-id>/tool-results/` 并替换为带 2KB 预览的存根; 进历史即最终形态, 保证缓存前缀稳定. 解决"单个工具结果撑爆上下文".
-- Layer 2( `compact.ManageContext`) : 按 token 阈值触发, 调用 LLM 把旧前缀总结为结构化摘要, 最近尾部原样保留, 压缩后附加恢复块. 解决"长会话累计增长".
+- Layer 1 (工具结果预算) : 结果进入历史的那一刻执行, 细粒度、无 LLM 参与. 把超预算的工具结果外溢到 `.swiftx/sessions/<session-id>/tool-results/` 并替换为带 2KB 预览的存根; 进历史即最终形态, 保证缓存前缀稳定. 解决"单个工具结果撑爆上下文".
+- Layer 2 (`compact.ManageContext`) : 按 token 阈值触发, 调用 LLM 把旧前缀总结为结构化摘要, 最近尾部原样保留, 压缩后附加恢复块. 解决"长会话累计增长".
 
-两层解耦的原因写在注释里( compact.go:27) : Layer 1 在结果进入历史时就地处理, 消息一旦进历史就是最终形态; Layer 2 是对话级的整体重写, 看到的消息尺寸已是最终尺寸. 此外还有兜底路径: 真实请求返回 `ContextTooLongError` 时直接 `ForceCompact`.
+两层解耦的原因写在注释里 (compact.go:27) : Layer 1 在结果进入历史时就地处理, 消息一旦进历史就是最终形态; Layer 2 是对话级的整体重写, 看到的消息尺寸已是最终尺寸. 此外还有兜底路径: 真实请求返回 `ContextTooLongError` 时直接 `ForceCompact`.
 
 Layer 1 细节:
 
-- 单条 tool_result > 50K chars( `tools.MaxOutputChars`) → spill 到 `.swiftx/sessions/<session-id>/tool-results/{tool_use_id}.txt`, conversation 中只留 2K preview
+- 单条 tool_result > 50K chars (`tools.MaxOutputChars`) → spill 到 `.swiftx/sessions/<session-id>/tool-results/{tool_use_id}.txt`, conversation 中只留 2K preview
 - 单条 message 聚合 > 200K chars → 从最大的 result 开始 spill
-- 回读防环: ReadFile 读回 spill 文件的结果不再二次 spill( 防止"存根的存根"链)
+- 回读防环: ReadFile 读回 spill 文件的结果不再二次 spill (防止"存根的存根"链)
 
 Layer 2 细节:
 
-- Token 估算: Usage Anchor 机制( 首次 API 调用后记录真实 token 数, 后续增量估算)
-- 保留策略: 最近 10K tokens / 5 条消息( 取大) , 上限 40K
-- 摘要请求本身也可能超长 → PTL Retry( 逐步丢弃最旧的 API-round 组, 最多 3 次)
-- 熔断器: 连续 3 次 compact 失败后停止尝试( 避免无限循环)
+- Token 估算: Usage Anchor 机制 (首次 API 调用后记录真实 token 数, 后续增量估算)
+- 保留策略: 最近 10K tokens / 5 条消息 (取大) , 上限 40K
+- 摘要请求本身也可能超长 → PTL Retry (逐步丢弃最旧的 API-round 组, 最多 3 次)
+- 熔断器: 连续 3 次 compact 失败后停止尝试 (避免无限循环)
 
 ---
 
@@ -251,14 +251,14 @@ A:
 
 `internal/tool_result/budget.go` 实现了两趟预算控制:
 
-- Pass 1( 单条限制) : 单个 tool_result 超过 `tools.MaxOutputChars = 50000` 字符即外溢到 `.swiftx/sessions/<session-id>/tool-results/<tool_use_id>.txt`, 替换为 `<persisted-output>` 存根( 含大小、路径、前 2000 字符预览) . 该阈值刻意设得较大, 让模型一次能看到足够内容, 避免频繁回读.
-- Pass 2( 消息聚合限制) : 同一条消息内所有 tool_result 总量超过 `MessageAggregateLimit = 200000` 时, 按内容长度降序依次外溢, 直到总量达标.
+- Pass 1 (单条限制) : 单个 tool_result 超过 `tools.MaxOutputChars = 50000` 字符即外溢到 `.swiftx/sessions/<session-id>/tool-results/<tool_use_id>.txt`, 替换为 `<persisted-output>` 存根 (含大小、路径、前 2000 字符预览) . 该阈值刻意设得较大, 让模型一次能看到足够内容, 避免频繁回读.
+- Pass 2 (消息聚合限制) : 同一条消息内所有 tool_result 总量超过 `MessageAggregateLimit = 200000` 时, 按内容长度降序依次外溢, 直到总量达标.
 
 三个防御细节:
 
 1. 回读环路防护 `IsSpillReadback`——模型 ReadFile 读回外溢文件时不再外溢, 否则会产生"存根的存根"链
 2. 外溢失败时保留原文, 不中断整轮
-3. 写文件用 `O_CREATE|O_EXCL`, 已存在直接复用, 天然幂等( budget.go:166)
+3. 写文件用 `O_CREATE|O_EXCL`, 已存在直接复用, 天然幂等 (budget.go:166)
 
 ---
 
@@ -266,19 +266,19 @@ A:
 
 A:
 
-阈值公式( compact.go:90) :
+阈值公式 (compact.go:90) :
 
 - `effectiveWindow = contextWindow - min(maxOutput, 20000)`
-- 软触发线: `effectiveWindow - 13000`( 自动压缩, 受熔断器保护)
-- 硬阻断线: `effectiveWindow - 3000`( 强制压缩, 绕过熔断器)
+- 软触发线: `effectiveWindow - 13000` (自动压缩, 受熔断器保护)
+- 硬阻断线: `effectiveWindow - 3000` (强制压缩, 绕过熔断器)
 
-保留策略 `computeKeepStartIndex`( compact.go:384) :
+保留策略 `computeKeepStartIndex` (compact.go:384) :
 
-从尾部向前累计 token, 满足"≥ 10000 token 或 ≥ 5 条消息"其一即停, 但上限 40000 token; 边界若落在带 tool_results 的消息上, 向前吸附跨过配对的 assistant tool_use 消息, 绝不拆散 tool_use/tool_result 对( 否则 API 直接拒绝孤儿 tool_result) .
+从尾部向前累计 token, 满足"≥ 10000 token 或 ≥ 5 条消息"其一即停, 但上限 40000 token; 边界若落在带 tool_results 的消息上, 向前吸附跨过配对的 assistant tool_use 消息, 绝不拆散 tool_use/tool_result 对 (否则 API 直接拒绝孤儿 tool_result) .
 
 摘要格式:
 
-前缀交给 LLM 生成九段式结构化摘要( 用户意图、技术概念、文件与代码、错误与修复、全部用户消息、待办、当前工作、下一步等) , 采用 `<analysis>` 草稿 + `<summary>` 两段输出, 仅保留 summary 段.
+前缀交给 LLM 生成九段式结构化摘要 (用户意图、技术概念、文件与代码、错误与修复、全部用户消息、待办、当前工作、下一步等) , 采用 `<analysis>` 草稿 + `<summary>` 两段输出, 仅保留 summary 段.
 
 ---
 
@@ -286,7 +286,7 @@ A:
 
 A:
 
-真实用量锚点 + 增量估算( compact.go:217-248) :
+真实用量锚点 + 增量估算 (compact.go:217-248) :
 
 ```go
 type UsageAnchor struct {
@@ -304,9 +304,9 @@ func ComputeUsedTokens(conv, anchor) int {
 }
 ```
 
-每轮 API 返回后 `RecordUsageAnchor` 记录 `baseline = input + cache_read + cache_creation + output`( Anthropic 的 cache 命中不计入 input_tokens, 必须四项相加才是真实 prompt 大小) 和当时的消息数 `anchorCount`. 压缩后锚点失效必须 `ClearUsageAnchor`, 且带防御性 clamp( anchorCount 越界则回退全量估算) .
+每轮 API 返回后 `RecordUsageAnchor` 记录 `baseline = input + cache_read + cache_creation + output` (Anthropic 的 cache 命中不计入 input_tokens, 必须四项相加才是真实 prompt 大小) 和当时的消息数 `anchorCount`. 压缩后锚点失效必须 `ClearUsageAnchor`, 且带防御性 clamp (anchorCount 越界则回退全量估算) .
 
-这个方案的好处是: 越接近阈值( 决策越关键) 时, 估算里真实值的占比越大, 误差只来自最近一小段增量.
+这个方案的好处是: 越接近阈值 (决策越关键) 时, 估算里真实值的占比越大, 误差只来自最近一小段增量.
 
 不用 tokenizer 的原因:
 
@@ -317,13 +317,13 @@ func ComputeUsedTokens(conv, anchor) int {
 
 ---
 
-### 压缩请求本身超出上下文怎么办? ( PTL 重试机制)
+### 压缩请求本身超出上下文怎么办? (PTL 重试机制)
 
 A:
 
-PTL( prompt-too-long) 重试( compact.go:586-642) :
+PTL (prompt-too-long) 重试 (compact.go:586-642) :
 
-捕获 `ContextTooLongError` 后, `groupMessagesByAPIRound` 按 API 轮次边界分组( 每个组内 tool_use/tool_result 完整配对) , 从最老的组开始丢弃, 目标丢掉约 1/5 的估算 token, 最多重试 `maxPTLRetries = 3` 次.
+捕获 `ContextTooLongError` 后, `groupMessagesByAPIRound` 按 API 轮次边界分组 (每个组内 tool_use/tool_result 完整配对) , 从最老的组开始丢弃, 目标丢掉约 1/5 的估算 token, 最多重试 `maxPTLRetries = 3` 次.
 
 丢弃后如首条不是 user 角色, 插入 `[earlier conversation truncated...]` 标记消息保证请求以 user 开头. 按轮次分组丢弃而不是按消息丢弃, 同样是为了不产生孤儿 tool_result.
 
@@ -335,9 +335,9 @@ A:
 
 两个机制:
 
-1. 内存内恢复块: `RecoveryState` 并发安全地记录最近的文件读取快照( 每次 ReadFile 成功后重读磁盘存一份, agent.go:756) 和已激活技能 SOP; 压缩后 `BuildRecoveryAttachment` 把这些快照 + 当前工具清单拼在摘要消息后面, 模型不用重新 Read 一遍刚看过的文件.
+1. 内存内恢复块: `RecoveryState` 并发安全地记录最近的文件读取快照 (每次 ReadFile 成功后重读磁盘存一份, agent.go:756) 和已激活技能 SOP; 压缩后 `BuildRecoveryAttachment` 把这些快照 + 当前工具清单拼在摘要消息后面, 模型不用重新 Read 一遍刚看过的文件.
 
-2. 磁盘断点: `session.SaveCompactBoundary` 向会话 JSONL 追加一条 `type=compact_boundary` 记录, Content 是 `{summary, keep[]}` JSON( `internal/session/session.go:163`) . 恢复时 `FindLastCompactBoundary` 找最后一个断点( session.go:181) , 重建为"摘要消息 + 保留尾部 + 断点后的普通消息", 避免重放全量历史; 断点损坏时回退全量重放, 旧会话无断点也天然兼容.
+2. 磁盘断点: `session.SaveCompactBoundary` 向会话 JSONL 追加一条 `type=compact_boundary` 记录, Content 是 `{summary, keep[]}` JSON (`internal/session/session.go:163`) . 恢复时 `FindLastCompactBoundary` 找最后一个断点 (session.go:181) , 重建为"摘要消息 + 保留尾部 + 断点后的普通消息", 避免重放全量历史; 断点损坏时回退全量重放, 旧会话无断点也天然兼容.
 
 摘要消息里还附上完整会话日志路径, 模型需要压缩前细节时可以自己 ReadFile 翻旧账.
 
@@ -349,27 +349,27 @@ A:
 
 A:
 
-核心接口 5 个方法: `Name/Description/Category/Schema/Execute`( `internal/tools/tool.go:93`) , `Category` 返回 read/write/command 三类, 同时服务于并发批处理和权限矩阵. 一个可选小接口:
+核心接口 5 个方法: `Name/Description/Category/Schema/Execute` (`internal/tools/tool.go:93`) , `Category` 返回 read/write/command 三类, 同时服务于并发批处理和权限矩阵. 一个可选小接口:
 
-- `DeferrableTool.ShouldDefer()`: 延迟工具不进默认 schema 列表, 只在 system-reminder 里列名字, 模型需要时用 `ToolSearch` 按 `select:<name>` 加载 schema( agent.go:333-347) . 仅 MCP 工具实现该接口( `MCPToolWrapper.ShouldDefer()` 默认返回 true, 可通过 `SetDeferLoading(false)` 关闭) , 内置工具集固定可控, 隐藏它们只会迫使模型多走一趟 ToolSearch, 故永不延迟.
+- `DeferrableTool.ShouldDefer()`: 延迟工具不进默认 schema 列表, 只在 system-reminder 里列名字, 模型需要时用 `ToolSearch` 按 `select:<name>` 加载 schema (agent.go:333-347) . 仅 MCP 工具实现该接口 (`MCPToolWrapper.ShouldDefer()` 默认返回 true, 可通过 `SetDeferLoading(false)` 关闭) , 内置工具集固定可控, 隐藏它们只会迫使模型多走一趟 ToolSearch, 故永不延迟.
 
 延迟加载解决的问题:
 
 MCP Server 可能注册数十个工具, 每个工具的 JSON Schema 占 200-500 tokens. 全部注入 prompt 会:
 
-1. 浪费上下文窗口( 10 个 MCP Server x 5 个工具 x 300 tokens = 15K tokens)
-2. 增加首次响应延迟( 更多 input tokens)
-3. 降低模型选择正确工具的准确率( 选项过多)
+1. 浪费上下文窗口 (10 个 MCP Server x 5 个工具 x 300 tokens = 15K tokens)
+2. 增加首次响应延迟 (更多 input tokens)
+3. 降低模型选择正确工具的准确率 (选项过多)
 4. 破坏缓存前缀稳定性
 
 ToolSearch 的两种模式:
 
-- `select:Name1,Name2` — 精确加载( LLM 已知工具名)
-- 关键词搜索 — 模糊匹配 description( LLM 描述需求)
+- `select:Name1,Name2` — 精确加载 (LLM 已知工具名)
+- 关键词搜索 — 模糊匹配 description (LLM 描述需求)
 
 ---
 
-### 工具的安全分级执行( Safety-Based Batching) 是如何实现的?
+### 工具的安全分级执行 (Safety-Based Batching) 是如何实现的?
 
 A:
 
@@ -400,14 +400,14 @@ for _, batch := range batches {
 }
 ```
 
-`StreamingExecutor.ExecuteAll`( `internal/agent/streaming_executor.go:78`) 按安全类别分批: `partitionToolCalls` 把相邻的只读工具( `Category() == CategoryRead`) 合并成一个并发批次, 用 WaitGroup 并行执行; 写/命令类工具各自独占串行批次.
+`StreamingExecutor.ExecuteAll` (`internal/agent/streaming_executor.go:78`) 按安全类别分批: `partitionToolCalls` 把相邻的只读工具 (`Category() == CategoryRead`) 合并成一个并发批次, 用 WaitGroup 并行执行; 写/命令类工具各自独占串行批次.
 
 设计考量:
 
 - Read 工具并发安全: Glob、Grep、ReadFile 无副作用, 可安全并行
 - Write 工具必须串行: Edit A.js 和 Edit B.js 可能通过 import 关系相互影响; LLM 的意图是按序执行
 - Index 追踪: 结果按原始提交顺序放回, 保证 conversation 中 tool_result 顺序与 tool_use 对应
-- 流式提交: 工具在 LLM 还在输出时就开始提交( `StreamingExecutor`) , 不必等所有 tool_call 解析完
+- 流式提交: 工具在 LLM 还在输出时就开始提交 (`StreamingExecutor`) , 不必等所有 tool_call 解析完
 
 这是一个典型的"读并发、写串行"策略: 读操作天然幂等可并行提速, 写和命令有副作用必须保序, 且实现上只用一个 mutex + index 回填, 避免了复杂的依赖图分析.
 
@@ -435,13 +435,13 @@ if ok, errMsg := cache.Check(path); !ok {
 cache.Update(path) // 内部 stat 取新 mtime, 无需外部传入
 ```
 
-`FileStateCache`( `internal/tools/file_state_cache.go`) 以绝对路径为 key 记录每次成功 Read 的 mtime( UnixMilli) , Edit/Write 前 `Check(path) (bool, string)`:
+`FileStateCache` (`internal/tools/file_state_cache.go`) 以绝对路径为 key 记录每次成功 Read 的 mtime (UnixMilli) , Edit/Write 前 `Check(path) (bool, string)`:
 
 - 从未读过 → 拒绝: "先读再改"
-- 磁盘 mtime 比缓存新( 被外部修改) → 拒绝: "文件已变化, 请重新读取"
+- 磁盘 mtime 比缓存新 (被外部修改) → 拒绝: "文件已变化, 请重新读取"
 - 文件已被删除时 stat 失败 → 放行, 交给调用方处理
 
-ReadFile/WriteFile/EditFile 共享同一个 cache 实例( `CreateDefaultToolsWithWorkDir`, tool.go:321) , 写成功后 `Update` 自行 stat 刷新 mtime. 互斥锁保护 map, 因为只读批次里多个 Read 可能并发.
+ReadFile/WriteFile/EditFile 共享同一个 cache 实例 (`CreateDefaultToolsWithWorkDir`, tool.go:321) , 写成功后 `Update` 自行 stat 刷新 mtime. 互斥锁保护 map, 因为只读批次里多个 Read 可能并发.
 
 解决的问题:
 
@@ -457,26 +457,26 @@ ReadFile/WriteFile/EditFile 共享同一个 cache 实例( `CreateDefaultToolsWit
 
 A:
 
-`interpretExitCode`( `internal/tools/bash.go:50`) 内置常见命令的退出码语义表:
+`interpretExitCode` (`internal/tools/bash.go:50`) 内置常见命令的退出码语义表:
 
 - grep/rg 的 1 表示"无匹配"
 - diff 的 1 表示"文件有差异"
 - find 的 1 表示"部分目录不可访问"
 - test 的 1 表示"条件为假"
 
-这些都不是错误, 阈值 ≥2 才算真错. 管道命令取最后一段的 base 命令判断( bash 默认行为) . 最终 `IsError` 只在超时/中断、命令为空以及进程启动/执行失败( 如命令不存在) 时为 true, 普通非零退出码把 `Exit code N (语义提示)` 拼进输出让模型自己判断.
+这些都不是错误, 阈值 ≥2 才算真错. 管道命令取最后一段的 base 命令判断 (bash 默认行为) . 最终 `IsError` 只在超时/中断、命令为空以及进程启动/执行失败 (如命令不存在) 时为 true, 普通非零退出码把 `Exit code N (语义提示)` 拼进输出让模型自己判断.
 
 这避免了模型把 "grep 没搜到" 误读为工具故障而反复重试.
 
 其余要点:
 
-- 默认 120s、上限 600s 超时( context.WithTimeout)
+- 默认 120s、上限 600s 超时 (context.WithTimeout)
 - stdout/stderr 合并为单流
 - 沙箱可用时命令先经 `Sandbox.Wrap` 包装
 
 ---
 
-### 流式工具提交( Streaming Tool Execution) 的实现原理?
+### 流式工具提交 (Streaming Tool Execution) 的实现原理?
 
 A:
 
@@ -496,7 +496,7 @@ results := executor.ExecuteAll(ctx, agent)  // 批量执行
 
 - 如果 LLM 输出了 3 个 ReadFile 调用, 第 1 个解析完时就可以开始执行
 - 实际上由于 LLM 输出速度 < 工具执行速度, 收益有限
-- 但对 Bash 命令( 可能耗时数秒) , 提前提交可以 overlap LLM 输出时间和工具执行时间
+- 但对 Bash 命令 (可能耗时数秒) , 提前提交可以 overlap LLM 输出时间和工具执行时间
 
 StreamingExecutor 内部状态:
 
@@ -519,7 +519,7 @@ type StreamingExecutor struct {
 
 A:
 
-`Checker.Check`( `internal/permissions/permissions.go:515`) 自上而下短路:
+`Checker.Check` (`internal/permissions/permissions.go:515`) 自上而下短路:
 
 ```
 请求 → Layer 0: Plan Mode 例外
@@ -537,13 +537,13 @@ A:
 | 层  | 机制                                                                                                                                                    | 示例                                                                                                                                        |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | L0  | Plan 模式下允许写 plan file                                                                                                                             | `Write(.swiftx/plans/<slug>.md)`                                                                                                            |
-| L1  | 64 个安全命令前缀白名单( 且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符)                                                                          | `git status`, `ls`, `cat`, `go version`                                                                                                     |
-| L2  | 正则黑名单( 不可绕过, 注释明确"黑名单是硬防线, 沙箱开着也要查")                                                                                         | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                                           |
-| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认( 但显式 deny/ask 规则仍生效, 复合命令拆分逐段检查)                                                           | 沙箱限制了实际破坏范围                                                                                                                      |
+| L1  | 64 个安全命令前缀白名单 (且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符)                                                                          | `git status`, `ls`, `cat`, `go version`                                                                                                     |
+| L2  | 正则黑名单 (不可绕过, 注释明确"黑名单是硬防线, 沙箱开着也要查")                                                                                         | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                                           |
+| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认 (但显式 deny/ask 规则仍生效, 复合命令拆分逐段检查)                                                           | 沙箱限制了实际破坏范围                                                                                                                      |
 | L3  | 文件操作限制在项目根 + /tmp, 且 `.swiftx/config.yaml`、`.swiftx/permissions.local.yaml`、`.swiftx/skills` 是 denyWrite 保护路径, 任何权限模式下都拒写   | 拒绝写 `~/.ssh/authorized_keys`, 防止 Agent 改写自己的权限配置实现提权                                                                      |
-| L4  | user/project/local 三个 YAML 合并为一个规则集求值, 匹配规则中取最严效果: deny > ask > allow, 单层 allow 无法覆盖另一层的 deny, `ToolName(pattern)` 语法 | 自研 glob 里 `*` 匹配含 `/` 的任意字符( 标准 filepath.Match 的 `*` 不跨 `/`, 会让带路径的命令 allow-always 失效)                            |
+| L4  | user/project/local 三个 YAML 合并为一个规则集求值, 匹配规则中取最严效果: deny > ask > allow, 单层 allow 无法覆盖另一层的 deny, `ToolName(pattern)` 语法 | 自研 glob 里 `*` 匹配含 `/` 的任意字符 (标准 filepath.Match 的 `*` 不跨 `/`, 会让带路径的命令 allow-always 失效)                            |
 | L4b | Permission Mode 矩阵                                                                                                                                    | default 读放行写/命令询问; acceptEdits 写也放行; bypass 全放行                                                                              |
-| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件, 下一轮求值即生效( agent.go:723 调用, 方法定义 permissions.go:368) |
+| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件, 下一轮求值即生效 (agent.go:723 调用, 方法定义 permissions.go:368) |
 
 防绕过设计:
 
@@ -552,7 +552,7 @@ A:
 
 ---
 
-### OS 级沙箱( macOS seatbelt / Linux bubblewrap) 是如何集成的?
+### OS 级沙箱 (macOS seatbelt / Linux bubblewrap) 是如何集成的?
 
 A:
 
@@ -563,7 +563,7 @@ type Sandbox interface {
 }
 ```
 
-macOS (seatbelt)( `internal/sandbox/sandbox_darwin.go`) :
+macOS (seatbelt) (`internal/sandbox/sandbox_darwin.go`) :
 
 动态生成 profile:
 
@@ -578,10 +578,10 @@ macOS (seatbelt)( `internal/sandbox/sandbox_darwin.go`) :
 (deny network*)                         ; 可选: 禁止网络
 ```
 
-- 按 AllowWrite 逐路径放行写 → 按 DenyWrite 逐路径拒写( seatbelt 后写规则优先, 文件用 literal、目录用 subpath)
+- 按 AllowWrite 逐路径放行写 → 按 DenyWrite 逐路径拒写 (seatbelt 后写规则优先, 文件用 literal、目录用 subpath)
 - 使用硬编码路径 `/usr/bin/sandbox-exec` 防止 PATH 注入
 
-Linux (bubblewrap)( `internal/sandbox/sandbox_linux.go`) :
+Linux (bubblewrap) (`internal/sandbox/sandbox_linux.go`) :
 
 ```bash
 bwrap --unshare-user --unshare-pid \
@@ -599,8 +599,8 @@ AllowWrite 路径 `--bind` 可写, DenyWrite `--ro-bind` 覆盖回只读, 挂 `/
 与权限系统的协作:
 
 - 沙箱管"进程能碰什么", 权限层管"要不要问人", 黑名单则独立于两者始终生效
-- 沙箱启用时, Layer 2b 自动放行大部分命令( 因为实际破坏力已被沙箱限制)
-- 但 Layer 2 危险命令黑名单仍然生效( defense in depth)
+- 沙箱启用时, Layer 2b 自动放行大部分命令 (因为实际破坏力已被沙箱限制)
+- 但 Layer 2 危险命令黑名单仍然生效 (defense in depth)
 - 用户显式 deny 规则仍然生效
 
 ---
@@ -629,28 +629,28 @@ hooks:
 | `!=`   | 不等于    | `tool != "ReadFile"`                                     |
 | `=~`   | 正则匹配  | `file_path =~ "\\.go$"`                                  |
 | `=*`   | Glob 匹配 | `file_path =* "/*.ts"`                                   |
-| `&&`   | 逻辑与    | 复合条件( 与 `\|\|` 同优先级, 从左到右求值)              |
+| `&&`   | 逻辑与    | 复合条件 (与 `\|\|` 同优先级, 从左到右求值)              |
 | `\|\|` | 逻辑或    | 复合条件                                                 |
-| `!`    | 一元取非  | `!tool == "ReadFile"`( 须紧接叶子条件, 不能跨运算符拆分) |
+| `!`    | 一元取非  | `!tool == "ReadFile"` (须紧接叶子条件, 不能跨运算符拆分) |
 
-可用变量: `tool`, `event`, `file_path`, `message`, `args.*`( 工具参数)
+可用变量: `tool`, `event`, `file_path`, `message`, `args.*` (工具参数)
 
 四种 Action 类型:
 
-1. `command`: 执行 shell 命令( 注入 `SWIFTX_EVENT`, `SWIFTX_TOOL`, `SWIFTX_FILE_PATH` 环境变量)
+1. `command`: 执行 shell 命令 (注入 `SWIFTX_EVENT`, `SWIFTX_TOOL`, `SWIFTX_FILE_PATH` 环境变量)
 2. `prompt`: 向 conversation 注入一条 system-reminder 消息
-3. `http`: 发送 webhook( 10s 超时)
+3. `http`: 发送 webhook (10s 超时)
 4. `agent`: 调用一个 LLM one-shot agent 做判断
 
 执行模式:
 
-- 同步( 默认) : 阻塞工具执行直到 hook 完成, 默认超时 10 分钟
+- 同步 (默认) : 阻塞工具执行直到 hook 完成, 默认超时 10 分钟
 - `async: true`: fire-and-forget
-- `once: true`: session 内只触发一次( 通过 `fired` map 去重)
+- `once: true`: session 内只触发一次 (通过 `fired` map 去重)
 - `reject: true`: hook 失败/返回非零 → 拒绝工具执行
-- `on_error`( fail/ignore/reject) 三种失败策略
+- `on_error` (fail/ignore/reject) 三种失败策略
 
-配置在启动时集中 `Validate`, 用 `errors.Join` 聚合全部问题一次性报出. 钩子失败不阻塞主循环, 结果进通知队列在下一轮作为 system-reminder 排出( agent.go:579-589) .
+配置在启动时集中 `Validate`, 用 `errors.Join` 聚合全部问题一次性报出. 钩子失败不阻塞主循环, 结果进通知队列在下一轮作为 system-reminder 排出 (agent.go:579-589) .
 
 ---
 
@@ -664,15 +664,15 @@ A:
 
 组织:
 
-双目录——用户级 `~/.swiftx/memory/`( user/feedback 类型) 与项目级 `<root>/.swiftx/memory/`( project/reference 类型) , 入口文件 `MEMORY.md`, 每条记忆是带 frontmatter( 描述、类型) 的 markdown 文件. 四种类型见 `memory_types.go:31`.
+双目录——用户级 `~/.swiftx/memory/` (user/feedback 类型) 与项目级 `<root>/.swiftx/memory/` (project/reference 类型) , 入口文件 `MEMORY.md`, 每条记忆是带 frontmatter (描述、类型) 的 markdown 文件. 四种类型见 `memory_types.go:31`.
 
 提取:
 
-主循环 `LoopComplete` 后 `OnLoopComplete` 回调在后台 goroutine 里触发 extractor, 用 LLM 从对话中提炼值得保存的记忆, 失败静默、不阻塞主流程( agent.go:478-479) .
+主循环 `LoopComplete` 后 `OnLoopComplete` 回调在后台 goroutine 里触发 extractor, 用 LLM 从对话中提炼值得保存的记忆, 失败静默、不阻塞主流程 (agent.go:478-479) .
 
-召回( 两条路) :
+召回 (两条路) :
 
-1. 启动时 `InjectLongTermMemory` 把指令( SWIFTX.md) + 记忆内容以 system-reminder 形式一次性前插到对话头部( conversation.go:147)
+1. 启动时 `InjectLongTermMemory` 把指令 (SWIFTX.md) + 记忆内容以 system-reminder 形式一次性前插到对话头部 (conversation.go:147)
 2. 会话中 `FindRelevantMemories` 用 LLM 按 query 从记忆清单里挑相关项, 通过 `MemoryRecallCh` 与首次主 LLM 调用并行预取、工具执行后注入
 
 保鲜:
@@ -685,16 +685,16 @@ A:
 
 A:
 
-记忆整合( consolidation) 可能被多个 Swiftx 进程同时触发, 用 PID 文件锁互斥( `internal/memory/consolidation/lock.go:62`) :
+记忆整合 (consolidation) 可能被多个 Swiftx 进程同时触发, 用 PID 文件锁互斥 (`internal/memory/consolidation/lock.go:62`) :
 
 1. stat 锁文件拿 mtime, 读内容拿持有者 PID
-2. 锁存在、mtime 在 1 小时内( `holderStaleMs`) 、且 PID 进程仍存活( unix 用 `kill(pid, 0)` 探测, Windows 有独立实现) → 放弃
+2. 锁存在、mtime 在 1 小时内 (`holderStaleMs`) 、且 PID 进程仍存活 (unix 用 `kill(pid, 0)` 探测, Windows 有独立实现) → 放弃
 3. 否则写入自己的 PID, 读回校验——若读回不是自己的 PID 说明竞态输了, 放弃
-4. 成功时返回原 mtime 供失败回滚( `RollbackLock`) , 锁文件 mtime 兼作"上次整合完成时间", 一次 stat 就能查( `ReadLastConsolidatedAt`)
+4. 成功时返回原 mtime 供失败回滚 (`RollbackLock`) , 锁文件 mtime 兼作"上次整合完成时间", 一次 stat 就能查 (`ReadLastConsolidatedAt`)
 
-1 小时过期 + 存活探测的组合同时防了两个问题: 进程崩溃锁泄漏( 过期回收) 与 PID 复用误判( 即使 PID 活着, 超 1 小时也视为过期) . 这是无守护进程场景下典型的"穷人版分布式锁".
+1 小时过期 + 存活探测的组合同时防了两个问题: 进程崩溃锁泄漏 (过期回收) 与 PID 复用误判 (即使 PID 活着, 超 1 小时也视为过期) . 这是无守护进程场景下典型的"穷人版分布式锁".
 
-teams 的文件邮箱用的是另一套: `O_CREATE|O_EXCL` 原子创建 + 指数退避( 5ms 起步、上限 maxLockBackoff=80ms) + 随机 jitter + 总时限 lockAcquireTimeout=5s, 超龄 10 秒( staleLockAge) 的锁文件视为崩溃残留直接抢占; 超时返回错误而非静默丢消息( file_mailbox.go:33-43,139-163) .
+teams 的文件邮箱用的是另一套: `O_CREATE|O_EXCL` 原子创建 + 指数退避 (5ms 起步、上限 maxLockBackoff=80ms) + 随机 jitter + 总时限 lockAcquireTimeout=5s, 超龄 10 秒 (staleLockAge) 的锁文件视为崩溃残留直接抢占; 超时返回错误而非静默丢消息 (file_mailbox.go:33-43,139-163) .
 
 ---
 
@@ -704,10 +704,10 @@ A:
 
 JSONL 的优势:
 
-追加式 JSONL( `internal/session/session.go`) : 每条消息一行 `{role, type, content, ts}`, 工具调用与结果以可选的 `tool_uses`/`tool_results` 结构化块附在同一条消息上( session.go:63-77, 无顶层 tool_use_id 字段), 存于 `.swiftx/sessions/<id>.jsonl`; ID 格式为 `时间戳-4位随机hex`, crypto/rand 失败时退化到纳秒时间戳低 16 位.
+追加式 JSONL (`internal/session/session.go`) : 每条消息一行 `{role, type, content, ts}`, 工具调用与结果以可选的 `tool_uses`/`tool_results` 结构化块附在同一条消息上 (session.go:63-77, 无顶层 tool_use_id 字段), 存于 `.swiftx/sessions/<id>.jsonl`; ID 格式为 `时间戳-4位随机hex`, crypto/rand 失败时退化到纳秒时间戳低 16 位.
 
-1. Append-only: 每次写一行, 无需读取/重写整个文件( O(1) 写入)
-2. 崩溃安全: 最多丢失最后一行( 未 flush 的) , 不会损坏整个文件
+1. Append-only: 每次写一行, 无需读取/重写整个文件 (O(1) 写入)
+2. 崩溃安全: 最多丢失最后一行 (未 flush 的) , 不会损坏整个文件
 3. 增量解析: resume 时可以从任意行开始读取
 4. 可 grep: `grep "tool_use" session.jsonl` 快速定位
 5. 历史永不被改写: 压缩也只是追加断点记录, 旧消息仍留在文件里可供模型 ReadFile 查阅
@@ -724,12 +724,12 @@ Compact Boundary 的作用:
 ```
 
 - Resume 优化: 不需要重放全部 200 条消息, 从最后一个 boundary 恢复即可
-- 语义连续: summary 保留了关键上下文( 做了什么、为什么、当前状态)
-- Keep 数组: 最近的消息原文保留( 避免摘要丢失细节)
+- 语义连续: summary 保留了关键上下文 (做了什么、为什么、当前状态)
+- Keep 数组: 最近的消息原文保留 (避免摘要丢失细节)
 
 恢复流程:
 
-读全部记录 → `FindLastCompactBoundary` 定位最后压缩断点 → 有断点则按"摘要 + keep 尾部 + 断点后消息"重建( 避免重放巨量旧历史) , 无断点或断点 JSON 损坏则全量重放.
+读全部记录 → `FindLastCompactBoundary` 定位最后压缩断点 → 有断点则按"摘要 + keep 尾部 + 断点后消息"重建 (避免重放巨量旧历史) , 无断点或断点 JSON 损坏则全量重放.
 
 ---
 
@@ -739,9 +739,9 @@ A:
 
 三层解析, 优先级从高到低:
 
-1. 显式配置: `ProviderConfig.ContextWindow`( YAML `context_window`) 直接生效
-2. API 拉取: `ResolveContextWindow`( client.go:70) 仅对 anthropic 协议, 启动时调 `/v1/models/{model}` 取 `max_input_tokens`, 一次拉取缓存在 cfg 上. 全程 best-effort: 禁用 SDK 重试、带超时、`recover()` 兜底 panic, 任何失败都静默落到下一层( anthropic.go:138-160)
-3. 内置映射表/默认值: 按模型名子串匹配( `1m`/`gpt-4.1` 族 1M, `gpt-4o`/`gpt-4-turbo` 128K, `o1/o3/o4` 与 `claude` 200K, config.go:78-86) , 都未命中时保守兜底: claude 系 200000、其余 128000( config.go:118-132)
+1. 显式配置: `ProviderConfig.ContextWindow` (YAML `context_window`) 直接生效
+2. API 拉取: `ResolveContextWindow` (client.go:70) 仅对 anthropic 协议, 启动时调 `/v1/models/{model}` 取 `max_input_tokens`, 一次拉取缓存在 cfg 上. 全程 best-effort: 禁用 SDK 重试、带超时、`recover()` 兜底 panic, 任何失败都静默落到下一层 (anthropic.go:138-160)
+3. 内置映射表/默认值: 按模型名子串匹配 (`1m`/`gpt-4.1` 族 1M, `gpt-4o`/`gpt-4-turbo` 128K, `o1/o3/o4` 与 `claude` 200K, config.go:78-86) , 都未命中时保守兜底: claude 系 200000、其余 128000 (config.go:118-132)
 
 设计要点是"启动路径上的网络调用永远不能阻塞或搞挂进程".
 
@@ -760,10 +760,10 @@ A:
 | Goroutine-per-read    | SSE 流读取 + idle timeout            | chan (cap=1)                                                                    |
 | Non-blocking send     | 进度事件 (可丢弃)                    | `select` + `default`                                                            |
 | Background goroutine  | 异步子 Agent / Memory extraction     | `TaskManager` + notification chan                                               |
-| File locking          | Memory consolidation                 | PID 锁文件( 写入-读回校验 + 1h 过期 + kill(pid,0) 存活探测) , 非 flock          |
-| 并行预取              | 记忆召回与主 LLM 调用并行            | channel 非阻塞 select 消费一次后置 nil( nil channel 永远阻塞, 天然表达"已消费") |
+| File locking          | Memory consolidation                 | PID 锁文件 (写入-读回校验 + 1h 过期 + kill(pid,0) 存活探测) , 非 flock          |
+| 并行预取              | 记忆召回与主 LLM 调用并行            | channel 非阻塞 select 消费一次后置 nil (nil channel 永远阻塞, 天然表达"已消费") |
 | fire-and-forget       | 记忆提取 `go a.OnLoopComplete(conv)` | 失败静默                                                                        |
-| 文件级互斥( 两套)     | consolidation / mailbox              | PID+过期+读回校验 / O_EXCL+指数退避+jitter+超龄抢占, 按场景选型                 |
+| 文件级互斥 (两套)     | consolidation / mailbox              | PID+过期+读回校验 / O_EXCL+指数退避+jitter+超龄抢占, 按场景选型                 |
 
 避免数据竞争的关键设计:
 
@@ -780,7 +780,7 @@ A:
    - 多个并发工具 goroutine 可能同时记录文件快照
    - `mu.Lock()` 保护 `fileSnapshots` map
 
-3. Conversation Manager 非并发安全( by design) :
+3. Conversation Manager 非并发安全 (by design) :
    - 只在 Agent Loop goroutine 中修改
    - TUI 通过事件 channel 获取只读快照
    - 避免了对 conversation 加锁的性能开销
@@ -811,23 +811,23 @@ A:
 
 ## 八、多 Agent 协作与扩展
 
-### 子 Agent 的三种 spawn 模式( Sync/Async/Fork) 的设计考量?
+### 子 Agent 的三种 spawn 模式 (Sync/Async/Fork) 的设计考量?
 
 A:
 
-`AgentTool`( `internal/subagent/agent_tool.go`) 是单个工具多角色:
+`AgentTool` (`internal/subagent/agent_tool.go`) 是单个工具多角色:
 
 | 模式              | 触发条件                                                                              | 上下文                               | 阻塞                        | 适用场景                                                      |
 | ----------------- | ------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------- | ------------------------------------------------------------- |
-| Sync( 角色子代理) | `subagent_type` 指定                                                                  | 新 conversation + 按角色过滤的工具集 | 是                          | 快速查询( Explore agent) , "研究后只带结论回来", 保护主上下文 |
-| Async             | `run_in_background: true`                                                             | 新 conversation                      | 否                          | 耗时任务( 测试、构建)                                         |
-| Fork              | 无 `subagent_type` (需 `enable_fork` 开启, 默认开; 禁用时回退 general-purpose 子代理) | 复制父 conversation                  | 是( 除非 run_in_background) | 需要完整上下文的分支任务                                      |
+| Sync (角色子代理) | `subagent_type` 指定                                                                  | 新 conversation + 按角色过滤的工具集 | 是                          | 快速查询 (Explore agent) , "研究后只带结论回来", 保护主上下文 |
+| Async             | `run_in_background: true`                                                             | 新 conversation                      | 否                          | 耗时任务 (测试、构建)                                         |
+| Fork              | 无 `subagent_type` (需 `enable_fork` 开启, 默认开; 禁用时回退 general-purpose 子代理) | 复制父 conversation                  | 是 (除非 run_in_background) | 需要完整上下文的分支任务                                      |
 
 Fork 的独特设计:
 
 - 继承父 Agent 的完整 conversation → prompt cache 复用
 - 继承父 Agent 的 tool pool → schema 一致 → cache 命中
-- 关键工程点是 `cloneRegistryForFork` ( subagent/agent_tool.go:539) ——子代理获得父 Registry 的完整拷贝 (工具定义、schema 顺序一致) , 但标记 `QuerySource = "agent:builtin:fork"`, 使父子共享的历史前缀字节一致, Prompt Cache 前缀在两边都命中
+- 关键工程点是 `cloneRegistryForFork` (subagent/agent_tool.go:539) ——子代理获得父 Registry 的完整拷贝 (工具定义、schema 顺序一致) , 但标记 `QuerySource = "agent:builtin:fork"`, 使父子共享的历史前缀字节一致, Prompt Cache 前缀在两边都命中
 - 嵌套 Fork 防护:
   - `QuerySource = "agent:builtin:fork"` 标记检测
   - 该信号存在于 Agent 结构而非对话文本里, 压缩也冲不掉
@@ -835,10 +835,10 @@ Fork 的独特设计:
 
 参数支持:
 
-- `model` 覆盖( sonnet/opus/haiku, 经 ModelResolver)
+- `model` 覆盖 (sonnet/opus/haiku, 经 ModelResolver)
 - `run_in_background`
-- `isolation: worktree`( 见 Q30)
-- `team_name`( 转为长驻队友)
+- `isolation: worktree` (见 Q30)
+- `team_name` (转为长驻队友)
 - `mode` 权限模式覆盖——子代理复用父 Checker 的 Sandbox 与 RuleEngine, 只覆盖 Mode, 保证权限边界不因派生而放松
 
 Async 的 Notification 机制:
@@ -868,21 +868,21 @@ TeamManager
 
 通信机制:
 
-1. FileMailBox( 基于文件的邮箱, `file_mailbox.go`) :
+1. FileMailBox (基于文件的邮箱, `file_mailbox.go`) :
 
    ```
    ~/.swiftx/teams/{team}/inboxes/
      ├── worker-1.json       // [{from, text, timestamp, read, color, type, requestId, approve}, ...]
-     └── worker-1.json.lock  // O_CREATE|O_EXCL 原子锁, >10s( staleLockAge) 视为被崩溃进程遗留, 强删接管
+     └── worker-1.json.lock  // O_CREATE|O_EXCL 原子锁, >10s (staleLockAge) 视为被崩溃进程遗留, 强删接管
    ```
 
-   - 邮箱目录在用户家目录 `~/.swiftx/teams/{team}/inboxes/` 而非项目目录: pane 队友是独立进程, 工作目录可能被 worktree 改变, 用家目录保证队友进程和 Lead 找到同一份团队配置( teams.go:55,93)
-   - 每个成员一个聚合 JSON 收件箱文件( 消息数组) , 不是每条消息一个文件; 消息结构为 `FileMailMessage`: from/text/timestamp/read/color, 以及结构化消息字段 type/requestId/approve( approve 用指针区分"未回复"和"明确拒绝")
-   - `SendMessageTool` 经 `withLock`( 加锁 → 重读 → 追加 → 写回) 投递; 进程内用 `sync.Mutex` 串行化, 文件锁只隔离跨进程队友. 拿锁失败按指数退避( 5ms 起、上限 maxLockBackoff=80ms, sleep = backoff + [0,backoff) 随机抖动防同时唤醒碰撞) , 总时限 lockAcquireTimeout=5s, 超时返回错误而非静默丢消息
+   - 邮箱目录在用户家目录 `~/.swiftx/teams/{team}/inboxes/` 而非项目目录: pane 队友是独立进程, 工作目录可能被 worktree 改变, 用家目录保证队友进程和 Lead 找到同一份团队配置 (teams.go:55,93)
+   - 每个成员一个聚合 JSON 收件箱文件 (消息数组) , 不是每条消息一个文件; 消息结构为 `FileMailMessage`: from/text/timestamp/read/color, 以及结构化消息字段 type/requestId/approve (approve 用指针区分"未回复"和"明确拒绝")
+   - `SendMessageTool` 经 `withLock` (加锁 → 重读 → 追加 → 写回) 投递; 进程内用 `sync.Mutex` 串行化, 文件锁只隔离跨进程队友. 拿锁失败按指数退避 (5ms 起、上限 maxLockBackoff=80ms, sleep = backoff + [0,backoff) 随机抖动防同时唤醒碰撞) , 总时限 lockAcquireTimeout=5s, 超时返回错误而非静默丢消息
    - 成员轮询 `ReadUnread` 读未读消息, 处理后 `MarkAllRead`
-   - 文件邮箱的好处: 跨进程天然可用、可观测( 就是 JSON 文件) 、无需守护进程或消息队列
+   - 文件邮箱的好处: 跨进程天然可用、可观测 (就是 JSON 文件) 、无需守护进程或消息队列
 
-2. SharedTaskStore( 共享任务板, `shared_task.go`) :
+2. SharedTaskStore (共享任务板, `shared_task.go`) :
 
    ```json
    // ~/.swiftx/teams/{team}/tasks.json
@@ -899,15 +899,15 @@ TeamManager
    ```
 
    - `TaskCreate/Get/List/Update` 工具操作
-   - 进程内 `sync.Mutex` 串行化读写( `SharedTaskStore.mu`) , 持久化为单个 tasks.json
+   - 进程内 `sync.Mutex` 串行化读写 (`SharedTaskStore.mu`) , 持久化为单个 tasks.json
 
-   注意同名工具的两套实现: 默认 TUI/print 模式注册的是 `internal/todo` 的会话级任务清单( 支持 blocks/blockedBy 依赖, 持久化到 `.swiftx/tasks/<listID>.json`) , 仅 teammate/团队上下文才注册这里 teams 包的 SharedTaskStore 版本( teams/task_tools.go) .
+   注意同名工具的两套实现: 默认 TUI/print 模式注册的是 `internal/todo` 的会话级任务清单 (支持 blocks/blockedBy 依赖, 持久化到 `.swiftx/tasks/<listID>.json`) , 仅 teammate/团队上下文才注册这里 teams 包的 SharedTaskStore 版本 (teams/task_tools.go) .
 
 运行后端:
 
-- `in-process`: goroutine( 开发/测试)
-- `tmux`: 每个 member 一个 tmux pane( 可视化调试)
-- `iTerm`: 每个 member 一个 iTerm tab( macOS)
+- `in-process`: goroutine (开发/测试)
+- `tmux`: 每个 member 一个 tmux pane (可视化调试)
+- `iTerm`: 每个 member 一个 iTerm tab (macOS)
 
 后两者用 `swiftx --teammate` 拉起独立进程各占一个终端面板, 进程崩溃互不影响且用户可直接观察每个队友.
 
@@ -931,7 +931,7 @@ func IsCoordinatorTool(name string) bool {
 agent.ToolNameFilter = teams.CoordinatorToolFilter(cfg.EnableCoordinatorMode)
 ```
 
-`EnableCoordinatorMode` 时通过 `CoordinatorToolFilter`( teams 包) 设为 Agent 的 `ToolNameFilter`, 把 Lead 的工具裁剪成仅协调类( Agent 派发、SendMessage、TaskStop、SyntheticOutput、TeamDelete) ; 划分标准不是读/写而是"是否会把大量内容灌进 Lead 的上下文", 因此 ReadFile/Glob/Grep/Bash 被排除, 逼迫 Lead 委派而不是自己动手——TaskCreate 等共享任务板工具也不给 Lead, 任务经 Agent prompt 传达, 进度靠队友完成时的 task-notification 追踪. 过滤器在 `currentToolSchemas`( agent.go:247-253) 每轮迭代重新求值, 团队建立/解散无需重启 Agent.
+`EnableCoordinatorMode` 时通过 `CoordinatorToolFilter` (teams 包) 设为 Agent 的 `ToolNameFilter`, 把 Lead 的工具裁剪成仅协调类 (Agent 派发、SendMessage、TaskStop、SyntheticOutput、TeamDelete) ; 划分标准不是读/写而是"是否会把大量内容灌进 Lead 的上下文", 因此 ReadFile/Glob/Grep/Bash 被排除, 逼迫 Lead 委派而不是自己动手——TaskCreate 等共享任务板工具也不给 Lead, 任务经 Agent prompt 传达, 进度靠队友完成时的 task-notification 追踪. 过滤器在 `currentToolSchemas` (agent.go:247-253) 每轮迭代重新求值, 团队建立/解散无需重启 Agent.
 
 ---
 
@@ -941,13 +941,13 @@ A:
 
 多个 Agent 并行改同一仓库会互相踩文件, worktree 让每个 Agent 有独立工作目录但共享对象库, 磁盘开销小、合并回主干走标准 git 流程.
 
-实现要点( `internal/worktree`) :
+实现要点 (`internal/worktree`) :
 
-- 创建: `git worktree add -B worktree-<slug> <path> <base>`, 大写 -B 而非 -b——目录被删后残留的孤儿分支直接复位, 省掉每次创建前的 `git branch -D` 探测( create.go:64)
-- 基分支解析: 优先直接读 `.git` 文件( HEAD、refs、packed-refs、origin/HEAD symref) 而不起 git 子进程, `IsSafeRefName` 白名单校验 ref 名防路径拼接注入( filesystem.go:42-49)
-- 安全校验: slug 校验( ≤64 字符、字符白名单) 与 `FlattenSlug` 防目录穿越
-- 配置继承: 支持把 `.env` 等被 gitignore 的配置文件按规则拷贝进 worktree( `CopyWorktreeIncludeFiles`)
-- 生命周期: 会话级 worktree 状态持久化( EnterWorktree/ExitWorktree 工具) , 退出时 `HasWorktreeChanges` 检测有无实际变更, 无变更自动清理, 有变更要求显式 keep/remove; 后台 `StartCleanupLoop` 按 cutoff 时长回收陈旧 agent worktree
+- 创建: `git worktree add -B worktree-<slug> <path> <base>`, 大写 -B 而非 -b——目录被删后残留的孤儿分支直接复位, 省掉每次创建前的 `git branch -D` 探测 (create.go:64)
+- 基分支解析: 优先直接读 `.git` 文件 (HEAD、refs、packed-refs、origin/HEAD symref) 而不起 git 子进程, `IsSafeRefName` 白名单校验 ref 名防路径拼接注入 (filesystem.go:42-49)
+- 安全校验: slug 校验 (≤64 字符、字符白名单) 与 `FlattenSlug` 防目录穿越
+- 配置继承: 支持把 `.env` 等被 gitignore 的配置文件按规则拷贝进 worktree (`CopyWorktreeIncludeFiles`)
+- 生命周期: 会话级 worktree 状态持久化 (EnterWorktree/ExitWorktree 工具) , 退出时 `HasWorktreeChanges` 检测有无实际变更, 无变更自动清理, 有变更要求显式 keep/remove; 后台 `StartCleanupLoop` 按 cutoff 时长回收陈旧 agent worktree
 
 ---
 
@@ -973,7 +973,7 @@ fork_context: recent
 
 两级懒加载:
 
-Phase-1 只读 frontmatter 建目录( catalog) , 正文 `BodyLoaded=false`, `GetFull` 时才读盘——上百个技能的完整正文不会常驻上下文.
+Phase-1 只读 frontmatter 建目录 (catalog) , 正文 `BodyLoaded=false`, `GetFull` 时才读盘——上百个技能的完整正文不会常驻上下文.
 
 执行分两种模式:
 
@@ -986,8 +986,8 @@ Phase-1 只读 frontmatter 建目录( catalog) , 正文 `BodyLoaded=false`, `Get
 | 适用场景   | 需要访问当前对话上下文的 SOP | 独立任务、保护主上下文 |
 | 上下文污染 | 会占用主 conversation 空间   | 不影响主 conversation  |
 
-- inline: 正文经 `$ARGUMENTS` 替换后注入当前对话, 且只注入一次( `activeSkills` 记录名字与正文, 仅用于 /skills 列表和压缩恢复, 不逐轮重复注入, agent.go:109-112)
-- fork: `Render` 返回技能正文, `RunFork` 在隔离子代理中执行并把最终 assistant 文本作为字符串返回给调用方插入主聊天历史——正文始终不进主上下文, 这就是注释里说的"渐进式披露". `fork_context` 还可配置携带父上下文的程度: full( 原样全量复制父消息切片, 当前不做 LLM 摘要) /recent( 最近 5 条) /none( 默认, 隔离如新会话) ( skills/executor.go:89-100)
+- inline: 正文经 `$ARGUMENTS` 替换后注入当前对话, 且只注入一次 (`activeSkills` 记录名字与正文, 仅用于 /skills 列表和压缩恢复, 不逐轮重复注入, agent.go:109-112)
+- fork: `Render` 返回技能正文, `RunFork` 在隔离子代理中执行并把最终 assistant 文本作为字符串返回给调用方插入主聊天历史——正文始终不进主上下文, 这就是注释里说的"渐进式披露". `fork_context` 还可配置携带父上下文的程度: full (原样全量复制父消息切片, 当前不做 LLM 摘要) /recent (最近 5 条) /none (默认, 隔离如新会话) (skills/executor.go:89-100)
 
 $ARGUMENTS 替换: Skill body 中的 `$ARGUMENTS` 被替换为用户调用时传入的参数.
 
@@ -1020,14 +1020,14 @@ func (w *MCPToolWrapper) Name() string {
 | 传输            | 配置                                                                    | 实现                                                                      |
 | --------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Stdio           | `command: "npx", args: ["-y", "@modelcontextprotocol/server-postgres"]` | `exec.Command` + stdin/stdout pipe, 子进程 stderr 与父 tty 分离防污染终端 |
-| Streamable HTTP | `url: "http://localhost:3000/mcp", transport: "streamable-http"`        | HTTP POST + SSE response( 2025-03-26 规范)                                |
+| Streamable HTTP | `url: "http://localhost:3000/mcp", transport: "streamable-http"`        | HTTP POST + SSE response (2025-03-26 规范)                                |
 | SSE (legacy)    | `url: "http://localhost:3000/sse", transport: "sse"`                    | GET /sse + POST /messages                                                 |
 
 关键设计决策:
 
-1. MCP 工具加载按 `DecideMode`( mcp/strategy.go:65) 分三种模式, 并非一律延迟: schema 总量低于上下文窗口 10% 时选 eager 全量装载; 官方 Anthropic 端点选 native( 工具留在 tools[] 并打 defer_loading 标记, 由服务端控制可见性); 其余端点选 dispatch( MCP 工具不进 tools[], 模型经 ToolSearch + mcp_call 按需装载) . 延迟的动机是 MCP 服务器动辄暴露几十个工具, 全量 schema 会挤占上下文并破坏缓存前缀稳定性
+1. MCP 工具加载按 `DecideMode` (mcp/strategy.go:65) 分三种模式, 并非一律延迟: schema 总量低于上下文窗口 10% 时选 eager 全量装载; 官方 Anthropic 端点选 native (工具留在 tools[] 并打 defer_loading 标记, 由服务端控制可见性); 其余端点选 dispatch (MCP 工具不进 tools[], 模型经 ToolSearch + mcp_call 按需装载) . 延迟的动机是 MCP 服务器动辄暴露几十个工具, 全量 schema 会挤占上下文并破坏缓存前缀稳定性
 2. 命名空间隔离: `mcp__<server>__<tool>` 防止工具名冲突, `SanitizeName` 规范化避免非法字符
-3. Header 注入: `headerRoundTripper` 支持 `Authorization: Bearer ${API_TOKEN}`( env 展开)
+3. Header 注入: `headerRoundTripper` 支持 `Authorization: Bearer ${API_TOKEN}` (env 展开)
 4. Category 一律记为 command: 外部副作用未知, 从严
 5. Stderr 丢弃: 防止子进程的 OSC color query 污染 TUI 输入缓冲
 6. `Manager.ConnectAll` 并发连接: 全部服务器并行初始化
@@ -1040,19 +1040,19 @@ func (w *MCPToolWrapper) Name() string {
 
 A:
 
-`handleStreamError`( agent.go:610) 用 `errors.As` 分类:
+`handleStreamError` (agent.go:610) 用 `errors.As` 分类:
 
 | 错误类型              | 恢复策略                                                                                                | 最大重试             |
 | --------------------- | ------------------------------------------------------------------------------------------------------- | -------------------- |
-| `RateLimitError`      | 解析 `Retry-After` header( 缺省 5s) → `select { time.After / ctx.Done }` 等待重试                       | 无限( 用户可 ctrl-c) |
+| `RateLimitError`      | 解析 `Retry-After` header (缺省 5s) → `select { time.After / ctx.Done }` 等待重试                       | 无限 (用户可 ctrl-c) |
 | `ContextTooLongError` | 说明估算低估了真实 token, 立即 `ForceCompact` 强制压缩后重试本轮, 并通知调用方清除已失效的 usage 锚点   | 压缩失败即报错       |
 | `max_tokens` stop     | 1) 提升 output limit 到 64K; 2) 多轮恢复 "Continue"                                                     | 1 + 3 次             |
-| Stream idle timeout   | 返回 `NetworkError` 上抛为 ErrorEvent( Agent 层不自动重试)                                              | 0( 终止本轮)         |
-| Auto-compact 失败     | 熔断器: 连续 3 次失败后停止( `MaxConsecutiveAutoCompactFailures = 3`, compact.go:108)                   | 3 次                 |
-| 未知工具调用          | 返回错误结果( `Error: unknown tool '%s'`) 让模型自我纠正、继续循环( agent.go:676-686, 无连续计数硬停止) | 0( 不中断循环)       |
+| Stream idle timeout   | 返回 `NetworkError` 上抛为 ErrorEvent (Agent 层不自动重试)                                              | 0 (终止本轮)         |
+| Auto-compact 失败     | 熔断器: 连续 3 次失败后停止 (`MaxConsecutiveAutoCompactFailures = 3`, compact.go:108)                   | 3 次                 |
+| 未知工具调用          | 返回错误结果 (`Error: unknown tool '%s'`) 让模型自我纠正、继续循环 (agent.go:676-686, 无连续计数硬停止) | 0 (不中断循环)       |
 | PTL (summary 超长)    | 逐步丢弃最旧 API-round 组                                                                               | 3 次                 |
 
-max_tokens 多轮恢复( agent.go:435-458) :
+max_tokens 多轮恢复 (agent.go:435-458) :
 
 ```
 Turn 1: LLM 输出到一半被截断 (stop_reason: max_tokens)
@@ -1079,7 +1079,7 @@ type NetworkError struct{ Message string }
 type ContextTooLongError struct{ Message string }
 ```
 
-实际上项目确实使用了类型断言( 等效于 errors.As) :
+实际上项目确实使用了类型断言 (等效于 errors.As) :
 
 ```go
 var rateLimitErr *llm.RateLimitError
@@ -1094,7 +1094,7 @@ if errors.As(err, &ctxErr) {
 
 为什么不用 sentinel errors (errors.Is):
 
-- 错误需要携带上下文数据( `RetryAfter` 时间、原始消息)
+- 错误需要携带上下文数据 (`RetryAfter` 时间、原始消息)
 - 不同错误类型需要不同的恢复逻辑
 - 类型层次让 switch/if 分支更清晰
 
@@ -1107,20 +1107,20 @@ if errors.As(err, &ctxErr) {
 A:
 
 ```
-优先级( 低 → 高) :
+优先级 (低 → 高) :
 ~/.swiftx/config.yaml           (用户全局)
 <project>/.swiftx/config.yaml   (项目级, git tracked)
 <project>/.swiftx/config.local.yaml (项目本地, gitignored)
 环境变量                         (API Keys)
 ```
 
-合并规则( config.go:206 mergeConfig) :
+合并规则 (config.go:206 mergeConfig) :
 
-- 标量字段: 后者覆盖前者( permission_mode 非空即覆盖)
+- 标量字段: 后者覆盖前者 (permission_mode 非空即覆盖)
 - `providers` 数组: 整体替换——override 中只要非 nil 就完全取代 base, 不做按 name 的逐项合并
 - `mcp_servers` 数组: 按 server name 匹配, 同名覆盖, 不同名追加
-- `hooks` 数组: 追加( 不覆盖)
-- 权限规则不走 config 合并: RuleEngine 独立加载 user/project/local 三个规则文件, 合并为一个规则集后按"最严效果"求值( `EvaluateRules`: 命中 deny 立即返回, ask 压过 allow, 与加载顺序无关, permissions.go:341-366)
+- `hooks` 数组: 追加 (不覆盖)
+- 权限规则不走 config 合并: RuleEngine 独立加载 user/project/local 三个规则文件, 合并为一个规则集后按"最严效果"求值 (`EvaluateRules`: 命中 deny 立即返回, ask 压过 allow, 与加载顺序无关, permissions.go:341-366)
 
 API Key 解析链:
 
@@ -1140,14 +1140,14 @@ A:
 
 Prompt Cache 和上下文预算存在天然张力: 预算裁剪要改写历史消息, 而缓存要求前缀字节不变. Swifty 的协同策略:
 
-1. Layer 1 spill 决策入库即冻结: `ApplyBudget` 只在结果批次写入 conversation 历史时做一次外溢, 替换文本( `buildSpillPreview`) 是确定性输出——相同输入永远产生逐字节相同的结果, 进入历史后绝不再改写, 保证缓存前缀不因预算变化而失效( tool_result/budget.go:135-138)
-2. Layer 2 压缩后清除锚点: 压缩改写了整个 conversation, 此时 `ClearUsageAnchor` 并重新建立缓存( 压缩后的首次请求是 cache miss, 后续恢复)
+1. Layer 1 spill 决策入库即冻结: `ApplyBudget` 只在结果批次写入 conversation 历史时做一次外溢, 替换文本 (`buildSpillPreview`) 是确定性输出——相同输入永远产生逐字节相同的结果, 进入历史后绝不再改写, 保证缓存前缀不因预算变化而失效 (tool_result/budget.go:135-138)
+2. Layer 2 压缩后清除锚点: 压缩改写了整个 conversation, 此时 `ClearUsageAnchor` 并重新建立缓存 (压缩后的首次请求是 cache miss, 后续恢复)
 3. Fork 子代理复制父消息历史: 历史中的替换文本逐字节相同, 缓存前缀在两边都命中
 4. Deferred Tool Loading 保护 schema 前缀: 工具 schema 列表跨轮稳定, 不因按需加载而改变已有 schema 的顺序
 
 ---
 
-### 流式工具提交( Streaming Tool Execution) 的性能收益分析?
+### 流式工具提交 (Streaming Tool Execution) 的性能收益分析?
 
 A:
 
@@ -1167,8 +1167,8 @@ results := executor.ExecuteAll(ctx, agent)  // 批量执行
 
 - 如果 LLM 输出了 3 个 ReadFile 调用, 第 1 个解析完时就可以开始执行
 - 实际上由于 LLM 输出速度 < 工具执行速度, 对 Read 类工具收益有限
-- 但对 Bash 命令( 可能耗时数秒) , 提前提交可以 overlap LLM 输出时间和工具执行时间
-- 对多工具批次( 如 5 个并发 Read) , 所有工具在 LLM 输出完毕时已全部提交, 立即并发执行
+- 但对 Bash 命令 (可能耗时数秒) , 提前提交可以 overlap LLM 输出时间和工具执行时间
+- 对多工具批次 (如 5 个并发 Read) , 所有工具在 LLM 输出完毕时已全部提交, 立即并发执行
 
 ---
 
@@ -1197,7 +1197,7 @@ A:
 
 ---
 
-### 如何保证 "Read-before-Edit" 这类不变量( invariant) ? 还有哪些类似的防御性设计?
+### 如何保证 "Read-before-Edit" 这类不变量 (invariant) ? 还有哪些类似的防御性设计?
 
 A:
 
@@ -1214,7 +1214,7 @@ Read-before-Edit:
    - 防止 Fork → Fork → Fork 指数爆炸
 
 2. 未知工具软处理:
-   - LLM 调用不存在的工具 → 返回错误结果并继续循环( agent.go:676-686)
+   - LLM 调用不存在的工具 → 返回错误结果并继续循环 (agent.go:676-686)
    - 注释明确不设硬停止, 让模型看到错误后自我纠正
 
 3. Compact 熔断器:
@@ -1230,7 +1230,7 @@ Read-before-Edit:
    - 每段独立过权限系统
 
 6. "always allow" 持久化到本地规则文件:
-   - PermAllowAlways 调用 `AppendLocalRule` 把规则( 工具名 + 内容前缀截断 60 字符 + 通配) 写入 local 规则文件( agent.go:723)
+   - PermAllowAlways 调用 `AppendLocalRule` 把规则 (工具名 + 内容前缀截断 60 字符 + 通配) 写入 local 规则文件 (agent.go:723)
    - 规则引擎每次评估时读取匹配, 当轮之后立即生效; 无 session 内存 allow 集合
 
 7. 权限配置自我保护:
@@ -1256,7 +1256,7 @@ A:
 测试 LLM Agent 的挑战与应对:
 
 1. 非确定性输出:
-   - 不测试 LLM 输出内容, 测试 行为逻辑( 收到 tool_call → 执行 → 结果追加)
+   - 不测试 LLM 输出内容, 测试 行为逻辑 (收到 tool_call → 执行 → 结果追加)
    - Mock LLM 返回预定义的 SSE 事件序列
 
 2. httptest.Server 模拟 SSE:
@@ -1270,7 +1270,7 @@ A:
 
 3. Table-driven tests: 权限系统、条件引擎等用大量 case 覆盖边界
 
-4. 无第三方测试框架: 纯 `testing` 包( 减少依赖, Go 标准库足够)
+4. 无第三方测试框架: 纯 `testing` 包 (减少依赖, Go 标准库足够)
 
 5. 73 个测试文件覆盖所有核心模块
 
@@ -1282,10 +1282,10 @@ A:
 
 这是该项目工程质量的核心亮点, 可归纳为:
 
-- 熔断: 自动压缩连续失败 3 次停止重试( compact.go:108) .
+- 熔断: 自动压缩连续失败 3 次停止重试 (compact.go:108) .
 - 降级: hooks 配置非法→无钩子启动; 上下文窗口拉取失败→映射表→默认值; 压缩摘要缺 `<summary>` 标签→退回原文; 会话断点损坏→全量重放; 外溢写盘失败→冻结原文继续.
-- 重试: 限流按 Retry-After 等待; PTL 按轮次组丢头重试 ≤3 次; max_tokens 两级恢复( 升限 + 3 次续写) .
-- 防环路: 截断结果不再外溢( 50K > 10K + 后缀) ; 外溢文件回读不再外溢; 缓存决策冻结防止历史抖动.
+- 重试: 限流按 Retry-After 等待; PTL 按轮次组丢头重试 ≤3 次; max_tokens 两级恢复 (升限 + 3 次续写) .
+- 防环路: 截断结果不再外溢 (50K > 10K + 后缀) ; 外溢文件回读不再外溢; 缓存决策冻结防止历史抖动.
 - 防注入/提权: sandbox-exec 硬编码路径; 复合命令拆分逐段鉴权; `.swiftx` 权限配置列入 denyWrite; git ref 名白名单校验.
 - 幂等与原子性: 外溢文件 O_EXCL 已存在即复用; 会话 JSONL 追加式永不改写; worktree `-B` 自愈孤儿分支.
 - panic 隔离: 启动路径的模型信息拉取带 `recover()`, SDK 异常不影响进程.
@@ -1338,7 +1338,7 @@ main (signal.NotifyContext)
    - `context.WithCancel` 创建子 ctx, defer cancel()
 
 4. 非阻塞操作不需要 ctx:
-   - `MemoryRecallCh` 的 `select` + `default` 不需要 ctx( 立即返回)
+   - `MemoryRecallCh` 的 `select` + `default` 不需要 ctx (立即返回)
 
 ---
 
@@ -1356,27 +1356,27 @@ Model → Update(msg) → (Model, Cmd) → View(Model) → string
 
 1. 单向数据流: 所有状态变化通过 `Msg` → `Update`, 可追踪、可调试
 2. 纯函数 View: `View(Model) string`, 无副作用, 易测试
-3. 组合性: 子组件( bubbles) 独立 Update/View, 嵌套组合
+3. 组合性: 子组件 (bubbles) 独立 Update/View, 嵌套组合
 4. 生态: lipgloss (样式)、glamour (markdown)、bubbles (组件)
 
 劣势:
 
-1. 性能: 每帧全量渲染( vs ncurses 的增量更新) , 复杂 UI 可能闪烁
-2. 学习曲线: Msg 类型爆炸( 每个事件一个 struct)
+1. 性能: 每帧全量渲染 (vs ncurses 的增量更新) , 复杂 UI 可能闪烁
+2. 学习曲线: Msg 类型爆炸 (每个事件一个 struct)
 3. 异步复杂: Cmd 是 fire-and-forget, 结果通过 Msg 回来, 调试困难
-4. 状态机复杂: 多状态( select/chat/resume/permission) 需要手动管理
+4. 状态机复杂: 多状态 (select/chat/resume/permission) 需要手动管理
 
 Swifty 的适配:
 
 - Agent 事件通过 `tea.Cmd` 桥接到 Bubble Tea 的 Msg 系统
-- 权限请求阻塞 Agent( 通过 channel 等待 TUI 回复)
-- Markdown 渲染用 glamour( 代码高亮 + 表格)
+- 权限请求阻塞 Agent (通过 channel 等待 TUI 回复)
+- Markdown 渲染用 glamour (代码高亮 + 表格)
 
 ---
 
 ## 十四、系统设计
 
-### 如果要为 Swifty 添加 "Undo/Redo" 功能( 撤销 Agent 的文件修改) , 你会如何设计?
+### 如果要为 Swifty 添加 "Undo/Redo" 功能 (撤销 Agent 的文件修改) , 你会如何设计?
 
 A:
 
@@ -1402,26 +1402,26 @@ type UndoManager struct {
 ```
 
 1. 记录时机: 每次 WriteFile/EditFile 执行前, snapshot 原文件内容
-2. 粒度: 一个 turn 中的所有文件修改为一个 ChangeSet( 原子 undo)
+2. 粒度: 一个 turn 中的所有文件修改为一个 ChangeSet (原子 undo)
 3. Undo: 恢复 ChangeSet 中所有文件的 before 内容
 4. Redo: 重新应用 after 内容
 5. 与 Git 的关系:
-   - 如果用户已 commit, undo 需要创建新 commit( 而非 reset)
+   - 如果用户已 commit, undo 需要创建新 commit (而非 reset)
    - 如果未 commit, 直接恢复文件即可
 6. Bash 命令的 undo:
-   - 不可自动 undo( 副作用不可逆)
+   - 不可自动 undo (副作用不可逆)
    - 只能记录命令, 提示用户手动回滚
 
 ---
 
-### 如何设计一个分布式 Agent 系统( 多机协作) ? Swifty 的 Teams 系统如何扩展到分布式场景?
+### 如何设计一个分布式 Agent 系统 (多机协作) ? Swifty 的 Teams 系统如何扩展到分布式场景?
 
 A:
 
 当前 Teams 的局限:
 
 - FileMailBox 依赖共享文件系统
-- SharedTaskStore 是单文件 JSON: 进程内有 `sync.Mutex` 串行化读写( shared_task.go:56), 且每次读前重载文件保证多进程可见; 但 tasks.json 本身没有跨进程文件锁( 项目里的 O_EXCL 锁文件机制用于 FileMailBox 而非任务存储), 并发写依赖"读-改-写"间隙不重叠的乐观假设
+- SharedTaskStore 是单文件 JSON: 进程内有 `sync.Mutex` 串行化读写 (shared_task.go:56), 且每次读前重载文件保证多进程可见; 但 tasks.json 本身没有跨进程文件锁 (项目里的 O_EXCL 锁文件机制用于 FileMailBox 而非任务存储), 并发写依赖"读-改-写"间隙不重叠的乐观假设
 - in-process/tmux/iTerm 后端都是单机
 
 分布式扩展方案:
@@ -1433,17 +1433,17 @@ A:
 
 2. Agent 调度:
    - Coordinator 通过 gRPC 分发任务
-   - Worker 注册 capability( 工具集、文件系统访问范围)
+   - Worker 注册 capability (工具集、文件系统访问范围)
    - 心跳 + 故障转移
 
 3. 一致性挑战:
    - 多 Agent 编辑同一文件 → 需要分布式锁或 CRDT
-   - Worktree 隔离( 当前方案) 在分布式下变为 branch 隔离
+   - Worktree 隔离 (当前方案) 在分布式下变为 branch 隔离
    - 最终一致性: 每个 Agent 在自己的 branch 工作, coordinator 负责 merge
 
 4. 安全边界:
    - 每个 Worker 有独立的 sandbox + permission 配置
-   - Coordinator 不能直接执行命令( 只能调度)
+   - Coordinator 不能直接执行命令 (只能调度)
    - 审计日志集中收集
 
 ---
@@ -1461,7 +1461,7 @@ type Section struct {
     Content  string
 }
 
-// 按 priority 升序排序后拼接( prompt/builder.go Build)
+// 按 priority 升序排序后拼接 (prompt/builder.go Build)
 sections := []Section{
     {"Identity", 0, "You are Swiftx..."},
     {"System", 10, "Tool rules..."},
@@ -1474,7 +1474,7 @@ sections := []Section{
 }
 ```
 
-注意 custom_instructions( SWIFTX.md) 、skills 清单、memory 不是 system prompt section: 它们是项目级的, 放进 system prompt 会让缓存前缀随项目变化, 因此由 `conversation.InjectLongTermMemory` 作为会话首条 system-reminder 消息注入, 且整个会话只注入一次( conversation.go:147) .
+注意 custom_instructions (SWIFTX.md) 、skills 清单、memory 不是 system prompt section: 它们是项目级的, 放进 system prompt 会让缓存前缀随项目变化, 因此由 `conversation.InjectLongTermMemory` 作为会话首条 system-reminder 消息注入, 且整个会话只注入一次 (conversation.go:147) .
 
 设计优势:
 
@@ -1485,7 +1485,7 @@ sections := []Section{
 
 可改进方向:
 
-- Section 之间的依赖关系( 如 skills 依赖 environment 中的 OS 信息)
-- 动态 section( 根据当前任务类型选择性包含)
+- Section 之间的依赖关系 (如 skills 依赖 environment 中的 OS 信息)
+- 动态 section (根据当前任务类型选择性包含)
 - A/B testing 不同 section 顺序对效果的影响
-- Token 预算分配( 每个 section 有最大 token 限制)
+- Token 预算分配 (每个 section 有最大 token 限制)

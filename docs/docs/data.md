@@ -2139,7 +2139,7 @@ embedding 和聚类的生态在 Python (sentence-transformers、umap-learn、hdb
 中后台系统中存在大量公用选择器数据源: Staff 用户选择器、推荐算法选择器、向量库选择器. 这类数据有三个共同特征:
 
 1. 多个页面、多个组件同时消费同一份数据
-2. 数据变化频率低( 分钟级甚至小时级) , 短时间内拿到旧数据完全可接受
+2. 数据变化频率低 (分钟级甚至小时级) , 短时间内拿到旧数据完全可接受
 3. 首屏渲染强依赖: 选择器没有数据, 页面就没法交互
 
 传统做法是在每个组件的 useEffect 里各自发请求, 会带来三个问题:
@@ -2148,7 +2148,7 @@ embedding 和聚类的生态在 Python (sentence-transformers、umap-learn、hdb
 - 同一份数据被多个组件重复请求, 浪费带宽和后端资源
 - 页面切换后组件卸载、内存状态丢失, 再次进入页面又要重新等待完整请求
 
-手写 SWR 方案用约 155 行核心代码( src/swr.ts) 解决这三个问题, 不引入任何第三方数据请求库.
+手写 SWR 方案用约 155 行核心代码 (src/swr.ts) 解决这三个问题, 不引入任何第三方数据请求库.
 
 ### 2. 手写 SWR 的实现思路
 
@@ -2160,8 +2160,8 @@ embedding 和聚类的生态在 Python (sentence-transformers、umap-learn、hdb
 
 ```typescript
 interface SWREntry<T> {
-  promise: Promise<T>; // 在途请求的 promise( 去重锚点)
-  result: T | undefined; // 已返回的结果( 缓存锚点)
+  promise: Promise<T>; // 在途请求的 promise (去重锚点)
+  result: T | undefined; // 已返回的结果 (缓存锚点)
   timestamp: number; // 请求发起时间
 }
 
@@ -2204,7 +2204,7 @@ export function preload() {
 
 swrFetch 是消费侧唯一的入口函数, 按优先级依次判断:
 
-第一级, result 已就绪( 缓存命中) . 立即返回已有数据, 耗时接近 0ms, 同时后台静默发起 revalidate 请求, 新数据回来后更新缓存. 这就是 stale-while-revalidate 的含义: 宁可先给旧数据, 也不让用户等待.
+第一级, result 已就绪 (缓存命中) . 立即返回已有数据, 耗时接近 0ms, 同时后台静默发起 revalidate 请求, 新数据回来后更新缓存. 这就是 stale-while-revalidate 的含义: 宁可先给旧数据, 也不让用户等待.
 
 ```typescript
 if (entry?.result !== undefined) {
@@ -2224,7 +2224,7 @@ if (entry?.result !== undefined) {
 }
 ```
 
-第二级, promise 在途( 请求去重) . 预加载的请求还没返回, 但 promise 已经存在, 直接 await 复用这个 promise, 只等待剩余的网络时间. 多个组件同时消费时共享同一个 promise, 天然去重, 不会发出重复请求.
+第二级, promise 在途 (请求去重) . 预加载的请求还没返回, 但 promise 已经存在, 直接 await 复用这个 promise, 只等待剩余的网络时间. 多个组件同时消费时共享同一个 promise, 天然去重, 不会发出重复请求.
 
 ```typescript
 if (entry?.promise) {
@@ -2234,7 +2234,7 @@ if (entry?.promise) {
 }
 ```
 
-第三级, 冷启动兜底. 缓存里什么都没有( 预加载没执行、或缓存被清) , 重建完整流程: 发请求、写入缓存、等待完整 RTT. 这保证了方案在任何接入状态下都能正确工作, 降级路径完备.
+第三级, 冷启动兜底. 缓存里什么都没有 (预加载没执行、或缓存被清) , 重建完整流程: 发请求、写入缓存、等待完整 RTT. 这保证了方案在任何接入状态下都能正确工作, 降级路径完备.
 
 #### 2.4 对照组: normalFetch
 
@@ -2271,7 +2271,7 @@ vercel/swr 是一个 React hook 库, useSWR 只能在 React 组件内使用, 且
 - MPA 下每个页面都要单独引入并初始化, 页面之间跳转时内存缓存随整页刷新而丢失
 - 老版本 React 上部分能力受限
 
-手写方案把缓存锚点放在 window 上( demo 里是模块级 Map, 语义等价) , 缓存的生命周期与页面文档绑定而不是与某个框架实例绑定, 任何技术栈的页面都能用同一个 swrFetch(key) 消费.
+手写方案把缓存锚点放在 window 上 (demo 里是模块级 Map, 语义等价) , 缓存的生命周期与页面文档绑定而不是与某个框架实例绑定, 任何技术栈的页面都能用同一个 swrFetch(key) 消费.
 
 #### 3.2 接入成本: 不动构建、不动框架、不改组件树
 
@@ -2300,7 +2300,7 @@ vercel/swr 提供轮询、重试、指数退避、focus 重新校验、乐观更
 
 #### 3.4 预加载时机: header 内联脚本是现成库覆盖不到的
 
-这是技术上最本质的一点. vercel/swr 的请求生命周期从 React 组件渲染时才真正开始( 即使有 prefetch 能力, 也要等 bundle 加载并执行) . 而手写方案把请求发起点提前到 HTML 解析阶段的 header 内联脚本, 此时 bundle 还在下载, 网络请求与脚本加载并行.
+这是技术上最本质的一点. vercel/swr 的请求生命周期从 React 组件渲染时才真正开始 (即使有 prefetch 能力, 也要等 bundle 加载并执行) . 而手写方案把请求发起点提前到 HTML 解析阶段的 header 内联脚本, 此时 bundle 还在下载, 网络请求与脚本加载并行.
 
 这个时间窗口是任何运行在 JS bundle 内部的库都无法利用的, 因为库本身就是 bundle 的一部分. 要让请求早于 bundle 发出, 只能用不依赖 bundle 的内联脚本, 而消费侧需要一个能"认领"这个早期 promise 的机制, 这正是手写 swrFetch 做的事.
 
@@ -2310,7 +2310,7 @@ vercel/swr 提供轮询、重试、指数退避、focus 重新校验、乐观更
 
 - 纯 SPA、React 18+、团队已经统一使用数据请求库的新项目
 - 需要乐观更新、mutation 后缓存失效、轮询、请求重试等复杂能力
-- 需要 devtools、缓存生命周期管理( LRU 淘汰、gcTime)
+- 需要 devtools、缓存生命周期管理 (LRU 淘汰、gcTime)
 
 手写方案明确不覆盖这些场景, 它的定位是"存量项目里低成本拿到预加载、去重、缓存三个收益"的战术工具, 不是 React Query 的替代品.
 
@@ -2320,12 +2320,12 @@ vercel/swr 提供轮询、重试、指数退避、focus 重新校验、乐观更
 
 传统时序是串行的: HTML 解析、bundle 下载、bundle 执行、React mount、useEffect 触发 fetch、等待完整 RTT、渲染数据. 网络请求排在整条链路的尾部.
 
-SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、执行并行. 以 demo 的数据估算( 网络延迟 800ms, bundle 下载加执行约 100ms, 即 demo 模拟的 mount 延迟) :
+SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、执行并行. 以 demo 的数据估算 (网络延迟 800ms, bundle 下载加执行约 100ms, 即 demo 模拟的 mount 延迟) :
 
 | 阶段         | SWR 组                                | 对照组                         |
 | ------------ | ------------------------------------- | ------------------------------ |
-| 数据就绪时间 | 约 800ms( 请求与 bundle 并行, 取 max) | 约 900ms( 100ms 加 800ms 串行) |
-| 二次消费     | 约 0ms( 缓存命中)                     | 约 800ms( 重新请求)            |
+| 数据就绪时间 | 约 800ms (请求与 bundle 并行, 取 max) | 约 900ms (100ms 加 800ms 串行) |
+| 二次消费     | 约 0ms (缓存命中)                     | 约 800ms (重新请求)            |
 
 网络延迟越大、bundle 越大, 并行化收益越大. 弱网环境下差距可达数秒. 这本质上是把关键路径上的两段串行等待改成了并行, 与 HTTP 资源 preload 提示、script defer 是同一类优化思路.
 
@@ -2343,7 +2343,7 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 - 用户永远看不到 skeleton 和 loading 态, 二次进入页面瞬间有数据
 - 后台 revalidate 不阻塞当前渲染, 新数据在下次消费时生效
-- 对变化频率低的数据( 选择器选项、配置项) , 绝大多数消费拿到的数据其实都是新的, stale 窗口极短
+- 对变化频率低的数据 (选择器选项、配置项) , 绝大多数消费拿到的数据其实都是新的, stale 窗口极短
 
 这个策略成立的前提是业务能容忍短暂的旧数据. 需要注意这一点: SWR 是拿一致性换延迟的权衡, 适合读多写少、容忍最终一致的场景; 下单、支付、库存这类强一致场景不能用.
 
@@ -2357,8 +2357,8 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 可能进一步延伸"为什么不直接用 link rel=preload", 可以对比:
 
-- link rel=preload 只能预加载资源( 脚本、字体、图片) , 无法预加载 XHR/fetch 接口数据
-- HTTP 缓存( Cache-Control) 能覆盖二次访问, 但首次访问仍需完整 RTT, 且无法与 bundle 下载并行调度, 也没有 promise 级别的去重
+- link rel=preload 只能预加载资源 (脚本、字体、图片) , 无法预加载 XHR/fetch 接口数据
+- HTTP 缓存 (Cache-Control) 能覆盖二次访问, 但首次访问仍需完整 RTT, 且无法与 bundle 下载并行调度, 也没有 promise 级别的去重
 - React 18 的 useDeferredValue、Suspense 都不解决"请求早于 bundle"的问题
 - header 内联 fetch 加 window 挂载 promise, 是接口数据预加载的最直接形态, SWR 消费机制让它能被框架代码无缝认领
 
@@ -2366,11 +2366,11 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 延伸一: 缓存挂 window 上不怕污染全局吗?
 
-回答: 真实项目会用带命名空间的 key( 如 `window.__SWR__.staff`) , demo 里用模块级 Map 是等价的封装. 全局挂载是手段不是目的, 目的是让缓存脱离任何框架实例的生命周期, MPA 页面跳转、jQuery 与 React 混用都能共享.
+回答: 真实项目会用带命名空间的 key (如 `window.__SWR__.staff`) , demo 里用模块级 Map 是等价的封装. 全局挂载是手段不是目的, 目的是让缓存脱离任何框架实例的生命周期, MPA 页面跳转、jQuery 与 React 混用都能共享.
 
 延伸二: revalidate 失败怎么办, 缓存会一直是旧数据吗?
 
-回答: demo 里 revalidate 的 then 只在成功时更新缓存, 失败保留旧数据, 下次消费再重试. 生产实现应补 catch, 并可加 timestamp 判断数据陈旧程度, 超过阈值( 如 10 分钟) 就降级为阻塞式重新请求, 避免无限使用过期数据.
+回答: demo 里 revalidate 的 then 只在成功时更新缓存, 失败保留旧数据, 下次消费再重试. 生产实现应补 catch, 并可加 timestamp 判断数据陈旧程度, 超过阈值 (如 10 分钟) 就降级为阻塞式重新请求, 避免无限使用过期数据.
 
 延伸三: 两个组件几乎同时调用 swrFetch, 会不会竞态发两个请求?
 
@@ -2382,7 +2382,7 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 延伸五: 如果项目后来升级到了 React 18 的 SPA, 这个方案还有价值吗?
 
-回答: 预加载部分依然有价值, header 内联请求早于 bundle 的时间窗口与框架无关; 消费侧可以逐步替换为 useSWR 或 React Query, 并用它们的初始数据注入能力( SWR 的 fallbackData、React Query 的 initialData) 认领 window 上的预加载结果, 两套机制可以平滑过渡.
+回答: 预加载部分依然有价值, header 内联请求早于 bundle 的时间窗口与框架无关; 消费侧可以逐步替换为 useSWR 或 React Query, 并用它们的初始数据注入能力 (SWR 的 fallbackData、React Query 的 initialData) 认领 window 上的预加载结果, 两套机制可以平滑过渡.
 
 延伸六: 和 React Query 的 prefetchQuery 有什么区别?
 
@@ -2390,22 +2390,22 @@ SWR 时序把 fetch 提前到 HTML 解析阶段, 与 bundle 下载、解析、�
 
 ### 6. 手写前端性能监控: 思路与选型
 
-本节基于对外部生产项目 boot.ts 监控代码的转述( 该文件不在 swr-demo 仓库中) , 梳理手写性能监控的实现思路、大型企业项目选择手写而非第三方 SDK 的原因, 以及在 swr-demo 中的等价实现.
+本节基于对外部生产项目 boot.ts 监控代码的转述 (该文件不在 swr-demo 仓库中) , 梳理手写性能监控的实现思路、大型企业项目选择手写而非第三方 SDK 的原因, 以及在 swr-demo 中的等价实现.
 
 #### 6.1 boot.ts 的监控思路拆解
 
 boot.ts 的监控代码由五个部分组成, 全部基于浏览器原生 Performance API, 没有依赖任何监控 SDK 的采集能力.
 
-第一部分, 启动打点. 脚本入口第一行就执行 performance.mark('boot-start'), 在整个启动流程( 加载库文件、登录校验、菜单预取、prepare 执行) 完成后打 boot-end, 再用 performance.measure 计算启动总耗时. measure 封装了 try/catch, mark 不存在时不会抛错中断业务.
+第一部分, 启动打点. 脚本入口第一行就执行 performance.mark('boot-start'), 在整个启动流程 (加载库文件、登录校验、菜单预取、prepare 执行) 完成后打 boot-end, 再用 performance.measure 计算启动总耗时. measure 封装了 try/catch, mark 不存在时不会抛错中断业务.
 
-第二部分, 长任务监听. 用 PerformanceObserver 观察 longtask 类型的条目, 只上报 duration 超过 50ms 的任务( 对齐 INP 与 TBT 的 50ms 阈值) , 上报内容附带当前页面路径和业务码 bizCode, 便于按页面维度归因卡顿. 监听在启动采集完成时 disconnect, 避免后续用户交互的长任务污染启动阶段数据.
+第二部分, 长任务监听. 用 PerformanceObserver 观察 longtask 类型的条目, 只上报 duration 超过 50ms 的任务 (对齐 INP 与 TBT 的 50ms 阈值) , 上报内容附带当前页面路径和业务码 bizCode, 便于按页面维度归因卡顿. 监听在启动采集完成时 disconnect, 避免后续用户交互的长任务污染启动阶段数据.
 
 第三部分, 资源加载采样. 记录前 12 秒内执行的模块, 按 0.003 的采样率上报模块路径, 用于离线分析"哪些模块值得做预加载". 这是监控反哺优化的典型用法: 先采样观测, 再决定预加载清单.
 
 第四部分, 关键指标采集. 启动完成后一次性采集三类数据:
 
 - Navigation Timing: 从 navigation 条目拆解文档自身的 DNS 耗时、请求排队时间、请求耗时
-- Resource Timing: 先 setResourceTimingBufferSize(500) 扩大缓冲区防止条目被丢弃, 再从 resource 条目中按 URL 匹配找出关键接口请求( checkAccess、findMenuList 等) 的耗时, 并对并行发起的四个菜单请求排序找出最慢的那个, 定位启动链路的瓶颈
+- Resource Timing: 先 setResourceTimingBufferSize(500) 扩大缓冲区防止条目被丢弃, 再从 resource 条目中按 URL 匹配找出关键接口请求 (checkAccess、findMenuList 等) 的耗时, 并对并行发起的四个菜单请求排序找出最慢的那个, 定位启动链路的瓶颈
 - 自定义 measure: 启动总耗时与启动起点
 
 第五部分, 队列化上报. 所有数据推入 window 上的队列, 格式统一为 action 加 arguments 的事件结构, 由后加载的监控 SDK 异步消费. 上报动作全部包在 try/catch 中, 监控代码的任何异常都不会影响业务启动.
@@ -2439,13 +2439,13 @@ swr-demo 按 boot.ts 的同构思路接入了等价的手写监控, 核心文件
 
 接入点分布:
 
-- src/main.tsx: 入口最早时机调用 initPerfMonitor 启动长任务监听, 并打 swr-boot-start( 该点每轮实验前被 resetBootMarks 清除, 实际参与 measure 的起点是 run 内重打的点)
+- src/main.tsx: 入口最早时机调用 initPerfMonitor 启动长任务监听, 并打 swr-boot-start (该点每轮实验前被 resetBootMarks 清除, 实际参与 measure 的起点是 run 内重打的点)
 - src/swr.ts 的 preload: 并行发起 perf-ping 探测请求, 模拟 boot.ts 中被单独监测的登录校验接口
 - src/App.tsx 的 run: 每轮实验前 resetBootMarks 清除旧打点, SWR 组数据就绪时打 swr-boot-end 并调用 collectAndReport, 采集结果渲染为页面底部的监控面板
 
-实测输出( 本地 dev 环境) : 启动总耗时约 883ms, 即最慢网络请求的等待时间( 800ms 基础延迟加至多 200ms 随机) , 100ms 模拟 mount 延迟与网络请求并行而被覆盖; perf-ping 探测请求约 25ms, 启动期间捕获 1 个长任务( React 首次渲染) , PERF_QUEUE 单轮上报 3 条( 每长任务 1 条 main-thread-blocking, 加 swr-demo-boot 与 performance-index 各 1 条; 队列不清空, 多轮运行会累计) . 控制台可见 main-thread-blocking、swr-demo-boot、performance-index 三类事件, 与 boot.ts 的上报结构一致.
+实测输出 (本地 dev 环境) : 启动总耗时约 883ms, 即最慢网络请求的等待时间 (800ms 基础延迟加至多 200ms 随机) , 100ms 模拟 mount 延迟与网络请求并行而被覆盖; perf-ping 探测请求约 25ms, 启动期间捕获 1 个长任务 (React 首次渲染) , PERF_QUEUE 单轮上报 3 条 (每长任务 1 条 main-thread-blocking, 加 swr-demo-boot 与 performance-index 各 1 条; 队列不清空, 多轮运行会累计) . 控制台可见 main-thread-blocking、swr-demo-boot、performance-index 三类事件, 与 boot.ts 的上报结构一致.
 
-要点: 这套监控和手写 SWR 体现的是同一个工程判断, 在存量约束下, 用最小的自研代码精准采集业务真正关心的指标, 比引入通用重型方案更合适; 两者的公共底座都是浏览器原生能力( Performance API、promise、全局挂载) , 这也是它们能在任何技术栈里工作的原因.
+要点: 这套监控和手写 SWR 体现的是同一个工程判断, 在存量约束下, 用最小的自研代码精准采集业务真正关心的指标, 比引入通用重型方案更合适; 两者的公共底座都是浏览器原生能力 (Performance API、promise、全局挂载) , 这也是它们能在任何技术栈里工作的原因.
 
 ### 7. 一句话总结
 
