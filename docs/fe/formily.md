@@ -2,6 +2,204 @@
 
 本机器路径: 请克隆 git clone git@github.com:alibaba/formily.git
 
+## 〇、一个 JSON 看懂 Formily 所有 Schema 驱动能力
+
+下面这份 schema 是一份能力地图: 它覆盖了 Formily schema 驱动模式的全部能力, 从标准 JSON Schema 语义、字段类型、渲染与状态声明, 到联动、校验和表达式作用域. 建议先通读一遍, 再对照第八节逐条理解. 本文所有协议细节均按 @formily/json-schema@2.3.7 源码核对.
+
+一点提醒: 根节点 schema 本身不会创建字段 (RecursionField 对没有 name 的根节点只递归渲染 properties) , 所以 x-component、default 这些只在字段节点上才生效. 表单级的初始值用 createForm({ initialValues }) 设置.
+
+```jsonc
+{
+  // 根节点只做容器: 声明 type 为 object, 下面挂 properties
+  "type": "object",
+
+  "properties": {
+    // ========== 1. VoidField: 纯布局, 不产生数据路径 ==========
+    // 表单级布局用一个 void 字段包裹, x-component 指向布局容器
+    "layout": {
+      "type": "void",
+      "x-component": "FormLayout", // 作用于其下所有子字段
+      "x-component-props": { "layout": "horizontal", "labelCol": 6 },
+      "properties": {
+        "username": {
+          // ========== 2. 渲染 ==========
+          "type": "string",
+          "title": "用户名",
+          "description": "字段级说明",
+          "x-decorator": "FormItem", // 外壳: 渲染 label、必填星号、校验反馈
+          "x-decorator-props": { "tooltip": "登录账号" },
+          "x-component": "Input", // 输入控件, 从 createSchemaField 注册的组件表查找
+          "x-component-props": { "placeholder": "请输入" },
+          "x-index": 0, // 同级字段排序权重, 越小越靠前
+
+          // ========== 3. 校验 ==========
+          "required": true, // 标准关键字, 自动并入 validator
+          "x-validator": [
+            { "format": "email" }, // 内置格式: email/url/ipv4/ipv6/phone/date/money/zh/zip/qq
+            { "min": 2, "max": 32 }, // 字符串长度或数值范围
+            { "pattern": "^[a-zA-Z]" }, // 正则
+            { "validator": "{{(v) => v === 'admin' ? '不允许该用户名' : ''}}" } // 自定义 (支持异步)
+          ],
+
+          // ========== 4. 状态 ==========
+          // x-display: visible / hidden (不渲染但保留值) / none (不渲染且从 values 删除)
+          "x-display": "visible",
+          // x-pattern: editable / disabled / readOnly / readPretty (详情态)
+          "x-pattern": "editable",
+          "x-value": "", // 直接设置字段值, 写入 form.values
+          // 快捷开关: x-visible/x-hidden -> display, x-disabled/x-editable/x-read-only/x-read-pretty -> pattern
+          "x-data": { "bizId": "demo" }, // 自定义业务数据, 挂到 field.data 上
+
+          // ========== 5. 联动 (声明式) ==========
+          // dependencies 收集依赖 -> when 求值 -> fulfill/otherwise 二选一执行
+          "x-reactions": {
+            "dependencies": ["orderType"],
+            "when": "{{$deps[0] === 'vip'}}",
+            "fulfill": {
+              "state": { "pattern": "readPretty" }, // 满足: 切详情态
+              "schema": { "x-component-props.placeholder": "VIP 用户名" }, // 也可以改协议属性
+              "run": "console.log($self.value)" // 执行一段代码, 作用域同表达式
+            },
+            "otherwise": { "state": { "pattern": "editable" } }
+          }
+        },
+        "orderType": {
+          "type": "string",
+          "title": "订单类型",
+          "default": "normal", // 字段级 default -> field.initialValue (用于 reset 还原)
+          "enum": [
+            // enum -> field.dataSource, 选择类组件消费
+            { "label": "普通", "value": "normal" },
+            { "label": "VIP", "value": "vip" }
+          ],
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 1,
+
+          // ========== 6. 联动 (函数式 + 被动联动) ==========
+          "x-reactions": [
+            // 函数式: 整个 reaction 是一段函数, autorun 自动追踪读取的 observable
+            "{{(field) => { field.visible = $values.username !== '' }}}",
+            // 被动联动: target 指定要驱动的目标字段,
+            // effects 指定监听本字段的哪些生命周期 (默认 onFieldInit + onFieldValueChange),
+            // 表达式中用 $target 读写目标字段状态
+            {
+              "target": "user.contact.phone",
+              "effects": ["onFieldValueChange"],
+              "fulfill": {
+                "state": { "required": "{{$self.value === 'vip'}}" }
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    // ========== 7. ObjectField: 嵌套对象 ==========
+    "user": {
+      "type": "object",
+      "properties": {
+        "contact": {
+          "type": "object",
+          "properties": {
+            "phone": {
+              "type": "string",
+              "title": "手机号",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "x-validator": { "format": "phone" }
+            }
+          }
+        }
+      }
+    },
+
+    // ========== 8. ArrayField: 数组字段 ==========
+    "items": {
+      "type": "array",
+      "title": "商品列表",
+      "x-decorator": "FormItem",
+      "x-component": "ArrayItems",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": { "type": "void", "x-component": "ArrayItems.Index" }, // 行序号
+          "name": {
+            "type": "string",
+            "title": "商品名",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            // 数组行内作用域: $record 当前行值, $index 行号, $records 全部行
+            "x-reactions": "{{(field) => { field.title = '第 ' + ($index + 1) + ' 行' }}}"
+          },
+          "remove": { "type": "void", "x-component": "ArrayItems.Remove" }, // 删除按钮
+          "moveUp": { "type": "void", "x-component": "ArrayItems.MoveUp" } // 上移按钮
+        }
+      },
+      "properties": {
+        "addition": {
+          "type": "void",
+          "title": "添加条目",
+          "x-component": "ArrayItems.Addition" // 追加按钮, 操作 array field 的 push
+        }
+      }
+    },
+
+    // ========== 9. 表达式 ==========
+    // 任意协议属性值写成 "{{表达式}}" 都会被编译执行 (compiler.ts),
+    // 可用作用域: $self 当前字段, $form 表单, $values 表单值, $deps 依赖值,
+    // $target 目标字段, $record/$records/$index 数组行, $props 改组件 props,
+    // $effect/$memo/$observable 响应式工具
+    "submit": {
+      "type": "void",
+      "x-component": "FormButtonGroup",
+      "properties": {
+        "submitBtn": {
+          "type": "void",
+          "x-content": "提交", // -> field.content, 作为组件 children 渲染 (按钮文字)
+          "x-component": "Submit",
+          "x-component-props": {
+            "disabled": "{{!$form.valid}}" // 表单无效时禁用提交
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+渲染这份 schema 只需要:
+
+```tsx
+const SchemaField = createSchemaField({
+  components: {
+    FormLayout, FormItem, Input, Select,
+    ArrayItems, FormButtonGroup, Submit, // 均来自 @formily/antd
+  },
+});
+
+const form = createForm({ initialValues: { orderType: "normal" } });
+
+export default () => (
+  <FormProvider form={form}>
+    <SchemaField schema={schema} />
+  </FormProvider>
+);
+```
+
+能力速查表:
+
+| 分组     | 协议键                                                        | 落到哪里                          |
+| -------- | ------------------------------------------------------------- | --------------------------------- |
+| 标准语义 | type / title / description / default / required / enum        | 字段模型、initialValue、dataSource |
+| 渲染     | x-component / x-component-props / x-decorator / x-decorator-props / x-content / x-index | componentType、decoratorType、content、排序 |
+| 状态     | x-display / x-pattern / x-visible / x-hidden / x-disabled / x-editable / x-read-only / x-read-pretty / x-value / x-data | display、pattern、value、field.data |
+| 校验     | x-validator + required/format/pattern/min/max 等标准关键字    | field.validator                   |
+| 联动     | x-reactions (声明式 / 函数式 / 被动联动)                      | createReactions 执行              |
+| 表达式   | "{{...}}"                                                     | compiler.ts 编译求值              |
+
+---
+
 ## 一、Formily 是什么
 
 Formily 是阿里巴巴开源的一款高性能表单解决方案. 它的核心设计理念是将表单字段的状态进行分布式管理, 每个字段独立渲染、独立更新, 从而避免了传统受控表单中"改一个字段、整棵树重渲染"的性能问题.
@@ -11,7 +209,7 @@ Formily 2.x 采用 monorepo 架构, 由多个独立的 npm 包组成, 各司其�
 | 包名                    | 职责                                         |
 | ----------------------- | -------------------------------------------- |
 | @formily/reactive       | 响应式状态管理引擎 (类似 MobX)               |
-| @formily/core           | 表单领域模型 (Form、Field、生命周期、副作用) |
+| xf           | 表单领域模型 (Form、Field、生命周期、副作用) |
 | @formily/react          | React 绑定层 (组件、Hooks、Schema 渲染)      |
 | @formily/reactive-react | 将 reactive 与 React 渲染桥接 (observer)     |
 | @formily/json-schema    | JSON Schema 协议解析与字段转换               |
