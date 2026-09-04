@@ -38,8 +38,6 @@ jobs:
 
       - name: Build
         run: pnpm build
-        env:
-          DOCS_PASSWORD: ${{ secrets.DOCS_PASSWORD }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -47,7 +45,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .vitepress/dist
+          path: doc_build
 
       - name: Deploy to GitHub Pages
         id: deployment

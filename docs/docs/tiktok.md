@@ -1,7 +1,3 @@
----
-private: true
----
-
 # Tiktok 工作: 设备性能采集、数据链路、RPC、BFF 与虚拟滚动
 
 ## Tiktok 设备性能数据采集: perfetto 与两种采集方法

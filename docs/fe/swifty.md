@@ -1,7 +1,3 @@
----
-private: true
----
-
 > 本机器路径 `$HOME/github/swifty-cli/apps/swifty`
 
 # Swifty CLI — 技术笔记

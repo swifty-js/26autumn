@@ -201,7 +201,7 @@ export default () => (
 | 状态     | x-display / x-pattern / x-visible / x-hidden / x-disabled / x-editable / x-read-only / x-read-pretty / x-value / x-data | display、pattern、value、field.data         |
 | 校验     | x-validator + required/format/pattern/min/max 等标准关键字                                                              | field.validator                             |
 | 联动     | x-reactions (声明式 / 函数式 / 被动联动)                                                                                | createReactions 执行                        |
-| 表达式   | "{{...}}"                                                                                                               | compiler.ts 编译求值                        |
+| 表达式   | `"{{...}}"`                                                                                                             | compiler.ts 编译求值                        |
 
 ---
 
@@ -1240,7 +1240,7 @@ const getUserReactions = (schema, options) => {
 
 ### 8.4 表达式编译
 
-x-reactions 中的 {{...}} 语法会被 compiler.ts 编译为 JavaScript 函数:
+x-reactions 中的 `{{...}}` 语法会被 compiler.ts 编译为 JavaScript 函数:
 
 ```ts
 // "{{ $deps[0] === 'yes' }}" -> new Function('$deps', "return $deps[0] === 'yes'")

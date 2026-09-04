@@ -1,13 +1,11 @@
 :root {
-  --font-sans:
+  --rp-c-brand: #4285f4 !important;
+  --rp-c-brand-light: #5e97f6 !important;
+  --rp-c-brand-dark: #3367d6 !important;
+  --rp-font-family-base:
     "Iosevka", "Maple Mono", Menlo, "Cascadia Code", "PingFang SC",
     "Microsoft YaHei" !important;
-  --font-mono:
+  --rp-font-family-mono:
     "Iosevka", "Maple Mono", Menlo, "Cascadia Code", "PingFang SC",
     "Microsoft YaHei" !important;
-  --vp-c-brand-1: #4285f4;
-  --vp-c-brand-2: #5e97f6;
-  --vp-c-brand-3: #3367d6;
-  --vp-font-family-base: var(--font-sans);
-  --vp-font-family-mono: var(--font-mono);
 }

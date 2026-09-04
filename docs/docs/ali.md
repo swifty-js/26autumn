@@ -1,7 +1,3 @@
----
-private: true
----
-
 # Ali 工作
 
 > 本机器路径: $HOME/github/a2ui/packages/shadcn

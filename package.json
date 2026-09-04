@@ -11,22 +11,19 @@
   "type": "module",
   "author": "https://github.com/swifty-js",
   "scripts": {
-    "dev": "DOCS_PASSWORD=pass vitepress dev",
-    "build": "vitepress build",
-    "preview": "vitepress preview",
+    "dev": "rspress dev",
+    "build": "rspress build",
+    "preview": "rspress preview",
     "git:commit": "git add -A && git commit -m \"feat: Introduce new features\"",
     "git:push": "pnpm git:commit && git push origin main",
     "format": "prettier -w ./ --experimental-cli",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@lark.js/docs": "^0.0.26",
-    "@swifty.js/anti-copy": "latest",
-    "@swifty.js/docs": "^0.0.15",
     "@types/node": "24.13.3",
     "husky": "^9.1.7",
     "prettier": "^3.9.6",
-    "vitepress": "^1.6.3"
+    "rspress": "^1.47.2"
   },
   "packageManager": "pnpm@10.33.1"
 }

@@ -200,6 +200,12 @@ rules.ninja
 **/.vitepress/dist/
 swifty-vscode/swifty-vscode-*.vsix
 
+# rspress
+.rspress/
+**/.rspress/
+doc_build/
+**/doc_build/
+
 tsconfig.tsbuildinfo
 **/tsconfig.tsbuildinfo
 .swifty/

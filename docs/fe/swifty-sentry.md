@@ -1170,12 +1170,12 @@ DataReporter 实例的关键字段: 事件队列 `events`、批量定时器 `tim
 
 属性约定:
 
-| 属性                | 含义         | 示例                              |
-| ------------------- | ------------ | --------------------------------- |
-| `swifty-sentry-ev`  | 事件 ID      | `swifty-sentry-ev="btn_submit"`   |
-| `swifty-sentry-msg` | 事件描述     | `swifty-sentry-msg="提交订单"`    |
-| `swifty-sentry-el`  | 元素追踪标记 | `swifty-sentry-el="checkout_btn"` |
-| `swifty-sentry-*`   | 自定义参数   | `swifty-sentry-price="99.9"`      |
+| 属性                 | 含义         | 示例                                |
+| -------------------- | ------------ | ----------------------------------- |
+| `swifty-sentry-ev`   | 事件 ID      | `swifty-sentry-ev="btn_submit"`     |
+| `swifty-sentry-msg`  | 事件描述     | `swifty-sentry-msg="提交订单"`      |
+| `swifty-sentry-view` | 元素追踪标记 | `swifty-sentry-view="checkout_btn"` |
+| `swifty-sentry-*`    | 自定义参数   | `swifty-sentry-price="99.9"`        |
 
 实现逻辑 (utils/click-data.ts) :
 
@@ -1187,13 +1187,13 @@ export function getDeclarativeClickData(
   const path = getComposedElementPath(event);
   const fallbackPath = path.length > 0 ? path : getElementPath(event.target);
 
-  // 2. 寻找路径中第一个带 swifty-sentry-el/ev/msg 属性的元素
+  // 2. 寻找路径中第一个带 swifty-sentry-view/ev/msg 属性的元素
   const trackingTarget = fallbackPath.find(hasTrackingAttribute);
   if (!trackingTarget) return null;
 
   // 3. 组装点击数据
   return {
-    ev: getEventId(fallbackPath), // 优先级: swifty-sentry-ev > title > swifty-sentry-el > 标签名
+    ev: getEventId(fallbackPath), // 优先级: swifty-sentry-ev > title > swifty-sentry-view > 标签名
     msg: getMessage(trackingTarget), // swifty-sentry-msg > title > textContent > aria-label > 标签名
     triggerPageUrl: location.href,
     x,

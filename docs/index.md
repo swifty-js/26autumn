@@ -1,5 +1,5 @@
 ---
-layout: home
+pageType: home
 hero:
   name: 技术学习笔记
   text: 前端、后端与 Swifty 系列
