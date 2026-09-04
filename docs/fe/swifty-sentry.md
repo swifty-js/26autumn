@@ -1236,6 +1236,8 @@ function pubClick(): Cleanup {
 
 ---
 
+##
+
 ## 设备指纹和用户身份体系是如何设计的?
 
 身份体系分为三层, 实现在 `core/identity.ts` 和 `utils/sentry.ts`.
@@ -1679,7 +1681,7 @@ globalThis.addEventListener("pagehide", () => {
 1. 性能优化:
 
 - Web Worker 上报: 将 JSON 序列化、gzip 压缩移到 Worker 线程, 避免阻塞主线程 (当前 pako 压缩在主线程执行)
-- 批量 DOM 查询优化: 白屏检测的 18 次 `elementFromPoint` 会触发 layout, 可以合并到一次 reflow 中
+- 批量 DOM 查询优化: 白屏检测每轮做 18 次 `elementFromPoint`, 该 API 依赖布局结果, 布局处于脏状态 (pending layout) 时调用会强制同步回流 (forced reflow); 可做的优化: 循环内保持连续只读、不穿插样式写入或 DOM 修改 (整批最多回流一次); 无骨架模式下发现首个非空点即可短路结束本轮, 不必查满 18 点; 采样整体已用 `requestIdleCallback` 调度到主线程空闲期执行, 避免阻塞渲染
 - FSP MutationObserver 节流: 当前每次 DOM 变化都检查 `isInViewport` (触发 getBoundingClientRect) , 可以用 IntersectionObserver 替代视口判断
 - rrweb 加载时机: rrweb 已通过 `import()` 动态加载 (recorder.ts) , 但 ScreenRecordPlugin 的 init 会立即触发加载; 可以进一步推迟到首次出现录屏标记时再加载, 让未发生错误的会话完全不付出加载代价
 

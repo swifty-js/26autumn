@@ -38,7 +38,7 @@
             { "format": "email" }, // 内置格式: email/url/ipv4/ipv6/phone/date/money/zh/zip/qq
             { "min": 2, "max": 32 }, // 字符串长度或数值范围
             { "pattern": "^[a-zA-Z]" }, // 正则
-            { "validator": "{{(v) => v === 'admin' ? '不允许该用户名' : ''}}" } // 自定义 (支持异步)
+            { "validator": "{{(v) => v === 'admin' ? '不允许该用户名' : ''}}" }, // 自定义 (支持异步)
           ],
 
           // ========== 4. 状态 ==========
@@ -58,10 +58,10 @@
             "fulfill": {
               "state": { "pattern": "readPretty" }, // 满足: 切详情态
               "schema": { "x-component-props.placeholder": "VIP 用户名" }, // 也可以改协议属性
-              "run": "console.log($self.value)" // 执行一段代码, 作用域同表达式
+              "run": "console.log($self.value)", // 执行一段代码, 作用域同表达式
             },
-            "otherwise": { "state": { "pattern": "editable" } }
-          }
+            "otherwise": { "state": { "pattern": "editable" } },
+          },
         },
         "orderType": {
           "type": "string",
@@ -70,7 +70,7 @@
           "enum": [
             // enum -> field.dataSource, 选择类组件消费
             { "label": "普通", "value": "normal" },
-            { "label": "VIP", "value": "vip" }
+            { "label": "VIP", "value": "vip" },
           ],
           "x-decorator": "FormItem",
           "x-component": "Select",
@@ -87,12 +87,12 @@
               "target": "user.contact.phone",
               "effects": ["onFieldValueChange"],
               "fulfill": {
-                "state": { "required": "{{$self.value === 'vip'}}" }
-              }
-            }
-          ]
-        }
-      }
+                "state": { "required": "{{$self.value === 'vip'}}" },
+              },
+            },
+          ],
+        },
+      },
     },
 
     // ========== 7. ObjectField: 嵌套对象 ==========
@@ -107,11 +107,11 @@
               "title": "手机号",
               "x-decorator": "FormItem",
               "x-component": "Input",
-              "x-validator": { "format": "phone" }
-            }
-          }
-        }
-      }
+              "x-validator": { "format": "phone" },
+            },
+          },
+        },
+      },
     },
 
     // ========== 8. ArrayField: 数组字段 ==========
@@ -130,19 +130,19 @@
             "x-decorator": "FormItem",
             "x-component": "Input",
             // 数组行内作用域: $record 当前行值, $index 行号, $records 全部行
-            "x-reactions": "{{(field) => { field.title = '第 ' + ($index + 1) + ' 行' }}}"
+            "x-reactions": "{{(field) => { field.title = '第 ' + ($index + 1) + ' 行' }}}",
           },
           "remove": { "type": "void", "x-component": "ArrayItems.Remove" }, // 删除按钮
-          "moveUp": { "type": "void", "x-component": "ArrayItems.MoveUp" } // 上移按钮
-        }
+          "moveUp": { "type": "void", "x-component": "ArrayItems.MoveUp" }, // 上移按钮
+        },
       },
       "properties": {
         "addition": {
           "type": "void",
           "title": "添加条目",
-          "x-component": "ArrayItems.Addition" // 追加按钮, 操作 array field 的 push
-        }
-      }
+          "x-component": "ArrayItems.Addition", // 追加按钮, 操作 array field 的 push
+        },
+      },
     },
 
     // ========== 9. 表达式 ==========
@@ -159,12 +159,12 @@
           "x-content": "提交", // -> field.content, 作为组件 children 渲染 (按钮文字)
           "x-component": "Submit",
           "x-component-props": {
-            "disabled": "{{!$form.valid}}" // 表单无效时禁用提交
-          }
-        }
-      }
-    }
-  }
+            "disabled": "{{!$form.valid}}", // 表单无效时禁用提交
+          },
+        },
+      },
+    },
+  },
 }
 ```
 
@@ -173,8 +173,13 @@
 ```tsx
 const SchemaField = createSchemaField({
   components: {
-    FormLayout, FormItem, Input, Select,
-    ArrayItems, FormButtonGroup, Submit, // 均来自 @formily/antd
+    FormLayout,
+    FormItem,
+    Input,
+    Select,
+    ArrayItems,
+    FormButtonGroup,
+    Submit, // 均来自 @formily/antd
   },
 });
 
@@ -189,14 +194,14 @@ export default () => (
 
 能力速查表:
 
-| 分组     | 协议键                                                        | 落到哪里                          |
-| -------- | ------------------------------------------------------------- | --------------------------------- |
-| 标准语义 | type / title / description / default / required / enum        | 字段模型、initialValue、dataSource |
-| 渲染     | x-component / x-component-props / x-decorator / x-decorator-props / x-content / x-index | componentType、decoratorType、content、排序 |
-| 状态     | x-display / x-pattern / x-visible / x-hidden / x-disabled / x-editable / x-read-only / x-read-pretty / x-value / x-data | display、pattern、value、field.data |
-| 校验     | x-validator + required/format/pattern/min/max 等标准关键字    | field.validator                   |
-| 联动     | x-reactions (声明式 / 函数式 / 被动联动)                      | createReactions 执行              |
-| 表达式   | "{{...}}"                                                     | compiler.ts 编译求值              |
+| 分组     | 协议键                                                                                                                  | 落到哪里                                    |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| 标准语义 | type / title / description / default / required / enum                                                                  | 字段模型、initialValue、dataSource          |
+| 渲染     | x-component / x-component-props / x-decorator / x-decorator-props / x-content / x-index                                 | componentType、decoratorType、content、排序 |
+| 状态     | x-display / x-pattern / x-visible / x-hidden / x-disabled / x-editable / x-read-only / x-read-pretty / x-value / x-data | display、pattern、value、field.data         |
+| 校验     | x-validator + required/format/pattern/min/max 等标准关键字                                                              | field.validator                             |
+| 联动     | x-reactions (声明式 / 函数式 / 被动联动)                                                                                | createReactions 执行                        |
+| 表达式   | "{{...}}"                                                                                                               | compiler.ts 编译求值                        |
 
 ---
 
@@ -209,7 +214,7 @@ Formily 2.x 采用 monorepo 架构, 由多个独立的 npm 包组成, 各司其�
 | 包名                    | 职责                                         |
 | ----------------------- | -------------------------------------------- |
 | @formily/reactive       | 响应式状态管理引擎 (类似 MobX)               |
-| xf           | 表单领域模型 (Form、Field、生命周期、副作用) |
+| xf                      | 表单领域模型 (Form、Field、生命周期、副作用) |
 | @formily/react          | React 绑定层 (组件、Hooks、Schema 渲染)      |
 | @formily/reactive-react | 将 reactive 与 React 渲染桥接 (observer)     |
 | @formily/json-schema    | JSON Schema 协议解析与字段转换               |
