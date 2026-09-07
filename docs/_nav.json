@@ -1,0 +1,52 @@
+[
+  { "text": "首页", "link": "/" },
+  {
+    "text": "前端",
+    "link": "/fe/react",
+    "activeMatch": "^/fe/",
+    "items": [
+      { "text": "React", "link": "/fe/react" },
+      { "text": "Next.js", "link": "/fe/next" },
+      { "text": "CSS", "link": "/fe/css" },
+      { "text": "Vite", "link": "/fe/vite" },
+      { "text": "Formily", "link": "/fe/formily" },
+      { "text": "OpenSpec", "link": "/fe/openspec" },
+      { "text": "Priority Hint", "link": "/fe/priority-hint" },
+      { "text": "TanStack Query", "link": "/fe/tanstack" },
+      { "text": "JavaScript 综合", "link": "/fe/fe" },
+      { "text": "Swifty", "link": "/fe/swifty" },
+      { "text": "Swifty Agent", "link": "/fe/swifty-agent" },
+      { "text": "Swifty Chatbot", "link": "/fe/swifty-chatbot" },
+      { "text": "Swifty Sentry", "link": "/fe/swifty-sentry" }
+    ]
+  },
+  {
+    "text": "后端",
+    "link": "/be/go",
+    "activeMatch": "^/be/",
+    "items": [
+      { "text": "Go", "link": "/be/go" },
+      { "text": "Swiftx", "link": "/be/swiftx" },
+      { "text": "Swifty HTTP", "link": "/be/swifty-http" },
+      { "text": "Swifty RPC", "link": "/be/swifty-rpc" },
+      { "text": "Swifty Cache", "link": "/be/swifty-cache" },
+      { "text": "MySQL", "link": "/be/mysql" },
+      { "text": "Redis", "link": "/be/redis" },
+      { "text": "中间件", "link": "/be/middleware" },
+      { "text": "ClickHouse Kafka", "link": "/be/clickhouse-kafka" }
+    ]
+  },
+  {
+    "text": "工作笔记",
+    "link": "/docs/tiktok",
+    "activeMatch": "^/docs/",
+    "items": [
+      { "text": "TikTok", "link": "/docs/tiktok" },
+      { "text": "IEG", "link": "/docs/ieg" },
+      { "text": "Ali", "link": "/docs/ali" },
+      { "text": "A2UI", "link": "/docs/a2ui" },
+      { "text": "Codegraph", "link": "/docs/codegraph" },
+      { "text": "Data", "link": "/docs/data" }
+    ]
+  }
+]
