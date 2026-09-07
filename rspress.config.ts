@@ -15,11 +15,6 @@ export default defineConfig({
   },
   markdown: {
     showLineNumbers: true,
-    codeHighlighter: {
-      shiki: {
-        languages: ["promql"],
-      },
-    },
   },
   themeConfig: {
     lastUpdated: true,
