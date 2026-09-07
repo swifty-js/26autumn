@@ -627,7 +627,7 @@ Remote Write -> Thanos/Cortex (长期存储)
 
 ### PromQL 的核心概念和常用查询模式有哪些?
 
-```promql
+```text
 rate(http_requests_total[5m])                          # 速率
 histogram_quantile(0.99, rate(duration_bucket[5m]))    # P99
 sum(rate(errors[5m])) / sum(rate(requests[5m]))        # 错误率

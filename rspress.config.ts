@@ -15,6 +15,11 @@ export default defineConfig({
   },
   markdown: {
     showLineNumbers: true,
+    codeHighlighter: {
+      shiki: {
+        fallbackLanguage: "text",
+      },
+    },
   },
   themeConfig: {
     lastUpdated: true,
