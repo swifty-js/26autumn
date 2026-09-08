@@ -45,8 +45,12 @@
       { "text": "IEG", "link": "/docs/ieg" },
       { "text": "Ali", "link": "/docs/ali" },
       { "text": "A2UI", "link": "/docs/a2ui" },
+      { "text": "A2UI Express", "link": "/docs/a2ui-express" },
+      { "text": "MCP App", "link": "/docs/mcp-app" },
+      { "text": "WebContainer", "link": "/docs/webc" },
       { "text": "Codegraph", "link": "/docs/codegraph" },
-      { "text": "Data", "link": "/docs/data" }
+      { "text": "Data", "link": "/docs/data" },
+      { "text": "Agent 最佳实践", "link": "/docs/agent-best-practices" }
     ]
   }
 ]

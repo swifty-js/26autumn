@@ -1230,6 +1230,198 @@ sendParams = {
 
 Server 端的 ADK Session 通过 contextId 关联, 确保 LLM 在后续轮次中能看到之前的对话上下文 (包括之前生成的 A2UI 消息和工具调用结果).
 
+## 组件加载时的 Loading (骨架) 实现
+
+A2UI 协议本身没有 loading 语义 (四类消息中没有任何 loading 状态字段) , 渐进渲染期间的占位完全是渲染器/宿主侧的实现问题。协议现状已提供的基础: DeferredChild 对未到达组件渲染 `[Loading {id}...]` 纯文本占位 (snapshot 形如 missing-${version}) ; root 未到达前其余组件更新被缓冲, 不产生可见效果; 绑定路径解析为 undefined 时规范建议按空串或 loading 优雅处理。据此可以把 loading 分为三层, 分别对应三类消息的到达状态:
+
+### 第一层: Surface 级 (createSurface 已到, 组件与数据未到)
+
+createSurface 到达即触发 onSurfaceCreated, 宿主立即挂载该 Surface 并渲染整体骨架卡 (标题条 + 文本条 + 图块的 Skeleton 组合) ; root 组件到达后由 DeferredChild 链自动接管, 骨架消失。swifty-agent 链路中 a2ui 块校验后一次性下发, message 事件与 a2ui 事件之间的等待窗口即对应这一层。
+
+### 第二层: 组件级 (updateComponents 部分到达)
+
+组件乱序/流式到达时, 父组件已挂载而子组件 id 尚未到达。DeferredChild 的 missing 分支是天然挂载点, 把官方的纯文本占位替换为骨架块:
+
+```tsx
+if (!componentModel) return <Skeleton className="h-4 w-full animate-pulse" />;
+```
+
+此层不知道组件类型 (组件还没到) , 用通用灰块/脉冲; 占位块位于父布局的子槽位中, 天然保持最终布局位置。组件到达后 useSyncExternalStore 的 snapshot 从 missing-${version} 切到 ${type}-${version}, 骨架自动替换为真实渲染, 无需任何额外状态管理。可选优化: 依据已到达的父组件类型改进骨架形状 (父为 List 时渲染列表骨架)。
+
+### 第三层: 数据级 (组件已到, updateDataModel 未到或部分到达)
+
+组件结构已知而 Dynamic 绑定值解析为 undefined。此层可渲染精确形状的骨架: Text -> 文本条, Image -> 图块, Avatar -> 圆形。关键在于区分 "数据未到" 与 "值确实为空" —— 协议消息不区分这两者, 需要渲染器自建 settled (数据定型) 信号:
+
+- 信号源: MessageProcessor 单批 processMessages 处理完成 / swifty-agent SSE 的 done 事件 / 短超时 (窗口内无新消息视为定型, 工程选择)
+- 在 SurfaceModel 上维护 settled 标志并传入渲染上下文: 绑定值为 undefined 且未 settled 时渲染骨架, settled 后渲染空串 —— 正好对应规范 "空串或 loading" 的两个合法选项
+
+### 工程要点
+
+1. 骨架是渲染器本地行为, 不进 catalog、不污染协议: Agent 不能也不需要请求骨架。可直接复用 @swifty.js/a2ui-shadcn 的 Skeleton 视觉 (display 家族已有 Skeleton / Spinner) , 但作为库内部组件使用, 不注册进 catalog.json
+2. 防闪烁: 骨架与内容切换加 fade 过渡; 骨架设最短显示时长, 避免数据瞬间到达时的闪烁
+3. 三层共用同一 settled 信号与骨架视觉: Surface 级骨架在 root 到达时移除, 组件级在 snapshot 切换时移除, 数据级在 settled 且值非 undefined 时移除
+4. Lit 渲染器同理: 在组件缺失分支渲染骨架, 信号机制复用 web_core 的订阅事件
+
+## A2UI 与 Schema-driven UI、低代码的对比
+
+术语约定: 本节的 "Schema-driven UI" 指 "用 JSON Schema (或等价结构化 schema) 描述数据与字段约束, 由通用渲染器映射为表单/界面" 的方案, 代表实现有 react-jsonschema-form (JSON Schema + uiSchema) 、JSONForms (JSON Schema + UI Schema, scope 用 JSON Pointer 定位) 、Formily、form-render (阿里 XRender 家族) 等; "低代码" 指 "人在可视化编辑器中搭建, 平台产出专有 DSL/JSON, 运行时渲染完整应用" 的平台, 代表实现有 amis (百度开源的 JSON 配置驱动低代码前端框架) 、Retool、OutSystems、Mendix. amis 介于两者之间: 它以 JSON 为载体 (类似 Schema-driven) , 但覆盖整页应用且配有可视化编辑器 (更像低代码) , 官方自我定位即低代码前端框架. 与 OpenAI ChatKit 的对比见前文 "生态与定位" 一节, 本节不再重复.
+
+### 一句话定位
+
+- A2UI: 运行时由 LLM 按请求生成的、面向跨信任边界的流式声明式 UI 协议
+- Schema-driven UI: 设计时由开发者或后端接口下发的数据 schema, 渲染器生成表单, 表达范围以表单为主
+- 低代码: 设计时由人在可视化编辑器中搭建的专有 DSL, 运行时渲染完整应用, 表达力最强但 DSL 封闭
+
+三者共享同一个祖先思想 — "UI 即数据, 由统一渲染器解释", 这正是 A2UI 第二设计哲学 (声明式组件) 的来源; 差异集中在四个问题: 描述由谁产出、何时产出、能表达什么、要不要信任产出者.
+
+### 概念对照表
+
+| 维度        | A2UI                                                                                             | Schema-driven UI                                        | 低代码                                                                    |
+| :---------- | :----------------------------------------------------------------------------------------------- | :------------------------------------------------------ | :------------------------------------------------------------------------ |
+| UI 描述载体 | A2UI 消息流 (createSurface / updateComponents / updateDataModel)                                 | JSON Schema + uiSchema (或 Formily schema 等等价物)     | 平台专有 DSL/JSON                                                         |
+| 描述的作者  | LLM/Agent, 运行时按请求生成                                                                      | 开发者或后端接口, 设计时产出                            | 人, 在可视化编辑器中搭建                                                  |
+| 组件契约    | catalog (catalogId + 组件 JSON Schema + 函数表) , 支持 supportedCatalogIds / inlineCatalogs 协商 | 渲染器内置控件集, uiSchema 指定 widget 或注册自定义组件 | 平台物料库, 由平台固定                                                    |
+| 结构与数据  | 彻底分离: 组件树 (邻接表) 与 DataModel (JSON Pointer 绑定) 是两类消息                            | 分离: schema 描述字段结构, formData 承载数据            | 通常混合: DSL 中同时描述结构、数据源与联动                                |
+| 更新模型    | 流式增量消息, 单条原子, 支持渐进渲染与乱序到达                                                   | 整份 schema 一次性渲染, 值更新由表单库内部管理          | 运行时整体渲染, 联动/刷新由平台事件机制管理                               |
+| 逻辑表达    | 仅 catalog 函数 (校验/格式化/逻辑组合) + 声明式 action (event/functionCall) , 无代码执行面       | JSON Schema 约束表达校验, 表达力限于数据约束            | 最强: 事件编排、数据源编排, 多数平台提供自定义 JS 扩展点 (引入代码执行面) |
+| 信任假设    | Agent 可能不可信, 白名单渲染, 为跨信任边界设计                                                   | schema 由可信方产出                                     | DSL 由平台内可信用户产出                                                  |
+| 可校验性    | JSON Schema 全量校验 + generate-validate-repair 闭环                                             | JSON Schema 原生校验                                    | 编辑器内校验                                                              |
+| 表达范围    | 对话内动态卡片/表单/图表 (basic catalog 18 组件, shadcn catalog 65 组件)                         | 以表单为核心                                            | 完整应用 (页面/流程/权限)                                                 |
+| 生态开放度  | 开放标准, 官方多渲染器 (React/Lit/Angular/Flutter/Markdown)                                      | 开源渲染器各自为政, schema 形态互不完全兼容             | DSL 平台封闭, 不可跨平台移植                                              |
+
+### 关键差异展开
+
+1. 生成时机决定工程形态. 低代码与 Schema-driven UI 的描述都是设计时产物, 可以反复调试、测试、缓存; A2UI JSON 是运行时产物, 天然携带 LLM 的错误率, 因此必须配套 "校验 + 有限次纠错 + 诚实降级" 的运行时兜底 (见下一节) . 这是低代码平台根本不需要考虑的问题.
+2. 信任边界决定逻辑表达上限. 低代码平台敢于提供自定义 JS 与表达式引擎, 是因为 DSL 由自家可信用户产出; A2UI 显式假设 Agent 可能不可信 (跨组织的多 Agent 场景) , 协议层面不提供任何代码执行通道, 逻辑被收紧为 catalog 函数与声明式 action. 低代码的强表达力是以放弃跨信任边界安全为代价的, 两者不能简单互相替代.
+3. 组件契约的协商性. 低代码的物料库是平台事实标准; Schema-driven UI 的控件集由渲染器决定; A2UI 把 "客户端支持什么" 协议化为 catalog 并支持两种协商模式 (pre-shared catalogId 与 inlineCatalogs 全量 schema 注入) , Agent 在生成前就知道边界. 官方明确不追求跨客户端的标准化 catalog, 理由是 UI 由 LLM 生成, LLM 可以针对每个前端解释各自的 catalog.
+4. 更新模型为流式而生. Schema-driven UI 与低代码都假设 "一次给全, 渲染一次"; A2UI 的扁平邻接表、乱序可达、root 缓冲、模板绑定, 全部为 "LLM 边生成边渲染" 服务. 反过来看, 若把 A2UI 的三类消息一次性发全, 其形态与一份低代码页面配置已非常接近 — 本质区别在于数据模型独立成消息、所有动态值都有 {path} / {call} 绑定形态.
+5. 数据绑定思想同源. A2UI 的 Dynamic 三态 (字面量 / {path} / {call}) 与 Schema-driven UI 的 "schema 描述结构、formData 承载值" 是同一种结构与状态分离思想; JSON Pointer (RFC 6901) 直接复用 JSON 生态标准. 可以说 A2UI 的数据绑定子集约等于 Schema-driven UI 的核心, 而 Schema-driven UI 缺少 A2UI 的组件树流式协议与 catalog 协商.
+
+### 关系与选型
+
+- A2UI 可以理解为: 把低代码的产出物从 "设计时人工 DSL" 变成 "运行时 LLM 产物", 并为此把 DSL 收紧 — 无代码执行、白名单 catalog、schema 全量可校验
+- catalog.json 本身就是 JSON Schema 集合, 与 Schema-driven UI 的 schema 在数据层面同构, 因此 A2UI 消息可以确定性转换为 JSON Schema 表单 (见下一节 L5)
+- 选型参考: 表单为主且字段由后端定义, 用 Schema-driven UI (成熟, 零 LLM 成本) ; 已有可视化搭建/专有 DSL 平台, 继续用低代码, A2UI 仅在需要 LLM 动态生成界面的对话场景引入; Agent 生成 UI、跨信任边界、多端渲染, 用 A2UI
+
+---
+
+## LLM 生成 A2UI JSON 失败时的降级策略
+
+本文档主线链路已经内建了最小降级闭环: extractA2ui 提取标签块 -> A2uiMessageListSchema.safeParse 校验 -> correctA2uiBlock 一次纠错重试 -> 失败降级为 notice 提示, 绝不伪造 UI 数据. 本节把这条闭环展开为完整体系: 先分类失败形态, 再给出降级原则与六级降级阶梯, 重点补充两类确定性转换降级 (A2UI -> Markdown 与 A2UI -> Schema-driven 表单/低代码 JSON) .
+
+### 失败形态分类
+
+1. 截断类: 流式输出中断导致 JSON 不完整、a2ui-json 标签未闭合. createA2uiStreamFilter 对未闭合块已在 flush 时还原为纯文本而非静默丢弃, 这本身就是一种被动降级
+2. 语法类: 尾逗号、单引号、未转义换行等 JSON 语法错误. 官方 agent SDK 的解析环节包含 payload_fixer, 自动修复常见 LLM 输出问题 (见阶段 8) ; 社区有同类开源实现 (如 jsonrepair)
+3. Schema 类: 字段形态错误 (校验错误形如 "Expected stringOrPath, got integer") 、组件不在 catalog、未知属性
+4. 引用类: ComponentId 悬空、数据路径错误. 协议对这类错误有内建容忍 — 组件可乱序到达、可引用尚不存在的子组件或数据路径, 客户端渲染占位等待补齐
+5. 生命周期类: 缺 createSurface、root 缺失、杂散 createSurface (触发 "Surface already exists" 整批丢弃) 、surfaceId 不一致. 这类错误破坏协议状态机, swifty-agent 的 filterInPlaceMessages 就是针对它的服务端防御
+
+协议自身对失败的最小要求 (A2A 扩展规范) : 单条消息校验/应用失败时记录错误并继续处理后续消息, 原子性只在单条消息级别保证; 渐进渲染期间路径解析为 undefined 时渲染器应优雅处理. 超出这个范围的部分 (整批失败怎么办、如何转格式) 是应用层策略, 即本节内容.
+
+### 降级原则
+
+1. 永不崩溃、永不渲染非法状态: 客户端 A2uiView 的逐条 safeParse 丢弃是最后一道闸, 所有降级手段都必须保证最终下发的是可渲染数据
+2. 语义保真度逐级下降, 安全性绝不下降: 任何降级目标 (Markdown、JSON Schema 表单、低代码 JSON) 仍必须是纯声明式数据, 不引入代码执行面
+3. 保数据优先于保结构: updateDataModel 与 markdown 正文往往独立合法; 结构损坏时数据还在, DataModel 本身就能支撑降级渲染
+4. 确定性转换优先于 LLM 修复, LLM 修复优先于放弃: 确定性转换零成本、无额外幻觉面、可单测
+5. 诚实降级: 降级必须对用户可见 (提示当前为降级视图) , 绝不伪造 UI 数据
+
+一个关键观察: direct-json 模式下, LLM 的 markdown 正文与 a2ui 块共用同一输出通道, 正文天然存在. 因此降级的本质是 "交互增强失效, 文字回答仍在"; 降级策略的全部目标是尽量保住增强, 而不是保住回答.
+
+### 降级阶梯
+
+| 级别          | 手段                                                                                          | 是否需要 LLM     | 触发条件                   | 产物                         |
+| :------------ | :-------------------------------------------------------------------------------------------- | :--------------- | :------------------------- | :--------------------------- |
+| L0 预防       | prompt 注入 schema 契约 + few-shot builder 示例                                               | - (生成侧工程)   | 常驻                       | 降低失败率, 是后续一切的前提 |
+| L1 解析级修复 | 流式过滤器 + JSON 修复 (补截断/去尾逗号等, payload_fixer 思路)                                | 否               | JSON 语法错误或截断        | 语法合法的消息数组           |
+| L2 纠错重试   | correctA2uiBlock: 关闭工具, 回喂校验错误, 只重试一次                                          | 是 (一次)        | safeParse 失败             | 通过校验的消息数组           |
+| L3 消息级抢救 | 逐条 (必要时逐组件) safeParse, 保留合法消息并重排 (createSurface 置于该 Surface 其余消息之前) | 否               | 重试后仍失败               | 部分合法的消息数组           |
+| L4 数据直出   | 放弃组件树, 将 DataModel 渲染为 Markdown (键值/列表/表格)                                     | 否               | 组件树不可修复             | Markdown                     |
+| L5 格式转换   | 组件树 + DataModel 确定性转换为 Markdown / JSON Schema 表单 / 低代码 JSON                     | 否 (可 LLM 补充) | 组件树可解析但整体校验失败 | 等价声明式 UI                |
+| L6 诚实降级   | notice 提示 + 保留纯文本正文                                                                  | 否               | 全部失败                   | 纯文本回答                   |
+
+L3 与协议的最小要求对齐 (逐条处理、单条原子) , 是从 "整批成败" 切换到 "逐条成败" 的关键一步; L4/L5 是转换降级, 详见下文.
+
+决策流程:
+
+```
+<a2ui-json> 块提取
+  -> L1 语法修复 (未闭合块已在流式过滤器还原为纯文本)
+  -> 整批 safeParse
+       通过 -> 正常下发
+       失败 -> L2 纠错重试 (一次)
+                通过 -> 正常下发
+                失败 -> L3 逐条抢救
+                         存在合法 createSurface + 可解析组件树 -> L5 确定性转换 (Markdown / 表单 / 低代码 JSON)
+                         仅剩合法 updateDataModel            -> L4 DataModel 直出 Markdown
+                         全部不可用                          -> L6 notice + 纯文本正文
+```
+
+### A2UI 到 Markdown 的转换规则
+
+适用: 只需要展示层兜底; 宿主已有 Markdown 渲染 (Text 组件本身支持简单 Markdown, swifty-agent 正文即 Markdown, @a2ui/markdown-it 可复用) . 转换器输入是 L3 抢救后的消息数组, 步骤:
+
+1. 用邻接表 Map<ComponentId, Component> 从 root 递归重建组件树
+2. 合并所有合法 updateDataModel 的 upsert 得到 DataModel
+3. 展开列表模板: children 为 {componentId, path} 时读取 DataModel[path] 数组, 逐元素实例化模板, 相对路径按 /items/0/name 形式展开, 与协议模板作用域语义一致
+4. 按下表映射输出 Markdown:
+
+| A2UI 组件               | Markdown 输出                                 |
+| :---------------------- | :-------------------------------------------- |
+| Text (variant h1/h2/h3) | # / ## / ### 标题                             |
+| Text                    | 段落                                          |
+| Image                   | ![](url)                                      |
+| List + 模板             | 列表项 (每个数据元素一项)                     |
+| Table (rows 绑定)       | Markdown 表格                                 |
+| Card                    | 引用块或拍平                                  |
+| Row / Column / Divider  | 拍平为线性内容                                |
+| Button                  | 省略, 或以文字注明可执行操作及其参数          |
+| TextField 等输入组件    | 列出字段名与 DataModel 当前值, 注明交互不可用 |
+
+5. Dynamic 值解析: 字面量直接输出; {path} 从 DataModel 解析, 解析为 undefined 时按协议类型转换规则输出空串; {call} 可执行 BASIC_FUNCTIONS 中的纯函数 (formatDate/formatNumber 等) , 无法执行时输出空串
+
+安全说明: 输出是纯文本, 渲染走宿主既有 Markdown 管线 (sanitization 职责与渲染 Text 组件时一致) , 不引入新的安全面.
+
+### A2UI 到 Schema-driven 表单的转换规则
+
+适用: 希望保留表单交互能力 (A2UI 生成的典型交互形态就是表单: 预订表单、静默表单) , 且宿主已有 JSON Schema 表单渲染器 (react-jsonschema-form / JSONForms / Formily / form-render 任一) . 产出 JSON Schema + uiSchema:
+
+| A2UI 组件                                           | JSON Schema / uiSchema                       | 说明                                                                                                                                                                          |
+| :-------------------------------------------------- | :------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TextField (value.path = /partySize, variant number) | { partySize: { type: number } }              | 字段名取绑定路径末段                                                                                                                                                          |
+| TextField                                           | { type: string }                             |                                                                                                                                                                               |
+| CheckBox                                            | { type: boolean, default: DataModel 当前值 } |                                                                                                                                                                               |
+| ChoicePicker (选项为字面量)                         | { type: string, enum: [...] }                | 选项为 {path} 时先从 DataModel 解析                                                                                                                                           |
+| DateTimeInput                                       | { type: string, format: date 或 date-time }  | 由 enableDate/enableTime 决定                                                                                                                                                 |
+| Slider (若携带 min/max 属性)                        | { type: number, minimum/maximum }            |                                                                                                                                                                               |
+| checks 数组                                         | 同义 JSON Schema 关键字                      | required -> required; regex -> pattern; length -> minLength/maxLength; email -> format: email; numeric -> type: number. BASIC_FUNCTIONS 校验函数与 JSON Schema 关键字一一对应 |
+| label                                               | uiSchema 标题                                |                                                                                                                                                                               |
+
+数据填充: DataModel 中对应路径的值作为 formData 初始值 — 协议中双向绑定的输入组件本来就以 DataModel 为唯一数据源, 语义等价.
+
+交互回传: 表单提交时, 从 action.context 中引用的路径 (相对路径按模板作用域展开为绝对路径) 从 formData 取值, 还原出与 A2UI action 完全同构的 {name, surfaceId, sourceComponentId, context} 事件发给 Agent, Agent 侧无感知. 前提是 context 绑定均为简单路径引用 (实际生成中绝大多数如此) ; 含 {call} 的 context 值退化为空串或省略.
+
+不能无损转换的部分: 布局 (Row/Column/weight) 、Tabs/Modal 等容器、Chart 可视化 — 一律降级为字段列表或说明文字. 因此该路径适合作为表单类 surface 的降级目标, 而非全部 surface.
+
+### A2UI 到低代码 JSON 的转换
+
+适用: 团队已有 amis 等低代码渲染资产, 复用其渲染器兜底. 以 amis 为例的示意映射: Card -> card, Table -> table, TextField -> input-text, CheckBox -> checkbox, ChoicePicker -> select, DateTimeInput -> input-datetime, Slider -> slider, Button -> button (声明式 actionType, 如 ajax/url) .
+
+安全红线: 低代码平台普遍提供表达式引擎与自定义 JS 扩展点; 从 LLM 产出的消息转换而来的字段, 只允许映射到声明式能力 (组件属性、数据映射、声明式动作) , 严禁生成 script/eval/自定义函数类字段 — 否则 LLM 输出会经转换器获得代码执行通道, 击穿 A2UI 的白名单安全模型. 落地方式是维护封闭的 A2UI -> 平台组件映射白名单, 未映射组件丢弃或转文字说明.
+
+成本评估: 低代码平台 schema 的语义 (事件编排、数据链、作用域) 与 A2UI catalog 并非一一对应, 映射器需要长期维护; 只建议已有对应资产的团队采用. 没有低代码资产的业务, 用前两条 Markdown / JSON Schema 路径更划算.
+
+### LLM 辅助转换 (与纠错重试同构的补充)
+
+确定性转换器无法处理时 (组件树语义混乱、大量未知组件) , 可复用 correctA2uiBlock 的模式: 关闭工具, 把原始 JSON + 校验错误 + 目标格式说明交给模型, 要求只输出转换结果. 目标格式越简单, 成功率越高 (Markdown > JSON Schema 表单 > 修复后的 A2UI) . 产物仍须通过目标格式自身的校验, 失败则落入下一级. 顺序原则: 先确定性转换后 LLM 转换 — 前者零成本可单测, 后者引入额外推理成本与新的失败面.
+
+### 落地位置
+
+- 服务端 (推荐) : 在 swifty-agent 链路中, 转换器插在 extractA2ui / correctA2uiBlock 之后、SSE 下发之前, 校验失败触发 L3-L5, 降级产物经现有 SSE 事件下发 (markdown 正文走 message 事件; 转换后的表单/低代码数据可沿用 event: a2ui 通道或并入正文) . 服务端拥有重试能力与完整上下文, 转换失败也不消耗客户端资源
+- 客户端 (兜底) : A2uiView 逐条 safeParse 已是最后一道闸; 可再加 "丢弃后本地转换渲染" 逻辑, 但客户端没有 LLM 重试能力, 通常只做 L4 级数据直出
+- action 回传链路: runA2uiAction 返回的 patch 校验失败时不追加 patch, surface 保持原状 (filterInPlaceMessages 已保证杂散消息不破坏客户端) , 并在 surface 内提示操作未生效
+
 ## Lit 实现对比
 
 Lit shell (samples/client/lit/shell) 与 React shell 跑同一个协议, 差异集中在三处:
