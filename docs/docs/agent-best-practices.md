@@ -99,16 +99,19 @@ Rules 提供持续生效的指令, 用来塑造 agent 如何处理你的代码. 
 
 ```markdown
 # Commands
+
 - `npm run build`: Build the project
 - `npm run typecheck`: Run the typechecker
 - `npm run test`: Run tests (prefer single test files for speed)
 
 # 代码风格
+
 - 使用 ES 模块 (import/export), 而非 CommonJS (require)
 - 尽可能使用解构导入: `import { foo } from 'bar'`
 - 参考 `components/Button.tsx` 了解标准组件结构
 
 # Workflow
+
 - Always typecheck after making a series of code changes
 - API routes go in `app/api/` following existing patterns
 ```
@@ -147,9 +150,11 @@ Skills 定义在 SKILL.md 文件中, 并且可以包括:
 {
   "version": 1,
   "hooks": {
-    "stop": [{
-      "command": "bun run .cursor/hooks/grind.ts"
-    }]
+    "stop": [
+      {
+        "command": "bun run .cursor/hooks/grind.ts"
+      }
+    ]
   }
 }
 ```
@@ -180,9 +185,11 @@ const scratchpad = existsSync(".cursor/scratchpad.md")
 if (scratchpad.includes("DONE")) {
   console.log(JSON.stringify({}));
 } else {
-  console.log(JSON.stringify({
-    followup_message: `[Iteration ${input.loop_count + 1}/${MAX_ITERATIONS}] Continue working. Update .cursor/scratchpad.md with DONE when complete.`
-  }));
+  console.log(
+    JSON.stringify({
+      followup_message: `[Iteration ${input.loop_count + 1}/${MAX_ITERATIONS}] Continue working. Update .cursor/scratchpad.md with DONE when complete.`,
+    }),
+  );
 }
 ```
 
@@ -247,6 +254,7 @@ Agent 智能体可以查找 Git 历史记录、解决合并冲突, 并自动化�
 
 ```markdown
 为当前更改创建 Pull Request.
+
 1. 使用 `git diff` 查看已暂存和未暂存的更改
 2. 根据更改内容编写清晰的提交信息
 3. 提交并推送到当前分支
@@ -346,7 +354,7 @@ Cursor 会为并行运行的 agent 自动创建和管理 git worktrees. 每个 a
 
 那些能最大化利用 agent 的开发者通常有一些共同特点:
 
-他们会写具体的提示. 指令越具体, agent 的成功率就越高. 对比一下 "add tests for auth.ts" 和 "Write a test case for auth.ts covering the logout edge case, using the patterns in __tests__/ and avoiding mocks."
+他们会写具体的提示. 指令越具体, agent 的成功率就越高. 对比一下 "add tests for auth.ts" 和 "Write a test case for auth.ts covering the logout edge case, using the patterns in **tests**/ and avoiding mocks."
 
 他们会不断迭代自己的配置. 从简单开始. 只有当你发现 agent 一再犯同样的错误时, 才添加规则. 只有当你摸索出一个想要重复使用的工作流程时, 才添加命令. 在真正理解自己的模式之前, 不要过度优化.
 

@@ -78,11 +78,11 @@ swifty-codegen 的实际形态把官方拓扑嵌进了一个完整产品。下�
 
 三个执行上下文的分工与通道：
 
-| 上下文     | 源（Origin）     | 职责                                     | 对外通道                                                        |
-| ---------- | ---------------- | ---------------------------------------- | --------------------------------------------------------------- |
-| 宿主页面   | 你的应用域       | 产品 UI、RPC 发起方、预览 iframe 的持有者 | MessageChannel → headless；postMessage ↔ 预览；REST/WS → 业务后端 |
-| 隐藏 iframe | stackblitz.com  | 运行时宿主：WASM Node、Worker 群、容器虚拟 FS | init 消息下发 MessagePort；与预览 iframe 同属官方运行时体系    |
-| 预览 iframe | *.webcontainer.io | 承载 Service Worker 与容器进程，展示生成应用 | SW fetch 拦截；HMR WS 桥接；预览脚本 postMessage 回宿主        |
+| 上下文      | 源（Origin）      | 职责                                          | 对外通道                                                          |
+| ----------- | ----------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| 宿主页面    | 你的应用域        | 产品 UI、RPC 发起方、预览 iframe 的持有者     | MessageChannel → headless；postMessage ↔ 预览；REST/WS → 业务后端 |
+| 隐藏 iframe | stackblitz.com    | 运行时宿主：WASM Node、Worker 群、容器虚拟 FS | init 消息下发 MessagePort；与预览 iframe 同属官方运行时体系       |
+| 预览 iframe | *.webcontainer.io | 承载 Service Worker 与容器进程，展示生成应用  | SW fetch 拦截；HMR WS 桥接；预览脚本 postMessage 回宿主           |
 
 需要强调的分界：三个上下文里只有宿主页面认识业务后端；headless 与预览两个 iframe 对 swifty-codegen 的服务器一无所知，只认识 stackblitz.com 与 webcontainer.io。反过来，业务后端也完全不知道 WebContainer 的存在——服务器只管往 tmp/code_output/{appId} 写文件，"怎么跑起来"纯粹是浏览器侧的事。这也是排障时的分界线：agent 不产出、文件树拉不到，查服务器；容器起不来、预览白屏，查 stackblitz.com 与 *.webcontainer.io 的连通性。
 
@@ -90,12 +90,12 @@ swifty-codegen 的实际形态把官方拓扑嵌进了一个完整产品。下�
 
 浏览器端需要可达的端点如下（全部由浏览器发起，服务器侧对 StackBlitz 零依赖）：
 
-| 端点                                   | 何时访问                     | 承载内容                          | 不可达时的表现               |
-| -------------------------------------- | ---------------------------- | --------------------------------- | ---------------------------- |
-| https://stackblitz.com/headless        | WebContainer.boot() 启动时   | 运行时代码 bundle（WASM 包、Worker 脚本） | boot 失败，预览功能整体不可用 |
-| https://\<id\>.webcontainer.io         | server-ready 之后渲染预览    | 预览文档 + Service Worker 脚本    | 预览白屏                     |
-| npm registry（经桥接出站）             | 容器内 npm install           | 依赖包与平台二进制                | install 失败                 |
-| 业务后端（dev 下经 vite.config.ts 代理 /api → localhost:3000，ws: true） | 全程 | 文件树 REST、agent WS、会话接口 | 页面无数据、agent 断线重连   |
+| 端点                                                                     | 何时访问                   | 承载内容                                  | 不可达时的表现                |
+| ------------------------------------------------------------------------ | -------------------------- | ----------------------------------------- | ----------------------------- |
+| https://stackblitz.com/headless                                          | WebContainer.boot() 启动时 | 运行时代码 bundle（WASM 包、Worker 脚本） | boot 失败，预览功能整体不可用 |
+| https://\<id\>.webcontainer.io                                           | server-ready 之后渲染预览  | 预览文档 + Service Worker 脚本            | 预览白屏                      |
+| npm registry（经桥接出站）                                               | 容器内 npm install         | 依赖包与平台二进制                        | install 失败                  |
+| 业务后端（dev 下经 vite.config.ts 代理 /api → localhost:3000，ws: true） | 全程                       | 文件树 REST、agent WS、会话接口           | 页面无数据、agent 断线重连    |
 
 验证方法：DevTools 的 Elements 面板能找到 display:none、src 为 stackblitz.com/headless 的 iframe（boot 是否成功的直接观测点）；Network 面板确认该请求 200；命令行用 curl -I https://stackblitz.com/headless 测连通性。内网或离线环境无法使用官方 API——运行时托管在 StackBlitz 基础设施上，这是第八节"局限"的根源之一。
 
