@@ -50,7 +50,8 @@
       { "text": "WebContainer", "link": "/docs/webc" },
       { "text": "Codegraph", "link": "/docs/codegraph" },
       { "text": "Data", "link": "/docs/data" },
-      { "text": "Agent 最佳实践", "link": "/docs/agent-best-practices" }
+      { "text": "Agent 最佳实践", "link": "/docs/agent-best-practices" },
+      { "text": "Agent 云沙箱", "link": "/docs/agent-sandbox" }
     ]
   }
 ]

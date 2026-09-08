@@ -104,30 +104,30 @@ registerAppResource(
 ```
 用户: "给我看个图表"
   │
-  ▼
+  V
 模型决定调用 render_app（带 HTML 参数）
   │
   ├─(可选)宿主预加载 ui:// 资源，甚至开始流式转发工具入参
-  ▼
+  V
 宿主 tools/call → MCP Server
   │
-  ▼
+  V
 Server 返回 content / structuredContent / _meta
   │
-  ▼
+  V
 宿主读取 ui:// 资源 → 拿到自包含 HTML
   │
-  ▼
+  V
 渲染进沙箱 iframe（postMessage 通道建立，ui/initialize 握手）
   │
   ├─ ui/notifications/tool-input          完整工具入参
   ├─ ui/notifications/tool-input-partial  流式部分入参（生成中预览）
   └─ ui/notifications/tool-result         工具结果（含 _meta）
   │
-  ▼
+  V
 App 渲染数据；用户交互时 App 反向发起 tools/call（宿主代理转发）
   │
-  ▼
+  V
 对话结束 → ui/resource-teardown → App 清理后卸载
 ```
 
@@ -454,39 +454,39 @@ MCP Apps 用"工具 + `ui://` 资源 + 沙箱 iframe"这个极小的协议增量
 ```
 阶段一　生成与预加载（与工具执行并行推进）
 ────────────────────────────────────────────────────────────
-①  用户 ── "画一个 QPS 柱状图" ──▶ 模型
+①  用户 ── "画一个 QPS 柱状图" ──> 模型
 
 ②  模型 ── 流式生成 tool_use: render_app
             { html: "<!doctype html>…", title }
             ★ HTML 唯一进入模型上下文的位置——它是模型自己的输出
 
-③  宿主 ── resources/read "ui://render-app/mcp-app.html" ──▶ Server
-            ◀── 自包含单文件 HTML（宿主已缓存时本步跳过）
+③  宿主 ── resources/read "ui://render-app/mcp-app.html" ──> Server
+            <── 自包含单文件 HTML（宿主已缓存时本步跳过）
             ★ 触发源不是"调用发生"，而是会话建立时 tools/list 已带回映射
               （render_app 的 _meta.ui.resourceUri）；流里刚出现工具名
               （name 字段先于参数生成），宿主查表即知该渲染哪个 UI，
               无需等 ② 完成。资源是静态声明的容器，与 html 参数内容无关。
 
-④  宿主 ── 挂载沙箱 iframe + ui/initialize 握手 ──▶ shell
-⑤  宿主 ── ui/notifications/tool-input-partial ──▶ shell
+④  宿主 ── 挂载沙箱 iframe + ui/initialize 握手 ──> shell
+⑤  宿主 ── ui/notifications/tool-input-partial ──> shell
             shell 状态条："Generating app… N KB"
             （③④⑤ 只依赖参数在流式生成这一事实，不必等 ② 完成）
 
 阶段二　工具执行
 ────────────────────────────────────────────────────────────
-⑥  宿主 ── tools/call render_app ──▶ Server
-            ◀── { content, structuredContent:{title}, _meta:{html} }
+⑥  宿主 ── tools/call render_app ──> Server
+            <── { content, structuredContent:{title}, _meta:{html} }
 
 阶段三　结果分叉与渲染（一次结果，两条通道）
 ────────────────────────────────────────────────────────────
-⑦  宿主 ── 一行文本回执（tool_result）──▶ 模型上下文
+⑦  宿主 ── 一行文本回执（tool_result）──> 模型上下文
             只含 content："Rendered interactive app …"
             ★ 模型由此只知道"渲染成功"，看不到也不需要看到 HTML
 
-⑧  宿主 ── ui/notifications/tool-result（含 _meta.html）──▶ shell
+⑧  宿主 ── ui/notifications/tool-result（含 _meta.html）──> shell
             ★ HTML 走 UI 专用通道，模型不可见
 
-⑨  shell ── frame.srcDoc = html ──▶ 内层沙箱执行 JS
+⑨  shell ── frame.srcDoc = html ──> 内层沙箱执行 JS
 ⑩  UI 首帧呈现：柱状图出现在对话流中（用户可见）
 ```
 
@@ -502,11 +502,11 @@ MCP Apps 用"工具 + `ui://` 资源 + 沙箱 iframe"这个极小的协议增量
 用户接着说：_"改成折线图，加上环比。"_ 这条更新走的是**对话正向链路**：
 
 ```
-用户 ──"改成折线图，加环比"──▶ 模型
-模型 ── 新的 tool_use: render_app { html: <新版整页 HTML> } ──▶ 宿主
+用户 ──"改成折线图，加环比"──> 模型
+模型 ── 新的 tool_use: render_app { html: <新版整页 HTML> } ──> 宿主
 宿主：resourceUri 未变 → 不重拉资源、不重建 iframe
-宿主 ── ui/notifications/tool-result ──▶ shell
-shell ── setState(ready) ── srcDoc 整体替换 ──▶ 新版 UI（内层状态清零）
+宿主 ── ui/notifications/tool-result ──> shell
+shell ── setState(ready) ── srcDoc 整体替换 ──> 新版 UI（内层状态清零）
 ```
 
 三个关键语义：
@@ -525,11 +525,11 @@ shell ── setState(ready) ── srcDoc 整体替换 ──▶ 新版 UI（�
 
 ```
 内层 HTML 按钮 onclick
-  ── window.parent.postMessage({type:"render_app:callTool", name, arguments}) ──▶ shell
+  ── window.parent.postMessage({type:"render_app:callTool", name, arguments}) ──> shell
 shell：校验 event.source === frame.contentWindow（opaque origin 下 origin 恒为 "null"，
        只能靠 source 比对确认消息来自自家 iframe；并对可调工具名做白名单）
-  ── app.callServerTool({ name, arguments }) ──▶ 宿主
-宿主 ── tools/call（代理转发）──▶ Server
+  ── app.callServerTool({ name, arguments }) ──> 宿主
+宿主 ── tools/call（代理转发）──> Server
 Server 结果原路返回：宿主 → shell → postMessage 回内层
 内层 JS ── 局部更新 DOM（图表重绘，不重载页面，状态保留）
 ```
@@ -546,7 +546,7 @@ Server 结果原路返回：宿主 → shell → postMessage 回内层
 对话推进导致宿主卸载这块 UI，或 App 主动请求关闭时：
 
 ```
-宿主 ── ui/resource-teardown ──▶ shell
+宿主 ── ui/resource-teardown ──> shell
 shell onteardown() { return {} }   ← 保存状态/关闭连接的机会
 宿主 ── 移除 iframe，释放渲染进程
 ```
