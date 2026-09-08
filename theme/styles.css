@@ -1,11 +1,44 @@
+/* Brand palette derived from docs/public/favicon.svg: deep blue #283198 with a
+   cyan #00e8ff accent. Every branded surface is a flat color, no gradients. */
+
 :root {
-  --rp-c-brand: #4285f4 !important;
-  --rp-c-brand-light: #5e97f6 !important;
-  --rp-c-brand-dark: #3367d6 !important;
   --rp-font-family-base:
-    "Iosevka", "Maple Mono", Menlo, "Cascadia Code", "PingFang SC",
-    "Microsoft YaHei" !important;
+    "Geist Mono", "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC",
+    "PingFang SC", "Microsoft YaHei";
   --rp-font-family-mono:
-    "Iosevka", "Maple Mono", Menlo, "Cascadia Code", "PingFang SC",
-    "Microsoft YaHei" !important;
+    "Geist Mono", "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC",
+    "PingFang SC", "Microsoft YaHei";
+
+  --rp-c-brand: #283198;
+  --rp-c-brand-light: #4c55c0;
+  --rp-c-brand-lighter: #dfe3fa;
+  --rp-c-brand-dark: #1f2675;
+  --rp-c-brand-darker: #161b54;
+  --rp-c-brand-tint: #00e8ff26;
+
+  --rp-home-background-bg: var(--rp-c-bg);
+}
+
+html:not(.rp-dark) {
+  --rp-home-hero-title-bg: var(--rp-c-brand);
+  --rp-home-feature-bg: var(--rp-c-bg-soft);
+}
+
+/* Cyan carries the accent in dark mode: #283198 fails contrast against #121212. */
+html.rp-dark {
+  --rp-c-brand: #3b46bd;
+  --rp-c-brand-light: #00e8ff;
+  --rp-c-brand-lighter: #4dd4ff;
+  --rp-c-brand-dark: #6b74d8;
+  --rp-c-brand-darker: #4a53c4;
+  --rp-c-brand-tint: #00e8ff24;
+
+  --rp-home-hero-title-bg: var(--rp-c-brand-light);
+  --rp-home-feature-bg: transparent;
+}
+
+/* The feature-card hover animation sets its shine gradient as an inline style,
+   so !important is the only way to drop it. */
+.rp-home-feature__item__shine {
+  background: none !important;
 }
