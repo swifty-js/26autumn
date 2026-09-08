@@ -42,3 +42,18 @@ html.rp-dark {
 .rp-home-feature__item__shine {
   background: none !important;
 }
+
+/* Prompt glow layer */
+html .rp-prompt__backdrop {
+  background: none;
+}
+
+/* Code block fold fade-out */
+html .rp-codeblock__content--fold::after {
+  background: none;
+}
+
+/* Outline scroll mask */
+html .rp-outline__toc {
+  mask-image: none;
+}
