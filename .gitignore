@@ -3,7 +3,6 @@
 logs/
 
 .astro/
-.swifty-docs/
 .vitepress/cache/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
@@ -209,7 +208,6 @@ doc_build/
 tsconfig.tsbuildinfo
 **/tsconfig.tsbuildinfo
 .swifty/
-**/dist-docs
 **/.playwright-cli
 
 .qoder
