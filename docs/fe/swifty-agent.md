@@ -1,6 +1,6 @@
 # Swifty Agent 技术笔记
 
-> 本机器路径 `$HOME/github/swifty-cli/apps/swifty-agent`
+> 本机器路径 `$HOME/github/swifty-code/apps/swifty-agent`
 
 > 项目: `apps/swifty-agent` —— 基于 Next.js 16 + React 19 + Vercel AI SDK v7 的 AI OnCall 智能助手, 支持 RAG 知识库检索、ReAct 对话 Agent、Plan-Execute-Replan 运维编排、A2UI 交互界面生成、Prometheus 告警分析、MCP 日志工具接入、swifty-sentry 前端监控桥接.
 >

@@ -1728,7 +1728,7 @@ src/prompt/ 把 A2UI Python agent SDK 的四种推理格式提示词生成器移
 
 ## swifty-agent: 生产级 A2UI 应用案例
 
-swifty-cli/apps/swifty-agent 是一个 AI OnCall 运维助手: 告警分析、日志查询、Prometheus 运维问答, 通过 A2UI 让 LLM 直接生成交互式 UI (告警列表卡片、指标图表、静默表单) . 它最重要的架构选择是不用 CopilotKit, 完全自建"生成 -> 渲染 -> 交互 -> 原地更新"闭环.
+swifty-code/apps/swifty-agent 是一个 AI OnCall 运维助手: 告警分析、日志查询、Prometheus 运维问答, 通过 A2UI 让 LLM 直接生成交互式 UI (告警列表卡片、指标图表、静默表单) . 它最重要的架构选择是不用 CopilotKit, 完全自建"生成 -> 渲染 -> 交互 -> 原地更新"闭环.
 
 ### 技术栈
 
@@ -1836,7 +1836,7 @@ A2UI 把"Agent 发 UI"从发代码变成发数据, 用 catalog 契约 + 数据�
 
 - swifty-mcp 本地知识库中的 A2UI 官方文档 (a2ui/ 目录, 含 introduction、concepts、reference、guides、ecosystem)
 - /Users/hangtiancheng/github/a2ui/packages/shadcn (@swifty.js/a2ui-shadcn 包源码)
-- /Users/hangtiancheng/github/swifty-cli/apps/swifty-agent (A2UI 应用源码)
+- /Users/hangtiancheng/github/swifty-code/apps/swifty-agent (A2UI 应用源码)
 
 ---
 
@@ -1844,7 +1844,7 @@ A2UI 把"Agent 发 UI"从发代码变成发数据, 用 catalog 契约 + 数据�
 
 A2UI (Agent to UI) 是一个面向 agent 驱动界面的声明式 UI 协议: AI agent 不返回纯文本, 也不向客户端注入 HTML/JS, 而是发送一组 JSON 消息来描述界面, 客户端用本地组件库把消息渲染成原生 UI. 协议由 Google 发起、CopilotKit 与开源社区共建, Apache 2.0 许可, 当前版本 v0.9.1 (v1.0 候选中) .
 
-本次调研的三个部分构成一条完整链路: 协议本身回答"agent 和 UI 之间说什么"; a2ui/packages/shadcn 回答"客户端怎么把协议消息渲染成 shadcn 风格的界面", 它是一个包含 65 个组件的 catalog 加渲染器加 prompt 生成器的三合一库; swifty-cli/apps/swifty-agent 回答"一个真实应用怎么把整条链路跑起来", 它是一个 AI OnCall 运维助手, 不依赖 CopilotKit, 自研了从 prompt 注入、流式提取、校验纠错到交互回传的全套管线.
+本次调研的三个部分构成一条完整链路: 协议本身回答"agent 和 UI 之间说什么"; a2ui/packages/shadcn 回答"客户端怎么把协议消息渲染成 shadcn 风格的界面", 它是一个包含 65 个组件的 catalog 加渲染器加 prompt 生成器的三合一库; swifty-code/apps/swifty-agent 回答"一个真实应用怎么把整条链路跑起来", 它是一个 AI OnCall 运维助手, 不依赖 CopilotKit, 自研了从 prompt 注入、流式提取、校验纠错到交互回传的全套管线.
 
 核心结论: A2UI 的关键设计 (扁平邻接表组件、结构与状态分离、catalog 契约化) 都是围绕"让 LLM 可靠地生成 UI"这个目标做的取舍; 而 shadcn 包与 swifty-agent 的实践则补齐了协议落地中最难的工程环节——catalog 与 prompt 的单一事实源、流式输出的有状态过滤、以及 surface 交互的原地更新闭环.
 
@@ -2219,7 +2219,7 @@ src/prompt/ (./prompt 导出) 把 A2UI Python agent SDK 的四种推理格式提
 
 ### 三、swifty-agent: 一个完整的 A2UI 应用
 
-路径: /Users/hangtiancheng/github/swifty-cli/apps/swifty-agent
+路径: /Users/hangtiancheng/github/swifty-code/apps/swifty-agent
 
 #### 3.1 定位与技术栈
 

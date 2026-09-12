@@ -54,7 +54,7 @@ prompt 生成端 (src/prompt/) 把 A2UI Python agent SDK 的四种推理格式�
 
 vite 双模式: lib 模式三入口输出 ES + CJS + d.ts (所有依赖外部化); app 模式跑 demo (端口 5005) 并注册 middleware/a2a.ts 插件, 把浏览器请求包装成 A2A 协议代理到 monorepo 的 packages/server.
 
-两个消费方: swifty-cli/apps/swifty-agent (AI OnCall 运维助手, "latest" 依赖) 与 chartpark-insforge (工作 3, "^0.0.1" 依赖). 两个仓库与组件库协同演进: 协议库提供能力, 应用侧反哺真实场景需求.
+两个消费方: swifty-code/apps/swifty-agent (AI OnCall 运维助手, "latest" 依赖) 与 chartpark-insforge (工作 3, "^0.0.1" 依赖). 两个仓库与组件库协同演进: 协议库提供能力, 应用侧反哺真实场景需求.
 
 ## 工作 2: chartpark-insforge, ChartPark 图表平台
 

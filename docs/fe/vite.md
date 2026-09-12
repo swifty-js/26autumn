@@ -271,7 +271,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 
 ### monorepo 的工程化怎么做? 内部包如何构建和消费?
 
-我在个人项目 (swifty-sentry、swifty-cli 均为多包结构) 和公司项目中都使用 pnpm workspace 组织 monorepo.
+我在个人项目 (swifty-sentry、swifty-code 均为多包结构) 和公司项目中都使用 pnpm workspace 组织 monorepo.
 
 核心实践:
 
@@ -355,4 +355,4 @@ Vite 侧:
 
 ---
 
-以上内容基于本人在阿里妈妈 (Webpack/Vite 模块联邦接入、@module-federation/vite 开源贡献、Vite 迁移)、字节跳动 (Thrift IDL npm 包 CI 链路) 以及 swifty-sentry / swifty-cli 个人项目中的实际工程经验整理.
+以上内容基于本人在阿里妈妈 (Webpack/Vite 模块联邦接入、@module-federation/vite 开源贡献、Vite 迁移)、字节跳动 (Thrift IDL npm 包 CI 链路) 以及 swifty-sentry / swifty-code 个人项目中的实际工程经验整理.

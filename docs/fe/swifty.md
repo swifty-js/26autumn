@@ -1,4 +1,4 @@
-> 本机器路径 `$HOME/github/swifty-cli/apps/swifty`
+> 本机器路径 `$HOME/github/swifty-code/apps/swifty`
 
 # Swifty CLI — 技术笔记
 

@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "swifty-cli": {
+    "swifty-code": {
       "url": "http://localhost:3300/mcp"
     },
     "codegraph": {
