@@ -1,0 +1,17 @@
+{
+  "root": true,
+  "title": "工作笔记",
+  "pages": [
+    "tiktok",
+    "ieg",
+    "ali",
+    "a2ui",
+    "a2ui-express",
+    "mcp-app",
+    "webc",
+    "codegraph",
+    "data",
+    "agent-best-practices",
+    "agent-sandbox"
+  ]
+}

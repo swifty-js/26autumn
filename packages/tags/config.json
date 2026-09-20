@@ -1,0 +1,13 @@
+{
+  "model_provider": "openai",
+  "chat_model": {
+    "api_key": "",
+    "base_url": "",
+    "model": "qwen3.8-flash",
+    "max_tokens": 4096
+  },
+  "segment_seconds": 60,
+  "frames_per_segment": 3,
+  "concurrency": 2,
+  "frame_width": 768
+}
