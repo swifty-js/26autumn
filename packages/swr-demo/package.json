@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "format": "oxfmt --write",
+    "format": "prettier -w ./ --experimental-cli",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,8 +20,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
-    "oxfmt": "^0.63.0",
-    "oxlint": "^1.75.0",
+    "prettier": "^3.9.8",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
