@@ -173,7 +173,7 @@ const form = useForm({
 
 ---
 
-## 三、SSE 流式渲染与性能优化
+## 三、SSE 流式渲染、断线恢复与性能优化
 
 ### 流式响应的完整数据链路是怎样的?
 
@@ -205,7 +205,7 @@ AiChat 页面用 `currentSessionId = "temp"` + `tempSession = true` 表示尚未
 
 流文本的落定只做一次: chunk 全程写入 `streamTextRef` (纯 ref), onDone/onError 时 `commitStreamedMessage()` 用一次 setState 把完整内容写回尾部 AI 消息并置 status 为 "done"/"error" (ai-chat/index.tsx:114-132, 154-163), onError 也保留已到达的部分回答. 另有兜底: `mutateAsync` 返回后如果 `streamTextRef.current` 仍非空 (服务端没发 [DONE] 哨兵就关流), 再补一次 commit (ai-chat/index.tsx:209-213).
 
-页面顶部提供流式开关 checkbox, 勾选走 handleStreaming (流式端点), 不勾选走 handleNormal (非流式端点, 等待完整 answer 一次性返回) (ai-chat/index.tsx:352-356). 历史消息接口 get-chat-history-list 直接从内存中的 AiAgent 读取 (service/session.ts:115-130), 不查数据库, 能查到历史依赖的正是启动时 loadDataFromDb 的重建 (见 Q21).
+页面顶部提供流式开关 checkbox, 勾选走 handleStreaming (流式端点), 不勾选走 handleNormal (非流式端点, 等待完整 answer 一次性返回) (ai-chat/index.tsx:352-356). 历史消息接口 get-chat-history-list 直接从内存中的 AiAgent 读取 (service/session.ts:115-130), 不查数据库, 能查到历史依赖的正是启动时 loadDataFromDb 的重建 (见第五章「服务重启后如何恢复对话上下文?」).
 
 ### 为什么使用 Fetch API 而非 EventSource 消费 SSE?
 
@@ -218,6 +218,137 @@ AiChat 页面用 `currentSessionId = "temp"` + `tempSession = true` 表示尚未
 3. 错误处理粒度: Fetch API 可以检查 `response.ok`、读取 HTTP 状态码, 而 EventSource 的错误事件不暴露 HTTP 状态码, 难以区分 401 (鉴权失败) 和 500 (服务错误).
 
 实现上使用 `body.getReader()` 获取 `ReadableStreamDefaultReader`, 配合 `TextDecoder` 逐块解码, 手动按行分割解析 SSE 协议.
+
+### 连接中断时会发生什么? 当前的断线恢复现状是怎样的?
+
+先说结论: 项目没有实现流级自动重连, 但通过"生成与连接解耦 + 结果级对账"两个机制, 保证断线后回答不会丢失.
+
+客户端行为链:
+
+1. fetch 本身失败 (`!ok` 或无 body) 或流中途断掉 (reader.read() 抛网络错误) -> mutationFn 抛出 -> mutation 的 onError 触发 -> 页面侧 `commitStreamedMessage("error")` 把尾部 AI 消息以 status "error" 落定并 toast 提示 (ai-chat/index.tsx:158-163)
+2. 已到达的部分回答不丢: commit 时 `streamTextRef` 里有什么就写回什么 (ai-chat/index.tsx:117-132)
+3. 另一条兜底: 流正常结束但没见过 [DONE] 哨兵 (服务端没写完就被杀) -> `mutateAsync` resolve 后检查 `streamTextRef` 非空则补一次 commit (ai-chat/index.tsx:209-213)
+
+服务端行为链:
+
+1. 没有监听连接的 close/aborted 事件 (server/src 下无任何 close 监听), 客户端掉线不会中断生成
+2. `ChatOpenAI.stream()` 的 async iterator 继续跑完, 全量回答经 addMessage 进入 AiAgent 内存 + write-behind 持久化到 MySQL (ai/agent.ts:44-54)
+3. 后续的 `res.write` 对着已关闭的连接写入, 字节被丢弃, 但生成结果在服务端完整保留 (service/session.ts:76-88)
+
+因此当前的恢复模型是"流是一次性的, 结果是可找回的". 用户点击 ChatHeader 的"同步历史"按钮 (chat-header/index.tsx:69-77) -> syncHistory -> useChatHistory -> POST get-chat-history-list -> 服务端从 AiAgent 内存读出完整对话 (service/session.ts:115-129), 断线那轮的回答就完整回来了. 这是一次人工触发的结果级重连.
+
+现状的缺口 (也是演进为自动重连时的入手点):
+
+1. 客户端没有任何 AbortController/signal: 无法主动中止流, 没有"停止生成"按钮 (ChatInput 在 loading 期间只是禁用输入, chat-input/index.tsx:44); 组件卸载或路由切走时在途 fetch 也不会被取消
+2. 没有自动重试, 断线后只能人工点同步
+3. 重发不幂等: 再 POST 一次同样的问题会再次执行 responseStream, 用户消息被重复 addMessage 进对话上下文 (ai/agent.ts:44), LLM 也会重新生成一遍 — 所以"直接重试原请求"是错误的重连方式
+
+### 为什么标准 SSE 恢复机制 (id / Last-Event-ID / retry) 不能直接套用?
+
+标准机制是 EventSource 与 SSE 协议配套的自动重连三件套:
+
+1. 服务端给每个事件附 `id:` 字段 (`id: 42\ndata: ...\n\n`), 浏览器记住收到的最后一个 id
+2. 连接断开时, EventSource 按服务端 `retry:` 字段指定的间隔 (协议默认 3000 毫秒) 自动重连, 并在请求头自动带上 `Last-Event-ID: 42`
+3. 服务端据此重放该 id 之后的事件, 完成断点续传
+
+三件套在本项目全部失效:
+
+| 机制                 | 失效原因                                                                                  |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| EventSource 自动重连 | 传输层是 fetch POST, 不是 EventSource (GET-only、无法携带 Authorization header, 见上一问) |
+| id: 断点             | SSE 帧只有 data: 字段 (service/session.ts:80), 服务端没有事件序号概念                     |
+| retry: 间隔          | 只对 EventSource 生效, fetch 消费者不会读取也不会遵守                                     |
+
+更深一层的错位在于语义: LLM 生成场景的"断点"和普通事件推送不同. 事件推送系统 (日志流、通知流) 重连要解决的是"丢了哪几条事件, 从哪条补放"; 而 LLM 回答是一段持续增长的文本, 重连真正要做的是重新附着到仍在进行的生成过程, 拿到"到目前为止的全文 + 后续增量". 字节级重放只是实现手段之一, 而非必须形态 — 全文快照重放同样正确, 甚至更简单.
+
+### 如果要给这个项目加真正的断点重连, 应该怎么设计?
+
+设计目标: 弱网、切后台、服务发布导致连接断开后, 回答能自动续上, 不重头生成、不重复调用 LLM.
+
+服务端改造三步:
+
+1. 输出流变成可重放日志. 为每次回答分配 stream_id (可复用消息粒度的 id), 每个 chunk 单调递增 seq; chunk 除写入 res 外同时追加进重放缓冲 — 单机用 Map<streamId, events[]>, 多实例部署用 Redis Stream (XADD + MAXLEN 修剪). 本项目生成侧已天然解耦 (断连后生成不中断), 缺的只是把输出留痕.
+2. 增加恢复端点, 如 POST /chat/resume-stream, 参数 {stream_id, last_seq}: 先重放缓冲中 seq > last_seq 的所有事件, 再切换到实时尾随 (新 chunk 到达即写); 若生成已结束, 重放完毕后补发 [DONE]. 同时把帧格式升级为 `id: {seq}\ndata: ...\n\n`, 与标准 SSE 语义对齐.
+3. 断连清理. 监听 close 事件: 连接消失后停止 res.write 与逐 token 日志 (省 CPU), 但不停止生成、不清空缓冲; 缓冲在生成完成后保留一段时间 (如 10 分钟) 再回收.
+
+客户端改造五项:
+
+1. 游标 + 去重: 用 ref 维护 {streamId, lastSeq}, 只接受 seq > lastSeq 的事件, 序号去重让重放天然幂等
+2. 退避重连: 未收到 [DONE] 就中断时, 指数退避 + 完全抖动重试 (如 base 500ms、每次 x2、上限 30s、最多 5 次), 重连请求携带 last_seq
+3. 死连接检测: SSE 长连接最大的坑是半开连接 — TCP 未断但数据不再流动 (中间代理静默回收最常见). 客户端要设读取超时 (如 45s 没收到任何字节就 abort 并重连); 服务端可周期性发注释帧 `: ping\n\n` 作为心跳 — 现有解析器天然跳过非 data: 行 (use-stream-message.ts:58-59), 协议解析零改动
+4. AbortController 补齐: fetch 传 signal; 新增"停止生成"按钮调用 abort(); 组件卸载/路由离开时 abort, 配合服务端 close 监听还可以实现"停止即取消生成"节省 token
+5. 事件触发即时重试: 监听 window 的 online 事件, 网络恢复立即重连, 不等退避计时器
+
+客户端重连循环的骨架 (放在 mutationFn 内部, 对上层的 onError/onDone 契约不变):
+
+```typescript
+async function consumeWithResume(
+  params: StreamParams,
+  callbacks: StreamCallbacks,
+) {
+  let lastSeq = 0;
+  let streamId: string | undefined;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const url = streamId
+        ? "/api/ai/chat/resume-stream" // 重连: 重放 + 尾随
+        : chooseEndpoint(params); // 首连: 业务端点
+      const body = streamId
+        ? { stream_id: streamId, last_seq: lastSeq }
+        : buildBody(params);
+
+      await readSse(url, body, {
+        onEvent: (seq, content) => {
+          if (seq <= lastSeq) return; // 去重: 重放过的事件直接丢弃
+          lastSeq = seq;
+          fullContent += content;
+          callbacks.onChunk(fullContent);
+        },
+        onStreamId: (id) => (streamId = id),
+        onDone: () => callbacks.onDone(),
+      });
+      return; // 收到 [DONE], 正常结束
+    } catch (err) {
+      if (isAbortError(err)) throw err; // 用户主动停止, 不重试
+      await sleep(backoffWithJitter(attempt)); // 指数退避 + 完全抖动
+    }
+  }
+  callbacks.onError(); // 重试预算耗尽
+}
+```
+
+React 侧接线要点:
+
+1. 重连循环放在 mutationFn 内部, 上层看到的仍是一次 mutation 的语义, 重试预算耗尽才触发 callbacks.onError()
+2. 本项目的 commitStreamedMessage 是覆盖式写尾部消息 (ai-chat/index.tsx:117-132), onChunk 传的又是累计全文而非增量 (use-stream-message.ts:86-87) — "全文覆盖"语义让重放绝对安全: 无论重放多少次、顺序如何, 最后一次覆盖即最新状态
+3. 终态判据只有收到 [DONE], 重连过程中不要提前落定消息
+
+低成本演进路径 (不改服务端): 把现在人工点的"同步历史"自动化 — onError 后对当前 session 轮询 get-chat-history-list, 直到完整回答出现. 这利用了"服务端生成不中断"这个既有事实, 代价是拿不回生成中的打字机体验, 只能等生成完毕后一次性取回结果.
+
+行业参照: Vercel AI SDK 的 resumable-stream 用 Redis 保存流快照支持重新附着; ChatGPT 网页端断线重连时直接重放当前消息已生成的全文再继续流式. 本项目"累计全文回调 + 覆盖式 commit"的数据模型与这两者同构, 演进阻力主要在服务端的重放缓冲与恢复端点.
+
+### 逐 chunk setState 为什么是流式渲染的头号性能陷阱?
+
+先算成本账. LLM 流式输出的速率常见为每秒几十到上百个 chunk (LangChain stream 回调粒度是 token 级, server/src/ai/model.ts responseStream; 网络层 TCP 段聚合还可能一次送达多帧). 如果每个 chunk 直接 setState:
+
+1. 每次 setState 触发一次子树重渲染: React reconciliation (元素树规模随文本长度增长)、markdown 全量重解析 (O(文本长度))、浏览器布局与绘制
+2. 一条 2000 token 的回答约产生上千次渲染, 且单次渲染成本随长度线性上升, 总成本 O(N x L), 是平方级
+3. 主线程被 reconciliation + 解析 + 绘制占满后, 掉帧、输入延迟、滚动抖动随之而来
+
+常见误解是 React 18/19 的自动批处理能救场. 实际边界是: 自动批处理只合并同一任务 (含其 microtask flush) 内的多次 setState; 而 reader.read() 随网络包到达在各自独立的宏任务里被唤醒, 跨包的 chunk 永远不会被合并. 即使一个 TCP 段带了多帧、被合并成一次渲染, 渲染频率仍与包到达速率成正比, 量级问题依旧. 批处理是缓解手段, 不是解法.
+
+本项目的回答是让热路径完全不进 React, 分三层:
+
+| 层     | 职责                                                      | 位置                               |
+| ------ | --------------------------------------------------------- | ---------------------------------- |
+| 写入层 | onChunk 只写 streamTextRef, mutable ref, 零渲染成本       | ai-chat/index.tsx:150-153          |
+| 调度层 | StreamingMarkdown 的 rAF 循环按帧拉取, 长度变化才 setText | streaming-markdown/index.tsx:25-39 |
+| 落单层 | 整个流只有一次真正的 state 提交, done/error 时写回全文    | ai-chat/index.tsx:117-132          |
+
+渲染频率由此被钳制在"帧率" (60/秒上限) 而非"chunk 频率" (数百/秒), 且没有新内容的帧零成本.
+
+顺带澄清一个字符串拼接的疑虑: `fullContent += content` (use-stream-message.ts:86) 看起来是每次全量复制的 O(n²), 实际 V8 对 += 采用 ConsString (rope 结构) 惰性拼接, 追加接近 O(1), 真正的全量摊平推迟到字符串被消费时 (渲染、内容比较). 因此"每帧传全文"的回调协议本身并不昂贵.
 
 ### StreamingMarkdown 组件如何实现零渲染热路径?
 
@@ -281,17 +412,70 @@ const virtualizer = useVirtualizer({
 
 ### Streamdown 的增量 Markdown 解析原理是什么?
 
-Streamdown (Vercel 出品的流式 Markdown 渲染器) 的核心优化:
+Streamdown (Vercel 出品的流式 Markdown 渲染器, 本项目使用 2.6.0) 的核心优化:
 
-1. 块级分割: 将 Markdown 文本按语义块分割 (段落、代码围栏、标题、列表等), 每个块独立解析为 React 元素.
+1. 块级分割: 将 Markdown 文本按语义块分割 (段落、代码围栏、标题、列表等), 每个块独立解析为 React 元素. 2.6.0 的实现是用 marked 的 Lexer 做词法切分 (导出函数 parseMarkdownIntoBlocks), 天然感知围栏边界.
 
-2. 已定型块缓存: 一旦某个块被完整接收 (例如代码围栏的 ` ``` ` 闭合), 该块的解析结果被 memoize, 后续渲染直接复用, 不再重新解析.
+2. 已定型块缓存: 一旦某个块被完整接收 (例如代码围栏的 ` ``` ` 闭合), 该块的解析结果被 memoize, 后续渲染直接复用, 不再重新解析. Block 组件用 memo 包裹并带自定义比较函数 (只比较 content/index/isIncomplete 等 props), 已定型块在父组件更新时直接跳过 diff.
 
 3. 仅解析尾部块: 每次文本更新时, 只有最后一个未完成的块需要重新解析. 例如一段 2000 字的回复, 当第 1900 字到达时, 前 1800 字对应的块全部命中缓存, 只解析最后 200 字.
 
-4. 代码高亮: 通过 `@streamdown/code` 集成 Shiki, 代码块在流式过程中也能实时高亮, 且围栏闭合后高亮结果被缓存.
+4. 未闭合标记修复: 流式文本中大量出现写到一半的代码围栏、粗体标记、链接, Streamdown 通过 remend 包 ("self-healing markdown") 把未闭合的标记智能补全, 避免半个围栏把后续所有内容吞进代码块. 本项目的 Markdown 组件经 mode="streaming" 启用该行为 (components/markdown/index.tsx).
+
+5. 代码高亮: 通过 `@streamdown/code` (1.1.1) 集成 Shiki, 代码块在流式过程中也能实时高亮, 且围栏闭合后高亮结果随块缓存一起固化.
 
 这使得渲染成本与消息总长度解耦, 只与当前增量成正比, 长消息的流式渲染不会越来越卡.
+
+### 节流与更新方案对比: 为什么本项目选 rAF 拉取?
+
+把"高频数据流转换成可控渲染频率"的设计空间完整摆开:
+
+| 方案                               | 原理                                  | 渲染频率                     | 后台标签页行为                     | 适用场景                               |
+| ---------------------------------- | ------------------------------------- | ---------------------------- | ---------------------------------- | -------------------------------------- |
+| 逐 chunk setState                  | 数据到即渲染                          | 等于 chunk 频率 (数百/秒)    | 持续渲染                           | 反面教材                               |
+| setInterval 节流                   | 定时器周期采样最新值                  | 由间隔决定 (如 100ms)        | 被浏览器钳制到 1s+ 但仍在跑        | 需要固定节奏、不关心帧对齐             |
+| rAF 拉取 (本项目)                  | 每动画帧检查 ref, 有变化才 setState   | 60/秒上限, 空闲帧零成本      | 自动暂停, 恢复可见后首帧拉全文补齐 | 单一组件消费流式文本                   |
+| useSyncExternalStore               | 外部 store 推送, 订阅者收到通知再渲染 | 等于通知频率, 仍需自行节流   | 持续通知                           | 多组件共享同一条流                     |
+| startTransition / useDeferredValue | 标记为非紧急更新, React 可丢弃合并    | React 自行调度, 可能长期滞后 | 持续                               | 不想引入 ref 层、可接受显示滞后        |
+| 直接 DOM 写入                      | 绕过 React 命令式设置 textContent     | 无 React 成本                | 取决于实现                         | 纯文本场景, 与声明式 markdown 渲染冲突 |
+
+rAF 胜出的三个决定性理由:
+
+1. 帧对齐: 渲染只发生在浏览器即将绘制下一帧的时刻, 永远不会做超出显示能力的无效渲染; setInterval 的回调可能落在一帧中间, 同一帧内多次 setState 会引发多轮布局绘制
+2. 后台零成本: 页面不可见时 rAF 自动暂停 — SSE 继续写 ref, 回到前台第一帧就拉到最新全文一次性补齐, 既没有后台空转渲染, 也没有恢复时的补渲染风暴; setInterval 与推送式方案都不具备这个特性
+3. 实现极简: 一个 effect + 一个循环 + 长度比较 (streaming-markdown/index.tsx:25-39), 不需要 store 的 subscribe/getSnapshot 管道
+
+几个取舍细节:
+
+1. useSyncExternalStore 若采用, getSnapshot 必须返回缓存的稳定引用, 否则每次返回新值会引发无限重渲染; 本项目的流只被尾部一条消息消费 (message.status === "streaming" 分支, message-item/index.tsx:71-73), 没有共享需求, rAF 更合适
+2. transition/deferred 的卖点是"保输入响应", 主线程吃紧时 React 会持续丢弃过期的 transition 渲染 — 代价是显示可能明显滞后, 且最终仍需一次紧急提交落定全文. 本项目用"热路径零渲染"直接达成同一目标, 不需要 transition
+3. MessageList 顶部的 "use no memo" 指令 (message-list/index.tsx:18) 是 React Compiler 的组件级退出标记; 本项目当前未启用 React Compiler (vite.config.ts 是裸 @vitejs/plugin-react), 该指令目前是预留的空操作
+
+### 流式渲染性能的系统性检查清单
+
+按数据流动方向逐层检查, 以及本项目每一项的落地状态:
+
+| 层     | 手段                                  | 本项目状态                                                                                                          |
+| ------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 数据层 | 高频数据走 ref/外部 store, 不进 state | 已实现 (streamTextRef, ai-chat/index.tsx:114)                                                                       |
+| 数据层 | 覆盖式语义的回调协议, 重放/去重安全   | 已实现 (onChunk 传累计全文, use-stream-message.ts:86-87)                                                            |
+| 调度层 | rAF/节流钳制渲染频率                  | 已实现 (rAF + 长度去重)                                                                                             |
+| 落单层 | 流结束单次 setState 落定              | 已实现 (commitStreamedMessage, ai-chat/index.tsx:117-132)                                                           |
+| 组件层 | memo + 稳定引用隔离已定型消息         | 已实现 (MessageItem 为 memo, message-item/index.tsx:21; 流式期间只有尾部气泡渲染)                                   |
+| 组件层 | 虚拟化控制 DOM 规模                   | 已实现 (useVirtualizer, estimateSize 120, overscan 5, message-list/index.tsx:27-31)                                 |
+| 滚动层 | ResizeObserver 驱动贴底, 近底门控     | 已实现 (isNearBottomRef, 阈值 80px, message-list/index.tsx:15)                                                      |
+| 渲染层 | 块级增量解析, 已定型块缓存            | 已实现 (Streamdown: marked Lexer 分块 + memo 化 Block, remend 修复未闭合标记)                                       |
+| 渲染层 | 代码高亮与流式热路径解耦              | 已实现 (@streamdown/code 集成 Shiki, 高亮结果随已定型块缓存)                                                        |
+| 服务端 | 关闭代理缓冲                          | 已实现 (X-Accel-Buffering: no, controller/session.ts:69, 138)                                                       |
+| 服务端 | 避免逐 token 日志                     | 未实现 (service/session.ts:79 每 chunk 一条 logger.info, 高并发下日志 IO 成为热路径负担, 生产建议降为 debug 或移除) |
+| 渲染层 | content-visibility: auto 跳过屏外绘制 | 未实现 (虚拟化已把 DOM 规模压下来, 收益有限, 可选项)                                                                |
+
+验证手段同样重要, 没有测量的优化是盲调:
+
+1. React DevTools Profiler: 录制一次完整的流式回答, 确认 commit 次数约等于帧数而非 chunk 数, 单次 commit 耗时保持稳定 — 若 commit 耗时随文本长度线性增长, 说明块级缓存没有生效
+2. Chrome Performance 面板: 观察流式输出期间的长任务与掉帧; 长任务若恰好对齐 chunk 到达时刻, 说明有代码绕过 ref 层直接 setState
+3. 交互响应: 流式输出期间在输入框打字应无卡顿; 若卡顿, 说明渲染负载已挤占主线程, 可进一步把 rAF 降频 (如隔帧 flush) 或提高长度变化阈值
+4. 极限场景压测: 用超长回答 (1 万字符以上) 观察流式过程中尾部块的解析耗时是否恒定 — 这正是"渲染成本只与增量成正比"这个目标的直接验证
 
 ---
 
@@ -414,7 +598,7 @@ AiAgent (单个会话实例)
 
 持久化策略: 采用 write-behind 模式, `addMessage()` 先写入内存, 然后异步 (fire-and-forget) 调用 `saveMessage()` 写入 MySQL, 失败只记日志不阻塞主流程.
 
-代价: 服务重启后内存丢失, 需要从 MySQL 重建 (见 Q21).
+代价: 服务重启后内存丢失, 需要从 MySQL 重建 (见下文「服务重启后如何恢复对话上下文?」).
 
 ### 模型热切换是如何实现的?
 
