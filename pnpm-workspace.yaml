@@ -1,8 +1,2 @@
-packages:
-
 allowBuilds:
-  "@parcel/watcher": true
-  "@vscode/vsce-sign": true
   esbuild: true
-  keytar: true
-  puppeteer: true
