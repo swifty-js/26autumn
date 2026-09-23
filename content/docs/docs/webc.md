@@ -40,7 +40,7 @@ WebContainer 是 StackBlitz 推出的浏览器内 Node.js 运行时。官方博�
 容器内进程: npm install → npm run dev → Vite 监听容器内端口
 ```
 
-宿主页与容器分属不同源是刻意的：StackBlitz 的基础设施域（stackblitz.com / _.webcontainer.io）自己配好了 COOP/COEP，宿主页只需要通过 MessageChannel 做 RPC；而容器的 HTTP 出口由运行在 _.webcontainer.io 源上的 Service Worker 承接。第五节会对照一个反例：某产品把这一切塞回同源路径的自研方案。
+宿主页与容器分属不同源是刻意的：StackBlitz 的基础设施域（stackblitz.com / \*.webcontainer.io）自己配好了 COOP/COEP，宿主页只需要通过 MessageChannel 做 RPC；而容器的 HTTP 出口由运行在 \*.webcontainer.io 源上的 Service Worker 承接。第五节会对照一个反例：某产品把这一切塞回同源路径的自研方案。
 
 与"远程开发容器"（GitHub Codespaces 一类）的本质区别在于算力归属：Codespaces 的 dev server 跑在云主机上，浏览器只是一块屏幕；WebContainer 把编译、依赖安装、dev server 全部放进用户的标签页，服务器只下发静态资源，平台侧零构建成本、零并发压力。代价是后面各节要逐一处理的一系列浏览器沙箱限制。
 

@@ -2,7 +2,7 @@
 title: "@yukino.js/sentry 前端监控 SDK 技术笔记"
 ---
 
-> 本机器路径 `$HOME/github/yukino-sentry/sentry`, 基于 `@yukino.js/sentry` 0.0.7 源码
+> 本机器路径 `$HOME/github/yukino-sentry/sentry`, 基于 `@yukino.js/sentry` 0.0.1 源码
 
 ## 项目整体架构设计是怎样的? 核心模块有哪些?
 
@@ -1353,7 +1353,7 @@ TypeScript 配置:
 测试工程:
 
 - Vitest + jsdom 环境
-- 17 个测试文件 (test/\*.test.ts) 覆盖核心模块
+- 18 个测试文件 (test/\*.test.ts) 覆盖核心模块
 - v8 coverage, 阈值 70% (lines/functions/branches/statements)
 - 自定义 fake: `fake-intersection-observer.ts`、`report-payloads.ts`
 

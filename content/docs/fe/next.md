@@ -901,11 +901,14 @@ export { Dialog } from "./Dialog";
 解决方案:
 
 ```tsx
-// Next.js 14+ : optimizePackageImports 已稳定 (不再是 experimental)
+// Next.js: optimizePackageImports 目前仍位于 experimental 配置下 (Next 16.3 源码
+// dist/server/config-shared.d.ts 中 ExperimentalConfig 仍包含该字段)
 // lucide-react、@mui/material、react-icons、@headlessui/react 等常用库默认已启用,
-// 只需为默认列表之外的库在 next.config.js 顶层追加配置
+// 只需为默认列表之外的库在 next.config.js 的 experimental 下追加配置
 module.exports = {
-  optimizePackageImports: ["my-icon-lib", "@acme/ui"],
+  experimental: {
+    optimizePackageImports: ["my-icon-lib", "@acme/ui"],
+  },
 };
 
 // 非 Next.js 项目: 直接从子路径导入

@@ -1,29 +1,40 @@
 @import "tailwindcss";
 @import "@fumadocs/base-ui/css/neutral.css";
 @import "@fumadocs/base-ui/css/preset.css";
+@plugin "tailwindcss-animate";
 
 @theme {
-  /* font stack ported from the rspress theme (theme/styles.css) */
   --font-sans:
     "Geist Mono", "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC",
     "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono:
     "Geist Mono", "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC",
     "PingFang SC", "Microsoft YaHei", monospace;
-}
 
-/* deep blue brand palette, taken from public/favicon.svg (rspress theme);
-   cyan #00e8ff carries the accent in dark mode where #283198 fails contrast */
-:root {
-  --color-fd-primary: #283198;
-  --color-fd-primary-foreground: hsl(0, 0%, 98%);
-  --color-fd-ring: #4c55c0;
+  /* lavender brand palette, taken from public/favicon.svg */
+  --color-brand: #8d72e0;
+  --color-brand-foreground: hsl(0, 0%, 98%);
+  --color-brand-200: #a48dea;
+  --color-landing-foreground: #4f4480;
 }
 
 .dark {
-  --color-fd-primary: #3b46bd;
+  --color-brand: #bdacf1;
+  --color-brand-foreground: hsl(0, 0%, 9%);
+  --color-brand-200: #d6ccf7;
+  --color-landing-foreground: #d9d0f5;
+}
+
+:root {
+  --color-fd-primary: #8d72e0;
   --color-fd-primary-foreground: hsl(0, 0%, 98%);
-  --color-fd-ring: #00e8ff;
+  --color-fd-ring: #a48dea;
+}
+
+.dark {
+  --color-fd-primary: #bdacf1;
+  --color-fd-primary-foreground: hsl(0, 0%, 9%);
+  --color-fd-ring: #a48dea;
 }
 
 html {

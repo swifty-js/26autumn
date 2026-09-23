@@ -552,7 +552,7 @@ A: requestAnimationFrame(cb): 告诉浏览器下一帧绘制前调用 cb, 回调
 - 后台标签页会暂停, 天然省电.
 - 每帧只执行一次, 需要持续动画要在回调里再次注册.
 
-requestIdleCallback(cb, \{ timeout \}): 在浏览器空闲时段调用, cb 收到 IdleDeadline, deadline.timeRemaining() 告知本帧剩余空闲时间, deadline.didTimeout 表示是否因超时强制执行. 适合低优先级任务: 日志上报、预计算、非关键数据同步. 注意: 空闲回调中应避免直接大量修改 DOM (可能迫使布局在回调内同步发生) , 修改 DOM 的工作应拆到 rAF 中; Safari 稳定版至今未默认提供 (WebKit 已实现但默认关闭, 目前仅 Safari Technology Preview 默认开启), 需 setTimeout 降级.
+requestIdleCallback(cb, \{ timeout \}): 在浏览器空闲时段调用, cb 收到 IdleDeadline, deadline.timeRemaining() 告知本帧剩余空闲时间, deadline.didTimeout 表示是否因超时强制执行. 适合低优先级任务: 日志上报、预计算、非关键数据同步. 注意: 空闲回调中应避免直接大量修改 DOM (可能迫使布局在回调内同步发生) , 修改 DOM 的工作应拆到 rAF 中; Safari 自 26 (2025-09) 起正式默认提供, 更早的 Safari 版本需 setTimeout 降级.
 
 两者常配合做时间切片: rIC 做数据准备, rAF 做 DOM 更新.
 
@@ -1873,7 +1873,7 @@ class CircuitBreaker {
 
 ## 第十二部分 算法实现
 
-本部分基于 src/js 目录下 33 个源码文件逐文件编排, 每题含源码解读、深入解析、进阶延伸.
+本部分基于本仓库相邻的手写源码库 (`$HOME/github/h/chucks/js` 目录, 35 个源码文件) 逐文件编排, 每题含源码解读、深入解析、进阶延伸.
 
 | #   | 题目                                | 对应文件             | 核心要点                       |
 | --- | ----------------------------------- | -------------------- | ------------------------------ |
@@ -2463,7 +2463,8 @@ BigInt: 任意精度整数 (123n) ; 不能与 Number 混算 (显式转换) ; typ
 - 顶层 await (ES2022) ; 类私有字段 #x (真私有, 运行时不可访问, 与 TS private 的"类型层私有"本质不同) .
 - Object.groupBy / Map.groupBy (ES2024; 原 Array.prototype.group 提案最终改为静态方法落地) ; Promise.withResolvers (ES2024) ; structuredClone (注意它是 HTML 标准的 Web API 而非 ECMAScript 特性) .
 - 正则 d 标志 (indices, 捕获组起止下标) 、命名捕获组、后行断言.
-- ES2025 已落地: Set 集合方法 (union/intersection/difference 等) 、Iterator Helpers (Iterator.prototype.map/filter/take 等) 、Promise.try、RegExp.escape、Float16Array、import attributes 与 JSON modules, 现代浏览器基本都已原生支持.
+- ES2025 已落地 (2025-06 定稿): Set 集合方法 (union/intersection/difference 等) 、Iterator Helpers (Iterator.prototype.map/filter/take 等) 、Promise.try、RegExp.escape、Float16Array, 现代浏览器基本都已原生支持.
+- import attributes (`import ... with` 语法) 与 JSON modules 未列入 ES2025 正式清单, 但已获跨浏览器支持 (MDN Baseline 2025, 2025-04 起) , 正式收入 ECMA-262 版本稍晚.
 - 在途提案: Temporal (取代 Date, 仍处 Stage 3; Chrome 144+/Firefox 139+ 已原生提供, Safari 尚未) 、Record & Tuple (#\{...\} 深不可变 + 值相等 ===) 、Decorator (Stage 3, 已落地 TS 5) 、Pattern Matching.
 
 ### 正则引擎与灾难性回溯

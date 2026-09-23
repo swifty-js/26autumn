@@ -2,7 +2,7 @@
 title: "A2UI Express DSL"
 ---
 
-本机路径: $HOME/github/26autumn/a2ui/specification/proposals/express (上游: github.com/a2ui-project/a2ui)
+本机路径: $HOME/Documents/a2ui/specification/proposals/express (上游: github.com/a2ui-project/a2ui)
 实现位置: a2ui/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/
 状态: 实验性提案 (proposal), 非正式规范; 编译目标为 A2UI v1.0 wire protocol
 主要来源: 本地规范 a2ui_express.md / create_surface_design.md / README.md / express_dsl_examples.md / scripts, 以及 AGenUI 团队评测文章 "更低成本地生成A2UI协议: Express DSL 的功能特性" (InfoQ 写作社区, 2026-07-14, https://xie.infoq.cn/article/ed8ed745dc5e9fb22f9a26637)
@@ -41,7 +41,7 @@ main_column = Column([header_row, route_row], "stretch")
 当前状态与收敛措施 (说明官方刻意把它与稳定基线隔离):
 
 - 核心文档位于 specification/proposals/ 目录, 而非已认证的 specification/v1_0/ 目录, 属于提案而非正式规范
-- 所有 Express 代码导入与 CLI 工具由环境变量 A2UI_EXPRESS_ENABLED 门禁, 必须 A2UI_EXPRESS_ENABLED=true 才能启用
+- Express 的代码导入与 CLI 工具按 README 约定由环境变量 A2UI_EXPRESS_ENABLED 门禁 (A2UI_EXPRESS_ENABLED=true 才启用); 注意这是文档层约定, 当前 Python 代码侧未见强制检查
 - 实现放在 a2ui.inference_formats.experimental.express 命名空间, 不影响原有 agent 主链路
 
 虽然该功能仍处演进和验证阶段, 但作为真实业务落地问题的探索型解法值得研究。
@@ -196,7 +196,7 @@ $/user = {firstName: "Alice", age: 30}
 
 ## 5. 编译产物与 v1.0 信封形态
 
-编译结果是单个 createSurface 消息, 内嵌 components、dataModel 与 surfaceParams 字段 (v1.0 新形态, 区别于 v0.9 的 createSurface / updateComponents / updateDataModel 三条独立消息):
+设计文档规定编译结果是单个 createSurface 消息, 内嵌 components、dataModel 与 surfaceParams 字段 (下方 JSON 即提案文档 a2ui_express.md 中的信封示例)。需要注意两处与现状的出入: (1) 已认证的 v1.0 schema (specification/v1_0/json/agent_to_renderer.json) 中 CreateSurfaceMessage 并不内嵌这些字段, 而是期待渲染端随后接收独立的 updateComponents / updateDataModel 消息, schema 中也不存在 surfaceParams; (2) express compiler.py 的实际编译产物同样不含 surfaceParams。也就是说, "内嵌单 createSurface 信封"目前是 Express 提案层面的编译约定, 尚未与认证 schema 对齐:
 
 ```json
 {
@@ -307,7 +307,7 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent
 2. 用 ExpressFormat(catalog).prompt_generator.generate(role_description, include_schema=True) 生成 system instruction (catalog 经 Catalog.from_json 加载, 脚本内 spec_version 传 0.9.1)
 3. 构造翻译任务 user prompt: "You are an advanced UI compiler agent... 按位置签名逐行输出变量赋值, 不输出 createSurface 信封"
 4. 三种模式提交 (temperature 0.1):
-   - Gemini API: GEMINI_API_KEY, 默认评测模型 gemini-3.1-flash-lite
+   - Gemini API: GEMINI_API_KEY, 评测模型经参数指定 (run_inference.py 的 argparse 默认值为 gemma-4-31b-it, 并按 local/mlx 模式动态改写; gemini-3.1-flash-lite 只是 README 中的示例)
    - 本地 Ollama (is_local): http://localhost:11434/api/generate
    - 本地 MLX-LM (is_mlx): http://localhost:8080/v1/chat/completions (Apple Silicon 端侧路线)
 5. 返回的 DSL 经 ExpressCompiler 编译回 pretty-printed 标准 v1.0 JSON, 并校验组件树父子引用与数据指针路径

@@ -1087,7 +1087,7 @@ func retrieve(ctx context.Context, question string, topK int) ([]Chunk, error) {
 1. 量化 (Quantization):
    - FLOAT32 (4 bytes/dim) -> FLOAT16 (2 bytes/dim) -> INT8 (1 byte/dim)
    - 1536 维: 6KB -> 3KB -> 1.5KB per vector
-   - Redis 7.4+ 支持 FLOAT16
+   - RediSearch 2.6+ 支持 FP16/BF16 向量类型 (文中 FLOAT16 即 FP16)
 
 2. 降维:
    - PCA / 自编码器将 1536 维降到 256-512 维

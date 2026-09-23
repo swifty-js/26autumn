@@ -4,7 +4,7 @@ title: "TanStack Start 使用指南"
 
 本文以本仓库（`hangtiancheng/leetcode`，一个 LeetCode 题解本）为样本，解释 TanStack Start 的后端实现方式、与 Vite 的结合点，以及它和 Next.js 的差异。文中涉及的内部机制都对照 `node_modules` 里的实际实现和本项目的构建产物核对过，关键结论附了验证方式。
 
-版本参考：`@tanstack/react-start` 1.170.x、Vite 8、Nitro 3.0 beta。
+版本参考：`@tanstack/react-start` 1.168.x、Vite 8、Nitro 3.0 beta。
 
 ---
 
@@ -113,13 +113,13 @@ viteDevServer.middlewares.use(async (req, res) => {
 
 所以开发时并不存在“Node 服务器 + Vite 前端”两个进程，只有 Vite 一个进程。服务端代码走 Vite 的模块图，改 server function 会热更新，不需要重启。
 
-值得注意的是本项目的 `dev` 脚本：
+本项目的 `dev` 脚本本身很简单：
 
 ```json
-"dev": "dotenv -e .env.local -- sh -c \"NODE_OPTIONS='--import ./instrument.server.mjs' vite dev --port 3000\""
+"dev": "dotenv -e .env.local -- vite dev --port 3000"
 ```
 
-`instrument.server.mjs` 用 `--import` 在 Node 启动阶段加载，先于任何应用代码。这是 Sentry 这类需要打补丁的库的标准接法，也是一段确定只在服务端存在的代码——它不在 Vite 的模块图里，客户端产物完全看不到它。
+延伸一点：如果需要在服务端注入 instrumentation 代码（Sentry 这类靠打补丁工作的库），通用接法是在 `vite dev` 前追加 `NODE_OPTIONS='--import ./instrument.server.mjs'`——`--import` 让插桩文件在 Node 启动阶段、先于任何应用代码加载。它不在 Vite 的模块图里，是一段确定只在服务端存在的代码，客户端产物完全看不到它。当前样本仓库的 dev 脚本并未包含这一层注入。
 
 ### 2.6 生产构建：Vite 产出，Nitro 组装
 
@@ -492,7 +492,7 @@ alias: staticBuild
 
 `src/db.ts` 和 `src/server/problems.ts` 都没有用 `.server.ts` 后缀，也没有 `import '@tanstack/react-start/server-only'` 标记，所以没有开启 import protection。如果哪天有组件误引了 `#/db.ts`，构建不会报错，Prisma 会直接进客户端产物。把 `src/db.ts` 改名成 `src/db.server.ts` 可以把这个错误提前到构建期。
 
-`instrument.server.mjs` 走 `NODE_OPTIONS --import`，不在 Vite 模块图里，所以 Sentry 的服务端 SDK 不会影响客户端体积。`VITE_SENTRY_DSN` 为空时它只打一行警告，不做任何事。
+若采用上一节提到的 `NODE_OPTIONS --import instrument.server.mjs` 注入方式，该文件不在 Vite 模块图里，Sentry 的服务端 SDK 不会影响客户端体积；DSN 环境变量为空时让它只打一行警告、不做任何事，是这类插桩入口的惯例写法。
 
 ---
 

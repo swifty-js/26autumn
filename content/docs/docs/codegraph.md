@@ -156,7 +156,7 @@ Schema (src/db/schema.sql 基线 + migrations 到 v9) :
 
 连接配置 (src/db/index.ts configureConnection) : busy_timeout=5000 最先设置, journal_mode=WAL、synchronous=NORMAL、cache_size=-64000 (64MB) 、temp_store=MEMORY、mmap_size=256MB. 围绕 WAL 有一整套工程设施: 批量索引期间关闭 wal_autocheckpoint (issue #1231) , 由 WalCheckpointValve 在 worker 线程定时做 PASSIVE checkpoint, 超过硬上限时背压暂停写入; 每次打开连接时 healOversizedWal() 修复被 kill 进程遗留的超大 WAL (阈值 64MB, issue #1431) ; 批量写入窗口临时 DROP 二级索引、结束后一次性重建, FTS 触发器同样先删后整体 rebuild.
 
-向量检索的结局值得记录: 仓库早期设计过 vectors/ 模块 (@xenova/transformers 跑 ONNX、384 维 nomic-embed-text-v1.5 embeddings、sqlite-vss 索引, IMPLEMENTATION_PLAN.md 里有完整设计) , 在 CHANGELOG 记录范围之前就被整体移除, issue #87 里有用户直接问"为什么把整个向量搜索和 embedding 模块删掉? ". 当前代码里只剩命名残留: src/errors.ts 有一个从未使用的 VectorError 类, src/context/index.ts 沿用 "semantic search" 术语但实现是精确符号查找 + FTS5 + 词干扩展 + 图遍历的混合检索. src/mcp/tools.ts 第 3148 行注释明确自证: "deterministic, no embeddings". 作者用实测得出的结论是: 对"找调用链、找定义、找路由"这类 agent 问题, 符号名 + FTS5 + 图遍历已经足够, 向量检索引入的延迟和不确定性反而是负担.
+向量检索的结局值得记录: 仓库早期设计过 vectors/ 模块 (@xenova/transformers 跑 ONNX、384 维 nomic-embed-text-v1.5 embeddings、sqlite-vss 索引, IMPLEMENTATION_PLAN.md 里有完整设计) , 在 CHANGELOG 记录范围之前就被整体移除, issue #87 里有用户直接问"为什么把整个向量搜索和 embedding 模块删掉? ". 当前代码里只剩命名残留: src/errors.ts 有一个从未使用的 VectorError 类, src/context/index.ts 沿用 "semantic search" 术语但实现是精确符号查找 + FTS5 + 词干扩展 + 图遍历的混合检索. src/mcp/tools.ts 第 3053 行注释明确自证: "deterministic, no embeddings". 作者用实测得出的结论是: 对"找调用链、找定义、找路由"这类 agent 问题, 符号名 + FTS5 + 图遍历已经足够, 向量检索引入的延迟和不确定性反而是负担.
 
 ### 4.4 引用解析: 三阶段流水线 + 启发式合成边
 
@@ -491,7 +491,7 @@ cg.watch();
 
 ## 附录: 调研方法与来源
 
-本文更新基于以下一手材料 (调研日期 2026-08-12) :
+本文更新基于以下一手材料 (首次调研 2026-08-12, 2026-08-26 复核) :
 
 - 仓库克隆 colbymchenry/codegraph @ 44e1812 (main, 2026-08-22 推送) , 源码级阅读
 - GitHub API / gh CLI: stars 66,003、forks 4,156、contributors 42、open issues 409、created 2026-01-18、release 列表 (v0.9.5 至 v1.5.0)

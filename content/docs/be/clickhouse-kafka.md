@@ -2,7 +2,7 @@
 title: "ClickHouse & Kafka 技术笔记"
 ---
 
-> 本文覆盖覆盖 ClickHouse 列式存储引擎、MergeTree 家族、分布式架构、查询优化, 以及 Kafka 存储模型、生产者/消费者语义、高可用机制、性能调优等核心知识点.
+> 本文覆盖 ClickHouse 列式存储引擎、MergeTree 家族、分布式架构、查询优化, 以及 Kafka 存储模型、生产者/消费者语义、高可用机制、性能调优等核心知识点.
 
 ---
 
@@ -171,7 +171,7 @@ ZooKeeper 的角色:
 - 不存储数据本身, 只存元数据和复制日志
 - 提供分布式协调: leader 选举、part 分配、DDL 同步
 - ZK 不可用时: 读不受影响 (本地有完整数据), 但副本表的 INSERT 与 DDL/ALTER 都会失败 (写入依赖 ZK 中的 replication log, 常见表现为表进入只读模式)
-- ClickHouse 21.11 实验支持 ClickHouse Keeper、21.12 feature complete、22.3+ 生产可用, 用 Raft 协议替代 ZK, 去掉 Java 依赖
+- ClickHouse Keeper 于 21.3 实验性引入、22.3+ 生产可用, 用 Raft 协议替代 ZK, 去掉 Java 依赖
 
 副本 vs 分片:
 
@@ -251,11 +251,11 @@ TTL 可以设置在列级或表级:
 CREATE TABLE logs (
     event_time DateTime,
     level String,
-    message String,
     -- 列级 TTL: 30 天后 message 列被清空 (变为空字符串), 行仍在
-    -- 表级 TTL: 90 天后整行删除
+    message String TTL event_time + INTERVAL 30 DAY
 ) ENGINE = MergeTree()
 ORDER BY event_time
+-- 表级 TTL: 30 天后删除 DEBUG 行, 90 天后删除整行
 TTL event_time + INTERVAL 30 DAY DELETE WHERE level = 'DEBUG',
     event_time + INTERVAL 90 DAY DELETE;
 ```
@@ -454,7 +454,7 @@ Leader 选举流程 (KRaft 模式, 2.8+):
 1. 序列化: key 和 value 经过 Serializer 转为字节数组
 2. 分区路由: 指定了 partition 则直接发; 指定了 key 则 `hash(key) % partition_count`; 都没有则粘性分区 (Sticky Partitioner, 2.4+): 攒满一个 batch 后换下一个 partition, 兼顾负载均衡和批量效率
 3. 攒批: 消息进入 RecordAccumulator, 按 partition 分组, 每个 partition 维护一个或多个 ProducerBatch
-4. 触发发送: batch 大小达到 `batch.size` (默认 16KB) 或等待时间达到 `linger.ms` (默认 0, 建议设 5~100ms) 时, Sender 线程取出 batch
+4. 触发发送: batch 大小达到 `batch.size` (默认 16KB) 或等待时间达到 `linger.ms` (Kafka 3.0 起默认 5ms, 3.0 之前为 0; 可按吞吐需要设 5~100ms) 时, Sender 线程取出 batch
 5. 压缩: 按 `compression.type` (lz4/zstd/snappy) 压缩整个 batch
 6. 网络发送: Sender 线程将 batch 通过 NIO 发送到对应 partition 的 leader broker
 7. 回调/重试: 收到 broker 响应后执行 Callback; 可重试的错误 (如 NOT_LEADER) 自动重试 `retries` 次
@@ -523,7 +523,7 @@ Eager 协议的问题:
 
 - Stop-the-world: Rebalance 期间所有消费者停止消费, 等待重新分配
 - 重复消费: 消费者在 Rebalance 前未提交的 offset 会被重新分配给其他消费者
-- 频繁 Rebalance: 消费者处理慢导致心跳超时 (`session.timeout.ms` 默认 10s), 被 Coordinator 认为死亡, 触发 Rebalance, 形成恶性循环
+- 频繁 Rebalance: 消费者处理慢导致心跳超时 (`session.timeout.ms` 默认 45s, Kafka 3.0 之前为 10s), 被 Coordinator 认为死亡, 触发 Rebalance, 形成恶性循环
 
 优化:
 

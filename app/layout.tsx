@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { TreeContextProvider } from "@fumadocs/base-ui/contexts/tree";
+import { NextProvider } from "fumadocs-core/framework/next";
 import { Provider } from "@/components/provider";
 import { siteUrl } from "@/lib/shared";
+import { source } from "@/lib/source";
 import "./global.css";
 
 export const metadata: Metadata = {
-  // resolves relative og:image URLs under the /26autumn basePath
   metadataBase: new URL(siteUrl),
   title: {
     default: "技术学习笔记",
@@ -18,14 +20,21 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#283198",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#121212" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f5f5" },
+  ],
 };
 
 export default function Layout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className="flex flex-col min-h-screen">
-        <Provider>{children}</Provider>
+      <body className="relative flex min-h-screen flex-col">
+        <NextProvider>
+          <TreeContextProvider tree={source.getPageTree()}>
+            <Provider>{children}</Provider>
+          </TreeContextProvider>
+        </NextProvider>
       </body>
     </html>
   );

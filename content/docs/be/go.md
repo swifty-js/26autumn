@@ -429,7 +429,7 @@ A: Go 1.24 (2025.02) 把内置 map 从链式桶实现替换为基于 Swiss Table
 A:
 
 1. `&m[k]` 编译错误、`m[k].Field = x` (V 为 struct 时) 编译错误: 因为扩容搬迁会移动元素, 指针会悬空, 语言层面直接禁止取址. 修改结构体字段需整体读出改后写回, 或把 value 定义为指针 `map[K]*V`.
-2. 迭代顺序随机: 运行时故意从随机桶、随机槽位开始迭代 (`fastrand`). 这是防御性设计——早期版本顺序"看起来稳定", 开发者写出依赖顺序的代码, 换版本就炸. 需要有序就收集 key 排序后遍历.
+2. 迭代顺序随机: 运行时故意从随机桶、随机槽位开始迭代 (runtime 随机源, Go 1.22+ 为 `cheaprand`, 早期叫 `fastrand`). 这是防御性设计——早期版本顺序"看起来稳定", 开发者写出依赖顺序的代码, 换版本就炸. 需要有序就收集 key 排序后遍历.
 3. key 必须可比较 (`==` 有定义): slice、map、func 不能做 key; 含它们的 struct 也不行. interface 可以做 key, 但若运行时动态类型不可比较会 panic.
 4. `len(m)` 是 O(1) (hmap.count), 但 map 没有 cap 概念; `make(map[K]V, hint)` 的 hint 只是预分配提示.
 
@@ -900,7 +900,7 @@ select 多个 case 就绪时怎么选? 底层如何实现?
 
 A:
 
-1. 随机公平: `runtime.selectgo` 先按 `fastrandn` 生成随机轮询顺序 (pollorder), 多个就绪 case 中伪随机选一个, 防止固定顺序导致的分支饥饿. 加锁则按 hchan 地址排序 (lockorder) 加锁, 避免多 select 死锁.
+1. 随机公平: `runtime.selectgo` 先按 runtime 随机数 (Go 1.22+ 为 `cheaprand`, 早期为 `fastrandn`) 生成随机轮询顺序 (pollorder), 多个就绪 case 中伪随机选一个, 防止固定顺序导致的分支饥饿. 加锁则按 hchan 地址排序 (lockorder) 加锁, 避免多 select 死锁.
 2. 一轮扫描无就绪 case 且无 default: 为每个 case 创建 sudog 挂到对应 channel 的等待队列, gopark; 任一 channel 就绪唤醒后, 再把自己从其他所有 channel 的队列里摘除.
 3. `default` 使 select 非阻塞: 一轮扫描没有就绪就走 default, 这是"尝试发送/接收" (try-send/try-recv) 的实现方式.
 4. 编译器优化: 单 case + default 会被编译成 `selectnbsend/selectnbrecv` 直接调用, 不走 selectgo.
@@ -1227,7 +1227,7 @@ A: `golang.org/x/sync/errgroup`, 它解决了裸 WaitGroup 的三个缺口: 错�
 
 ```go
 g, ctx := errgroup.WithContext(parentCtx)
-g.SetLimit(10) // 最多 10 个并发; Go 也自 1.20+ 支持 TryGo 非阻塞提交
+g.SetLimit(10) // 最多 10 个并发; x/sync v0.1.0+ 的 errgroup 提供 TryGo 非阻塞提交 (TryGo 属于库能力, 与 Go 语言版本无关)
 
 for _, url := range urls {
     g.Go(func() error {           // Go 1.22+ 循环变量无需手动捕获
@@ -1312,7 +1312,7 @@ A: Go 使用并发三色标记-清除 (非分代、非压缩、非移动). 常�
 
 并发标记的经典难题是"对象消失": 黑色对象 C 新指向白色对象 B, 同时灰色对象 A 删除了对 B 的引用, B 就永远不会被扫到而被错误回收. Go 用混合写屏障解决:
 
-混合写屏障 (Go 1.8+, Yuasa 删除屏障 + Dijkstra 插入屏障): `*slot = ptr` 时把旧值和新值都标灰 (shade(\*slot); shade(ptr)). 配合"栈上新分配对象直接标黑", 消除了 1.7 及以前 mark termination 阶段重扫全部栈的需求, 把 STW 从百 ms 级压到 sub-ms (栈操作频繁且开销敏感, 不插写屏障, 改为标记开始与结束时各扫一次栈). 代价: 写指针多一次屏障调用 (仅 GC 期间启用), 以及浮动垃圾 (本轮多留一些到下轮回收).
+混合写屏障 (Go 1.8+, Yuasa 删除屏障 + Dijkstra 插入屏障): `*slot = ptr` 时把旧值和新值都标灰 (shade(\*slot); shade(ptr)). 配合"栈上新分配对象直接标黑", 消除了 1.7 及以前 mark termination 阶段重扫全部栈的需求, 把 STW 从百 ms 级压到 sub-ms (栈操作频繁且开销敏感, 不插写屏障; 每个 goroutine 的栈只在标记开始时扫一次, 终结阶段不再重扫). 代价: 写指针多一次屏障调用 (仅 GC 期间启用), 以及浮动垃圾 (本轮多留一些到下轮回收).
 
 流程 (GOGC 触发, pacer 控制):
 

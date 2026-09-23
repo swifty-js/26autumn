@@ -7,6 +7,7 @@ title: "Yukino CLI — 技术笔记"
 > 本文档围绕 `apps/yukino` (一个运行在终端中的 Coding Agent, 类似 Claude Code) 的实现细节设计深度问答.
 > 所有回答均基于真实源码 (`apps/yukino/src/`) , 回答中标注了关键文件与机制, 可作为系统学习材料.
 > 全文共 104 组问答 (Q1–Q104) , 覆盖架构、循环、协议、工具、权限、TUI、上下文管理、会话与记忆、多智能体、工程化、运行模式、命令系统、基础设施、手写代码题、场景设计题、开放题与补充子系统.
+> 注: 文中的文件路径与行号为撰写时点快照, 源码目录此后有过重构 (如 `src/tui/` 已并入 `src/ui/`、`src/agent/agent.ts` 现为 `src/agent/index.ts`) , 具体位置以函数/结构体名称为准.
 
 ## 一、项目整体架构与设计决策
 
@@ -17,10 +18,10 @@ Yukino 是一个运行在终端中的 Coding Agent, 本质区别不在于"CLI", 
 架构上分为六层:
 
 1. 入口分发层 (`src/main.tsx`) : 根据 CLI 参数分发到四种模式 —— TUI (默认, Ink/React 交互界面) 、print (`-p` 管道模式, 支持 `text`/`stream-json` 输出) 、remote (Koa + WebSocket 的浏览器 UI) 、teammate (子进程后台代理) .
-2. Agent 循环层 (`src/agent/agent.ts`) : 核心是一个 `async *run(): AsyncGenerator<AgentEvent>` 生成器, 把"思考-行动"循环抽象为事件流.
+2. Agent 循环层 (`src/agent/index.ts`) : 核心是一个 `async *run(): AsyncGenerator<AgentEvent>` 生成器, 把"思考-行动"循环抽象为事件流.
 3. LLM 抽象层 (`src/llm/`) : 统一 `LLMClient` 接口 (`stream()` + `setSystemPrompt()`) , 适配 anthropic / openai / openai-compat 三种协议.
 4. 工具层 (`src/tools/`) : 统一 `Tool` 接口 (`schema()` + `execute()`) , 按 `category: read | write | command` 分类, 支撑并行调度与权限决策.
-5. 表现层 (`src/tui/`) : Ink (React for CLI) 渲染, `app.tsx` (约 2150 行) 作为编排者消费 AgentEvent 流.
+5. 表现层 (`src/ui/`) : Ink (React for CLI) 渲染, `app.tsx` (约 3000 行) 作为编排者消费 AgentEvent 流.
 6. 横切支撑层: 权限 (`permissions/`) 、上下文压缩 (`compact/`) 、会话持久化 (`session/`) 、记忆 (`memory/`) 、钩子 (`hooks/`) 、MCP、技能、多智能体 (`subagent/`、`teams/`) .
 
 关键设计洞察: 四种运行模式消费的是同一个 AgentEvent 流, Agent 核心对 UI 完全无感知 —— 这是"表现层与领域层彻底解耦"的体现.
@@ -896,7 +897,7 @@ PTL 重试: 摘要请求本身可能超长 —— `requestSummaryWithPTLRetry()`
 
 这个设计的精妙之处: 持久化格式与运行时压缩共用同一份数据结构 —— 压缩算法产出的 (summary, keep) 二元组直接序列化为 boundary, 恢复算法就是压缩重建算法的镜像. 不需要单独的"检查点格式", 语义自洽且单调: JSONL 是纯追加的, 恢复时只需线性扫描.
 
-附带机制: 会话 30 天过期清理 (删 jsonl 后尝试连带删 `tool_results/` 落盘目录) —— 值得注意源码本身的一处不一致: budget 落盘写入的是 `tool-results` (连字符, `budget.ts:41`) , 而 `session.ts:448` 过期清理删的却是 `tool_results` (下划线) , 目录名不匹配意味着清理时删不到真实落盘目录. 这种"写入方与清理方各执一词"的目录名漂移是真实项目里常见的 bug 形态. 另 `newSessionId()` 用 `Date.now().toString(36) + "-" + randomBytes(4).hex` 保证可读性与唯一性.
+附带机制: 会话 30 天过期清理 —— `cleanExpiredSessions()` (`src/session/index.ts`) 直接 `rmSync` 整个会话子目录, jsonl 与 budget 落盘的 `tool-results/` 目录一并清除 (源码注释专门点明: 目录名带连字符, 一次 rm 同时覆盖) . 历史插曲: 早期版本里 budget 落盘写的是 `tool-results` (连字符) , 而清理代码删的却是 `tool_results` (下划线) , 目录名不匹配导致清理删不到真实落盘目录——这种"写入方与清理方各执一词"的目录名漂移是真实项目里常见的 bug 形态, 最终以"删整个会话目录"的方式收敛. 另 `newSessionId()` 用 `Date.now().toString(36) + "-" + randomBytes(4).hex` 保证可读性与唯一性.
 
 ---
 
@@ -1172,9 +1173,9 @@ context window 四级解析 (`getContextWindowAsync()`) :
 
 ---
 
-### 项目的测试策略是怎样的? 40+ 测试文件覆盖了哪些关键面? E2E 怎么做?
+### 项目的测试策略是怎样的? 100 个测试文件覆盖了哪些关键面? E2E 怎么做?
 
-Vitest v4 (v8 coverage) , 测试分层 (`tests/`, 42 个测试文件) :
+Vitest v4 (v8 coverage) , 测试分层 (`tests/`, 100 个测试文件) :
 
 单元层:
 
@@ -1588,7 +1589,7 @@ export const logger = new Proxy(silentFallback, {
 别名表 (静态映射) :
 
 ```ts
-{ haiku: "claude-haiku-4-5-20251001", sonnet: "claude-sonnet-4-6-20250514", opus: "claude-opus-4-6-20250514" }
+{ haiku: "claude-haiku-4-6", sonnet: "claude-sonnet-4-6", opus: "claude-opus-4-6" }
 ```
 
 `resolveModelId(name)`: 查表命中返回全名, 未命中原样透传 —— 所以子代理定义里写 `model: "haiku"` (语义稳定, 不随模型版本漂移) 与写完整模型 ID (精确控制) 都合法. 别名是"能力档位"的抽象: explore 代理要的是"最便宜够用的档位"而非某个具体模型 —— 档位映射更新 (新 haiku 发布) 时, 所有引用处自动升级.

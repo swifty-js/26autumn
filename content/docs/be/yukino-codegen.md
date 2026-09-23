@@ -2,11 +2,11 @@
 title: "YukinoCodegen — 技术笔记"
 ---
 
-> 本机器路径: `$HOME/github/yukino.go/yukino-codegen`
-> 基于 `github.com/hangtiancheng/yukino.go/yukino-codegen` 项目源码分析 (Go 1.26, 约 2.9 万行非测试代码, 实测 28,771 行)
-> 技术栈: Go 1.26 / Anthropic SDK / OpenAI SDK / MCP / Bubble Tea TUI
+> 本机器路径: `$HOME/github/yukino-code/yukino` (Go 模块 `github.com/hangtiancheng/yukino-code/yukino`; 撰写时位于 `$HOME/github/yukino.go/yukino-codegen`, 仓库此后迁移改名)
+> 基于项目源码分析 (Go 1.26, 现实测约 4.7 万行非测试代码)
+> 技术栈: Go 1.26 / Anthropic SDK / OpenAI SDK / MCP (撰写时含 Bubble Tea TUI; 现版本已移除终端 UI, 改为供外部 TS 前端驱动的 Go bridge 形态)
 > 该项目是一个终端 CLI Coding Agent, 具备多模型接入、流式工具执行、双层上下文管理、五层权限体系、OS 级沙箱、长期记忆、多智能体协作 (子代理 / 团队 / git worktree 隔离) 、技能系统与 MCP 集成等能力.
-> 注: 文中行号引用为撰写时的近似位置, 代码迭代后可能存在偏移, 以函数/结构体名称为准.
+> 注: 文中的文件路径与行号为撰写时点快照, 仓库迁移后经过整体重构——`internal/` 包前缀已扁平化为顶层包 (如 `internal/agent` 现为 `agent`) , 四种运行模式收敛为 bridge 形态 (`--remote=stdio/rpc/ws`) , 撰写时的工作目录 `.yukino-codegen/` 统一为 `.yukino/` (下文路径已按现状统一) , `internal/tui`、`internal/remote` 已不存在; 具体位置以函数/结构体名称为准.
 
 ## 一、系统架构设计
 
@@ -30,7 +30,7 @@ A:
 - 协议无关 LLM 抽象: 单一 `Client` 接口适配 Anthropic / OpenAI / OpenAI-Compatible 三种协议
 - 插件化扩展: Skills (Markdown SOP)、Hooks (生命周期事件)、MCP Servers、Agent Definitions 四种扩展机制
 
-依赖上, 仅引入 anthropic-sdk-go、openai-go、MCP go-sdk、charmbracelet 系 (TUI) 等少量库, Agent 循环、权限、压缩、记忆等核心逻辑全部自研.
+依赖上, 仅引入 anthropic-sdk-go、openai-go、MCP go-sdk 等少量库 (撰写时含 charmbracelet 系 TUI, 现版本已移除) , Agent 循环、权限、压缩、记忆等核心逻辑全部自研.
 
 ---
 
@@ -44,6 +44,8 @@ A:
 2. Print 模式 (`-p/--print`) : 非交互一次性执行, prompt 可来自参数或 stdin, 支持指定输出格式, 适合脚本/CI.
 3. Remote 模式 (`--remote [addr]`) : 默认 `:18888`, 用同仓库的 `yukino_http` 框架起 HTTP 服务, `GET /` 提供 Web UI、`GET /ws` 升级 WebSocket 双向转发 Agent 事件 (`internal/remote/server.go:158`) .
 4. 默认 TUI 模式: `tea.NewProgram` 启动 bubbletea 终端界面.
+
+注: 本节为撰写时点快照. 现版本已收敛为 bridge 形态: `cmd/main.go` 只提供 `--remote=stdio/rpc/ws` 三种传输 (JSON-RPC 2.0 stdio 子进程 / protobuf-Connect HTTP 默认 127.0.0.1:7860 / WebSocket 默认 127.0.0.1:7861) , 终端 UI 移至外部 TS 前端驱动, teammate/print/TUI 模式与 :18888 Web UI 已移除.
 
 四种模式共享同一套 `config.LoadConfig` 配置 (providers、permission_mode、mcp_servers、hooks、sandbox、enable_coordinator_mode) , hooks 配置启动时统一 `hooks.Validate` 校验, 非法则降级为无钩子启动而不是崩溃.
 
@@ -105,7 +107,7 @@ A:
 关键实现细节:
 
 - 主 `AgentEvent` 通道 (cap=32) 上的所有事件均为阻塞发送, 缓冲用于吸收 UI 渲染抖动; `PermissionRequestEvent` 携带应答 channel 阻塞等待用户决策 (保证语义正确性)
-- 非阻塞丢弃模式用在子 Agent 进度通道上: `subagent.emitProgress()` (agent_tool.go:506) 用 `select + default` 发送 `SubAgentProgress`, 消费者慢时丢弃进度事件——阻塞发送曾导致 ProgressCh 缓冲填满时子 Agent 循环死锁
+- 非阻塞丢弃模式用在子 Agent 进度通道上: `subagent.emitProgress()` (agent_tool.go:506) 用 `select + default` 发送 `SubAgentProgress`, 消费者慢时丢弃进度事件——阻塞发送曾导致 ProgressCh 缓冲填满时子 Agent 循环死锁 (注: 该进度通道在现版本已移除, 此处保留的是"阻塞发送可能死锁、进度类事件可丢弃"这一机制教训)
 
 ---
 
@@ -223,14 +225,14 @@ Fork 子 Agent 的缓存复用:
 
 A:
 
-- Layer 1 (工具结果预算) : 结果进入历史的那一刻执行, 细粒度、无 LLM 参与. 把超预算的工具结果外溢到 `.yukino-codegen/sessions/<session-id>/tool-results/` 并替换为带 2KB 预览的存根; 进历史即最终形态, 保证缓存前缀稳定. 解决"单个工具结果撑爆上下文".
+- Layer 1 (工具结果预算) : 结果进入历史的那一刻执行, 细粒度、无 LLM 参与. 把超预算的工具结果外溢到 `.yukino/sessions/<session-id>/tool-results/` 并替换为带 2KB 预览的存根; 进历史即最终形态, 保证缓存前缀稳定. 解决"单个工具结果撑爆上下文".
 - Layer 2 (`compact.ManageContext`) : 按 token 阈值触发, 调用 LLM 把旧前缀总结为结构化摘要, 最近尾部原样保留, 压缩后附加恢复块. 解决"长会话累计增长".
 
 两层解耦的原因写在注释里 (compact.go:27) : Layer 1 在结果进入历史时就地处理, 消息一旦进历史就是最终形态; Layer 2 是对话级的整体重写, 看到的消息尺寸已是最终尺寸. 此外还有兜底路径: 真实请求返回 `ContextTooLongError` 时直接 `ForceCompact`.
 
 Layer 1 细节:
 
-- 单条 tool_result > 50K chars (`tools.MaxOutputChars`) → spill 到 `.yukino-codegen/sessions/<session-id>/tool-results/{tool_use_id}.txt`, conversation 中只留 2K preview
+- 单条 tool_result > 50K chars (`tools.MaxOutputChars`) → spill 到 `.yukino/sessions/<session-id>/tool-results/{tool_use_id}.txt`, conversation 中只留 2K preview
 - 单条 message 聚合 > 200K chars → 从最大的 result 开始 spill
 - 回读防环: ReadFile 读回 spill 文件的结果不再二次 spill (防止"存根的存根"链)
 
@@ -249,7 +251,7 @@ A:
 
 `internal/tool_result/budget.go` 实现了两趟预算控制:
 
-- Pass 1 (单条限制) : 单个 tool_result 超过 `tools.MaxOutputChars = 50000` 字符即外溢到 `.yukino-codegen/sessions/<session-id>/tool-results/<tool_use_id>.txt`, 替换为 `<persisted-output>` 存根 (含大小、路径、前 2000 字符预览) . 该阈值刻意设得较大, 让模型一次能看到足够内容, 避免频繁回读.
+- Pass 1 (单条限制) : 单个 tool_result 超过 `tools.MaxOutputChars = 50000` 字符即外溢到 `.yukino/sessions/<session-id>/tool-results/<tool_use_id>.txt`, 替换为 `<persisted-output>` 存根 (含大小、路径、前 2000 字符预览) . 该阈值刻意设得较大, 让模型一次能看到足够内容, 避免频繁回读.
 - Pass 2 (消息聚合限制) : 同一条消息内所有 tool_result 总量超过 `MessageAggregateLimit = 200000` 时, 按内容长度降序依次外溢, 直到总量达标.
 
 三个防御细节:
@@ -455,7 +457,7 @@ ReadFile/WriteFile/EditFile 共享同一个 cache 实例 (`CreateDefaultToolsWit
 
 A:
 
-`interpretExitCode` (`internal/tools/bash.go:50`) 内置常见命令的退出码语义表:
+`exitCodeHints` 表 (`tools/exit_code_hints.go`; 撰写时为 `internal/tools/bash.go` 的 `interpretExitCode`) 内置常见命令的退出码语义表:
 
 - grep/rg 的 1 表示"无匹配"
 - diff 的 1 表示"文件有差异"
@@ -532,16 +534,16 @@ A:
 
 各层详解:
 
-| 层  | 机制                                                                                                                                                                          | 示例                                                                                                                                        |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| L0  | Plan 模式下允许写 plan file                                                                                                                                                   | `Write(.yukino-codegen/plans/<slug>.md)`                                                                                                    |
-| L1  | 64 个安全命令前缀白名单 (且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符)                                                                                                | `git status`, `ls`, `cat`, `go version`                                                                                                     |
-| L2  | 正则黑名单 (不可绕过, 注释明确"黑名单是硬防线, 沙箱开着也要查")                                                                                                               | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                                           |
-| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认 (但显式 deny/ask 规则仍生效, 复合命令拆分逐段检查)                                                                                 | 沙箱限制了实际破坏范围                                                                                                                      |
-| L3  | 文件操作限制在项目根 + /tmp, 且 `.yukino-codegen/config.yaml`、`.yukino-codegen/permissions.local.yaml`、`.yukino-codegen/skills` 是 denyWrite 保护路径, 任何权限模式下都拒写 | 拒绝写 `~/.ssh/authorized_keys`, 防止 Agent 改写自己的权限配置实现提权                                                                      |
-| L4  | user/project/local 三个 YAML 合并为一个规则集求值, 匹配规则中取最严效果: deny > ask > allow, 单层 allow 无法覆盖另一层的 deny, `ToolName(pattern)` 语法                       | 自研 glob 里 `*` 匹配含 `/` 的任意字符 (标准 filepath.Match 的 `*` 不跨 `/`, 会让带路径的命令 allow-always 失效)                            |
-| L4b | Permission Mode 矩阵                                                                                                                                                          | default 读放行写/命令询问; acceptEdits 写也放行; bypass 全放行                                                                              |
-| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                                          | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件, 下一轮求值即生效 (agent.go:723 调用, 方法定义 permissions.go:368) |
+| 层  | 机制                                                                                                                                                    | 示例                                                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| L0  | Plan 模式下允许写 plan file                                                                                                                             | `Write(.yukino/plans/<slug>.md)`                                                                                                            |
+| L1  | 64 个安全命令前缀白名单 (且不含重定向、管道、`;`、`&&`、`$()`、反引号等逃逸符)                                                                          | `git status`, `ls`, `cat`, `go version`                                                                                                     |
+| L2  | 正则黑名单 (不可绕过, 注释明确"黑名单是硬防线, 沙箱开着也要查")                                                                                         | `rm -rf /`, `mkfs`, fork bomb, `curl\|sh`, `git push --force`, `git reset --hard`                                                           |
+| L2b | macOS seatbelt / Linux bwrap 内 → 跳过确认 (但显式 deny/ask 规则仍生效, 复合命令拆分逐段检查)                                                           | 沙箱限制了实际破坏范围                                                                                                                      |
+| L3  | 文件操作限制在项目根 + /tmp, 且 `.yukino/config.yaml`、`.yukino/permissions.local.yaml`、`.yukino/skills` 是 denyWrite 保护路径, 任何权限模式下都拒写   | 拒绝写 `~/.ssh/authorized_keys`, 防止 Agent 改写自己的权限配置实现提权                                                                      |
+| L4  | user/project/local 三个 YAML 合并为一个规则集求值, 匹配规则中取最严效果: deny > ask > allow, 单层 allow 无法覆盖另一层的 deny, `ToolName(pattern)` 语法 | 自研 glob 里 `*` 匹配含 `/` 的任意字符 (标准 filepath.Match 的 `*` 不跨 `/`, 会让带路径的命令 allow-always 失效)                            |
+| L4b | Permission Mode 矩阵                                                                                                                                    | default 读放行写/命令询问; acceptEdits 写也放行; bypass 全放行                                                                              |
+| L5  | 兜底 Ask → HITL 弹窗                                                                                                                                    | 用户选"总是允许"时调用 `AppendLocalRule` 把规则持久化写入 local 规则文件, 下一轮求值即生效 (agent.go:723 调用, 方法定义 permissions.go:368) |
 
 防绕过设计:
 
@@ -572,7 +574,7 @@ macOS (seatbelt) (`internal/sandbox/sandbox_darwin.go`) :
 (allow file-read*)                      ; 允许读
 (allow file-write* (subpath "/project")) ; 只允许写项目目录
 (allow file-write* (subpath "/tmp"))    ; 允许写 tmp
-(deny file-write* (subpath "/project/.yukino-codegen/config.yaml")) ; 保护配置
+(deny file-write* (subpath "/project/.yukino/config.yaml")) ; 保护配置
 (deny network*)                         ; 可选: 禁止网络
 ```
 
@@ -662,7 +664,7 @@ A:
 
 组织:
 
-双目录——用户级 `~/.yukino-codegen/memory/` (user/feedback 类型) 与项目级 `<root>/.yukino-codegen/memory/` (project/reference 类型) , 入口文件 `MEMORY.md`, 每条记忆是带 frontmatter (描述、类型) 的 markdown 文件. 四种类型见 `memory_types.go:31`.
+双目录——用户级 `~/.yukino/memory/` (user/feedback 类型) 与项目级 `<root>/.yukino/memory/` (project/reference 类型) , 入口文件 `MEMORY.md`, 每条记忆是带 frontmatter (描述、类型) 的 markdown 文件. 四种类型见 `memory_types.go:31`.
 
 提取:
 
@@ -702,7 +704,7 @@ A:
 
 JSONL 的优势:
 
-追加式 JSONL (`internal/session/session.go`) : 每条消息一行 `{role, type, content, ts}`, 工具调用与结果以可选的 `tool_uses`/`tool_results` 结构化块附在同一条消息上 (session.go:63-77, 无顶层 tool_use_id 字段), 存于 `.yukino-codegen/sessions/<id>.jsonl`; ID 格式为 `时间戳-4位随机hex`, crypto/rand 失败时退化到纳秒时间戳低 16 位.
+追加式 JSONL (`internal/session/session.go`) : 每条消息一行 `{role, type, content, ts}`, 工具调用与结果以可选的 `tool_uses`/`tool_results` 结构化块附在同一条消息上 (session.go:63-77, 无顶层 tool_use_id 字段), 存于 `.yukino/sessions/<id>.jsonl`; ID 格式为 `时间戳-4位随机hex`, crypto/rand 失败时退化到纳秒时间戳低 16 位.
 
 1. Append-only: 每次写一行, 无需读取/重写整个文件 (O(1) 写入)
 2. 崩溃安全: 最多丢失最后一行 (未 flush 的) , 不会损坏整个文件
@@ -835,7 +837,7 @@ Fork 的独特设计:
 
 - `model` 覆盖 (sonnet/opus/haiku, 经 ModelResolver)
 - `run_in_background`
-- `isolation: worktree` (见 Q30)
+- `isolation: worktree` (见本章 "为什么用 git worktree 做并行隔离? 如何实现?")
 - `team_name` (转为长驻队友)
 - `mode` 权限模式覆盖——子代理复用父 Checker 的 Sandbox 与 RuleEngine, 只覆盖 Mode, 保证权限边界不因派生而放松
 
@@ -869,12 +871,12 @@ TeamManager
 1. FileMailBox (基于文件的邮箱, `file_mailbox.go`) :
 
    ```
-   ~/.yukino-codegen/teams/{team}/inboxes/
+   ~/.yukino/teams/{team}/inboxes/
      ├── worker-1.json       // [{from, text, timestamp, read, color, type, requestId, approve}, ...]
      └── worker-1.json.lock  // O_CREATE|O_EXCL 原子锁, >10s (staleLockAge) 视为被崩溃进程遗留, 强删接管
    ```
 
-   - 邮箱目录在用户家目录 `~/.yukino-codegen/teams/{team}/inboxes/` 而非项目目录: pane 队友是独立进程, 工作目录可能被 worktree 改变, 用家目录保证队友进程和 Lead 找到同一份团队配置 (teams.go:55,93)
+   - 邮箱目录在用户家目录 `~/.yukino/teams/{team}/inboxes/` 而非项目目录: pane 队友是独立进程, 工作目录可能被 worktree 改变, 用家目录保证队友进程和 Lead 找到同一份团队配置 (teams.go:55,93)
    - 每个成员一个聚合 JSON 收件箱文件 (消息数组) , 不是每条消息一个文件; 消息结构为 `FileMailMessage`: from/text/timestamp/read/color, 以及结构化消息字段 type/requestId/approve (approve 用指针区分"未回复"和"明确拒绝")
    - `SendMessageTool` 经 `withLock` (加锁 → 重读 → 追加 → 写回) 投递; 进程内用 `sync.Mutex` 串行化, 文件锁只隔离跨进程队友. 拿锁失败按指数退避 (5ms 起、上限 maxLockBackoff=80ms, sleep = backoff + [0,backoff) 随机抖动防同时唤醒碰撞) , 总时限 lockAcquireTimeout=5s, 超时返回错误而非静默丢消息
    - 成员轮询 `ReadUnread` 读未读消息, 处理后 `MarkAllRead`
@@ -883,7 +885,7 @@ TeamManager
 2. SharedTaskStore (共享任务板, `shared_task.go`) :
 
    ```json
-   // ~/.yukino-codegen/teams/{team}/tasks.json
+   // ~/.yukino/teams/{team}/tasks.json
    {
      "tasks": [
        {
@@ -899,7 +901,7 @@ TeamManager
    - `TaskCreate/Get/List/Update` 工具操作
    - 进程内 `sync.Mutex` 串行化读写 (`SharedTaskStore.mu`) , 持久化为单个 tasks.json
 
-   注意同名工具的两套实现: 默认 TUI/print 模式注册的是 `internal/todo` 的会话级任务清单 (支持 blocks/blockedBy 依赖, 持久化到 `.yukino-codegen/tasks/<listID>.json`) , 仅 teammate/团队上下文才注册这里 teams 包的 SharedTaskStore 版本 (teams/task_tools.go) .
+   注意同名工具的两套实现: 默认 TUI/print 模式注册的是 `internal/todo` 的会话级任务清单 (支持 blocks/blockedBy 依赖, 持久化到 `.yukino/tasks/<listID>.json`) , 仅 teammate/团队上下文才注册这里 teams 包的 SharedTaskStore 版本 (teams/task_tools.go) .
 
 运行后端:
 
@@ -956,7 +958,7 @@ A:
 `internal/skills` 中技能是带 YAML frontmatter 的 SKILL.md:
 
 ```yaml
-# .yukino-codegen/skills/my-skill/SKILL.md
+# .yukino/skills/my-skill/SKILL.md
 ---
 name: my-skill
 description: "..."
@@ -989,7 +991,7 @@ Phase-1 只读 frontmatter 建目录 (catalog) , 正文 `BodyLoaded=false`, `Get
 
 $ARGUMENTS 替换: Skill body 中的 `$ARGUMENTS` 被替换为用户调用时传入的参数.
 
-热重载: `/skills reload` 重新扫描 `.yukino-codegen/skills/` 目录, 无需重启.
+热重载: `/skills reload` 重新扫描 `.yukino/skills/` 目录, 无需重启.
 
 ---
 
@@ -1106,9 +1108,9 @@ A:
 
 ```
 优先级 (低 → 高) :
-~/.yukino-codegen/config.yaml           (用户全局)
-<project>/.yukino-codegen/config.yaml   (项目级, git tracked)
-<project>/.yukino-codegen/config.local.yaml (项目本地, gitignored)
+~/.yukino/config.yaml           (用户全局)
+<project>/.yukino/config.yaml   (项目级, git tracked)
+<project>/.yukino/config.local.yaml (项目本地, gitignored)
 环境变量                         (API Keys)
 ```
 
@@ -1232,7 +1234,7 @@ Read-before-Edit:
    - 规则引擎每次评估时读取匹配, 当轮之后立即生效; 无 session 内存 allow 集合
 
 7. 权限配置自我保护:
-   - `.yukino-codegen/config.yaml`、`.yukino-codegen/permissions.local.yaml`、`.yukino-codegen/skills` 列入 denyWrite
+   - `.yukino/config.yaml`、`.yukino/permissions.local.yaml`、`.yukino/skills` 列入 denyWrite
    - 防止 Agent 改写自己的权限配置实现提权
 
 ---
@@ -1284,7 +1286,7 @@ A:
 - 降级: hooks 配置非法→无钩子启动; 上下文窗口拉取失败→映射表→默认值; 压缩摘要缺 `<summary>` 标签→退回原文; 会话断点损坏→全量重放; 外溢写盘失败→冻结原文继续.
 - 重试: 限流按 Retry-After 等待; PTL 按轮次组丢头重试 ≤3 次; max_tokens 两级恢复 (升限 + 3 次续写) .
 - 防环路: 截断结果不再外溢 (50K > 10K + 后缀) ; 外溢文件回读不再外溢; 缓存决策冻结防止历史抖动.
-- 防注入/提权: sandbox-exec 硬编码路径; 复合命令拆分逐段鉴权; `.yukino-codegen` 权限配置列入 denyWrite; git ref 名白名单校验.
+- 防注入/提权: sandbox-exec 硬编码路径; 复合命令拆分逐段鉴权; `.yukino` 权限配置列入 denyWrite; git ref 名白名单校验.
 - 幂等与原子性: 外溢文件 O_EXCL 已存在即复用; 会话 JSONL 追加式永不改写; worktree `-B` 自愈孤儿分支.
 - panic 隔离: 启动路径的模型信息拉取带 `recover()`, SDK 异常不影响进程.
 

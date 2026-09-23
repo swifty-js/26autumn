@@ -2,9 +2,9 @@
 title: "Yukino Agent 技术笔记"
 ---
 
-> 本机器路径 `$HOME/github/yukino-code/apps/yukino-agent`
+> 本机器路径 `$HOME/github/yukino-agent`
 
-> 项目: `apps/yukino-agent` —— 基于 Next.js 16 + React 19 + Vercel AI SDK v7 的 AI OnCall 智能助手, 支持 RAG 知识库检索、ReAct 对话 Agent、Plan-Execute-Replan 运维编排、A2UI 交互界面生成、Prometheus 告警分析、MCP 日志工具接入、yukino-sentry 前端监控桥接.
+> 项目: `yukino-agent` —— 基于 Next.js 16 + React 19 + Vercel AI SDK v7 的 AI OnCall 智能助手, 支持 RAG 知识库检索、ReAct 对话 Agent、Plan-Execute-Replan 运维编排、A2UI 交互界面生成、Prometheus 告警分析、MCP 日志工具接入、yukino-sentry 前端监控桥接.
 >
 > 本文档问题覆盖架构设计、LLM 工程、RAG、Agent 编排、流式输出、React 工程化、性能与安全等方向. 所有回答均基于项目真实源码, 关键结论附 `文件:行号` 引用.
 

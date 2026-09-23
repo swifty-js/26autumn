@@ -216,7 +216,7 @@ Formily 2.x 采用 monorepo 架构, 由多个独立的 npm 包组成, 各司其�
 | 包名                    | 职责                                         |
 | ----------------------- | -------------------------------------------- |
 | @formily/reactive       | 响应式状态管理引擎 (类似 MobX)               |
-| xf                      | 表单领域模型 (Form、Field、生命周期、副作用) |
+| @formily/core           | 表单领域模型 (Form、Field、生命周期、副作用) |
 | @formily/react          | React 绑定层 (组件、Hooks、Schema 渲染)      |
 | @formily/reactive-react | 将 reactive 与 React 渲染桥接 (observer)     |
 | @formily/json-schema    | JSON Schema 协议解析与字段转换               |

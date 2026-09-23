@@ -1,4 +1,5 @@
 import { llms, loader } from "fumadocs-core/source";
+import { lucideIconsPlugin } from "fumadocs-core/source/plugins/lucide-icons";
 import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
 import { defineDocs } from "fumadocs-mdx/macro";
 import { docsRoute } from "./shared";
@@ -7,6 +8,7 @@ const docs = defineDocs({
   dir: "content/docs",
   docs: {
     schema: pageSchema,
+    lastModified: true,
     postprocess: {
       // exposes the processed Markdown via `page.data.getText("processed")`,
       // required by the llms.txt routes
@@ -22,6 +24,7 @@ const docs = defineDocs({
 export const source = loader({
   baseUrl: docsRoute,
   source: docs.toFumadocsSource(),
+  plugins: [lucideIconsPlugin()],
 });
 
 export const docsLlms = llms(source, {

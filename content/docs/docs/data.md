@@ -2396,7 +2396,7 @@ boot.ts 的监控代码由五个部分组成, 全部基于浏览器原生 Perfor
 
 第一部分, 启动打点. 脚本入口第一行就执行 performance.mark('boot-start'), 在整个启动流程 (加载库文件、登录校验、菜单预取、prepare 执行) 完成后打 boot-end, 再用 performance.measure 计算启动总耗时. measure 封装了 try/catch, mark 不存在时不会抛错中断业务.
 
-第二部分, 长任务监听. 用 PerformanceObserver 观察 longtask 类型的条目, 只上报 duration 超过 50ms 的任务 (对齐 INP 与 TBT 的 50ms 阈值) , 上报内容附带当前页面路径和业务码 bizCode, 便于按页面维度归因卡顿. 监听在启动采集完成时 disconnect, 避免后续用户交互的长任务污染启动阶段数据.
+第二部分, 长任务监听. 用 PerformanceObserver 观察 longtask 类型的条目, 只上报 duration 超过 50ms 的任务 (50ms 是 Long Tasks 与 TBT 的阈值, INP 的处理延迟同样按长任务边界分段) , 上报内容附带当前页面路径和业务码 bizCode, 便于按页面维度归因卡顿. 监听在启动采集完成时 disconnect, 避免后续用户交互的长任务污染启动阶段数据.
 
 第三部分, 资源加载采样. 记录前 12 秒内执行的模块, 按 0.003 的采样率上报模块路径, 用于离线分析"哪些模块值得做预加载". 这是监控反哺优化的典型用法: 先采样观测, 再决定预加载清单.
 

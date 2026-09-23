@@ -3,7 +3,8 @@ title: "A2UI"
 ---
 
 仓库路径: git@github.com:a2ui-project/a2ui.git (本机克隆位于 $HOME/Documents/a2ui)
-本机器路径: $HOME/github/a2ui/packages/shadcn (@yukino.js/a2ui monorepo, 本地 remote 为 git@github.com:hangtiancheng/a2ui.git)
+本机器路径 (撰写时点): $HOME/github/a2ui/packages/shadcn (@yukino.js/a2ui monorepo, 本地 remote 为 git@github.com:hangtiancheng/a2ui.git)
+注: 本文为调研时点快照, 此后两处本地仓库状态已变——shadcn 包目录在本机已无法定位; yukino-agent 已拆为独立仓库 ($HOME/github/yukino-agent), 移除了 @yukino.js/a2ui-shadcn npm 依赖, shadcn prompt 改为内联 vendored 在 @/lib/a2ui/prompt (server-safe), 其当前 A2UI 依赖为 @a2ui/web_core ^0.10.7、@a2ui/react ^0.10.2、@a2ui/markdown-it ^0.1.2. 正文保留调研时点描述.
 本机器文档库: $HOME/.yukino/docs
 
 ## 背景与动机
@@ -138,6 +139,8 @@ A2UI 消息编码为 DataPart 的示例 (服务端下发):
   "metadata": { "mimeType": "application/a2ui+json" }
 }
 ```
+
+注: 官方 A2A 扩展规范的示例把 mimeType 放在 part 的 metadata.mimeType 上 (如上方形态); 官方 sample 代码也有把 mimeType 直接平铺在 part 上的写法 (见下文中间件示例, TypeScript 类型需 as Part 强转), 偏离规范推荐形态, 两种写法并存.
 
 处理规则 (来自 A2A 扩展规范):
 
@@ -324,7 +327,7 @@ basic catalog 提供 18 个组件:
 - 布局: Row / Column / List / Card / Tabs / Divider / Modal
 - 交互: Button / CheckBox / TextField / DateTimeInput / ChoicePicker / Slider
 
-theme 支持三个属性: primaryColor (主色), iconUrl 和 agentDisplayName (Agent 身份归属). 多 Agent 场景下, 编排者负责设置或覆写这两个身份字段并校验其与真实 Agent 服务一致, 防止恶意 Agent 冒充可信服务.
+theme 正式支持三个属性: primaryColor (主色), iconUrl 和 agentDisplayName (Agent 身份归属) (schema 的 additionalProperties 为 true, 正文部分示例在 theme 里写了 font 等非协议字段, 属于自定义扩展, 渲染器可忽略) . 多 Agent 场景下, 编排者负责设置或覆写这两个身份字段并校验其与真实 Agent 服务一致, 防止恶意 Agent 冒充可信服务.
 
 ### prompt-generate-validate 循环
 
@@ -354,7 +357,7 @@ theme 支持三个属性: primaryColor (主色), iconUrl 和 agentDisplayName (A
 - sendDataModel 定向投递: UI 状态只回传给创建该 Surface 的 Server
 - 身份归属防伪: 编排者校验/覆写 iconUrl 与 agentDisplayName
 - 自定义组件的 smart wrapper 模式: 接入第三方内容 (如 iframe) 时由组件自身实施沙箱与信任策略
-- 双 iframe 隔离: 对需要运行不受信第三方代码的场景 (MCP Apps), 内层 iframe 严格排除 allow-same-origin, 防止 allow-scripts + allow-same-origin 组合导致沙箱逃逸, 同时维持结构化 JSON-RPC 通道
+- 双 iframe 隔离: 对需要运行不受信第三方代码的场景 (MCP Apps) , 内层 iframe 严格排除 allow-same-origin, 防止 allow-scripts + allow-same-origin 组合导致沙箱逃逸, 同时维持结构化 JSON-RPC 通道 (该承载方式出自 yukino-mcp 调研资料的转述; A2UI 官方规范只声明了 "A2UI 可经 MCP 传输" 的绑定, 未规定 iframe 承载细节)
 
 ## 生态与定位
 
@@ -1736,7 +1739,7 @@ yukino-code/apps/yukino-agent 是一个 AI OnCall 运维助手: 告警分析、�
 
 - Next.js 16 (App Router) + React 19 + TypeScript; 页面: app/page.tsx (主聊天) 、app/gallery/page.tsx (组件画廊)
 - Vercel AI SDK v7: streamText/generateText + tools + stopWhen, provider 为 @ai-sdk/openai 与 @ai-sdk/anthropic, 区分 thinkModel/quickModel
-- A2UI: @a2ui/web_core、@a2ui/react、@a2ui/markdown-it, 以及 "@yukino.js/a2ui-shadcn": "latest" (npm 依赖, 安装 0.0.1; 2026-08-24 之前为 file:../../../a2ui/packages/shadcn 本地链接) —— 两个仓库协同演进
+- A2UI: @a2ui/web_core、@a2ui/react、@a2ui/markdown-it, 以及 "@yukino.js/a2ui-shadcn": "latest" (npm 依赖, 安装 0.0.1; 2026-08-24 之前为 file:../../../a2ui/packages/shadcn 本地链接) —— 两个仓库协同演进 (现状: yukino-agent 已拆为独立仓库 $HOME/github/yukino-agent, 该 npm 依赖已移除, shadcn prompt 内联为 @/lib/a2ui/prompt)
 - 其他: Redis Stack 向量检索 (RAG) 、knex + mysql2、MCP SDK (日志工具) 、prom-client、Tailwind v4
 
 一个配套配置: reactStrictMode: false. 原因是 MessageProcessor 是有状态外部存储, StrictMode 的开发态双执行会重放已创建的 surface.
@@ -1837,8 +1840,8 @@ A2UI 把"Agent 发 UI"从发代码变成发数据, 用 catalog 契约 + 数据�
 本机器路径
 
 - yukino-mcp 本地知识库中的 A2UI 官方文档 (a2ui/ 目录, 含 introduction、concepts、reference、guides、ecosystem)
-- /Users/hangtiancheng/github/a2ui/packages/shadcn (@yukino.js/a2ui-shadcn 包源码)
-- /Users/hangtiancheng/github/yukino-code/apps/yukino-agent (A2UI 应用源码)
+- /Users/hangtiancheng/github/a2ui/packages/shadcn (@yukino.js/a2ui-shadcn 包源码; 该目录现已无法在本机定位)
+- /Users/hangtiancheng/github/yukino-code/apps/yukino-agent (A2UI 应用源码; 现已拆为独立仓库 $HOME/github/yukino-agent)
 
 ---
 
@@ -2011,7 +2014,7 @@ Catalog 的 JSON Schema 结构: 一个对象包含 catalogId (唯一标识) 、c
 安全是协议的一等原则:
 
 - 沙箱化执行: 禁止 agent 注入任意代码 (如原始 JavaScript) , agent 只能触发预先注册的行为. functionCall 机制是 agent 与 renderer 环境交互的唯一安全通道.
-- 对不受信的第三方代码, A2UI 采用双 iframe 隔离模式运行 MCP Apps: 内层 iframe 严格排除 allow-same-origin, 防止"allow-scripts + allow-same-origin"组合导致的沙箱逃逸, 同时维持结构化 JSON-RPC 通道.
+- 对不受信的第三方代码, yukino-mcp 调研资料记录了 A2UI 生态运行 MCP Apps 的双 iframe 隔离方案: 内层 iframe 严格排除 allow-same-origin, 防止"allow-scripts + allow-same-origin"组合导致的沙箱逃逸, 同时维持结构化 JSON-RPC 通道. (A2UI 官方规范只声明了 "A2UI 可经 MCP 传输" 的绑定, 未规定 iframe 承载细节, 此条属于生态实践转述)
 
 #### 1.9 传输层与生态
 
@@ -2028,7 +2031,7 @@ A2UI 与传输层解耦, 任何能送 JSON 的通道都行: A2A 协议、AG-UI�
 
 ### 二、@yukino.js/a2ui-shadcn: shadcn 组件库 catalog
 
-路径: /Users/hangtiancheng/github/a2ui/packages/shadcn
+路径: /Users/hangtiancheng/github/a2ui/packages/shadcn (调研时点; 该目录现已无法在本机定位)
 所在 monorepo: /Users/hangtiancheng/github/a2ui (pnpm workspace, 含 packages/\{lit, react, server, shadcn\}) , 是官方 restaurant-finder 示例的全栈 TypeScript 移植, 协议固定 A2UI v0.9.
 
 #### 2.1 定位: 渲染端 + 生成端三合一
@@ -2221,7 +2224,7 @@ src/prompt/ (./prompt 导出) 把 A2UI Python agent SDK 的四种推理格式提
 
 ### 三、yukino-agent: 一个完整的 A2UI 应用
 
-路径: /Users/hangtiancheng/github/yukino-code/apps/yukino-agent
+路径: /Users/hangtiancheng/github/yukino-code/apps/yukino-agent (调研时点; 现为独立仓库 $HOME/github/yukino-agent)
 
 #### 3.1 定位与技术栈
 
@@ -2231,7 +2234,7 @@ src/prompt/ (./prompt 导出) 把 A2UI Python agent SDK 的四种推理格式提
 
 - 框架: Next.js 16.2.9 (App Router) + React 19.2.4 + TypeScript 6; 入口 app/layout.tsx、app/page.tsx (主聊天界面) 、app/gallery/page.tsx (A2UI 组件画廊)
 - AI SDK: Vercel AI SDK v7 (ai ^7.0.43) , streamText/generateText + tools + stopWhen: isStepCount (n) ; provider 为 @ai-sdk/openai 与 @ai-sdk/anthropic, lib/ai/models.ts 按 LLM_PROVIDER 切换, 区分 thinkModel/quickModel
-- A2UI 依赖: @a2ui/web_core ^0.10.6、@a2ui/react ^0.10.2、@a2ui/markdown-it, 以及 "@yukino.js/a2ui-shadcn": "latest" (npm 安装 0.0.1; 调研时为 file:../../../a2ui/packages/shadcn 本地链接, 2026-08-24 起改为 npm 依赖) ——两个仓库由此耦合
+- A2UI 依赖: @a2ui/web_core ^0.10.6、@a2ui/react ^0.10.2、@a2ui/markdown-it, 以及 "@yukino.js/a2ui-shadcn": "latest" (npm 安装 0.0.1; 调研时为 file:../../../a2ui/packages/shadcn 本地链接, 2026-08-24 起改为 npm 依赖) ——两个仓库由此耦合 (现状: yukino-agent 独立仓库已移除该 npm 依赖, prompt 内联 vendored, A2UI 依赖升至 @a2ui/web_core ^0.10.7)
 - 其他: Redis Stack 向量检索 (RAG) 、knex+mysql2、MCP SDK (日志工具) 、prom-client、Tailwind v4、streamdown
 
 目录约定 (AGENTS.md) : app/ (路由+API) 、lib/ (服务端: lib/ai/\{a2ui,pipelines,tools\}、lib/redis) 、components/、hooks/.
@@ -2360,7 +2363,7 @@ prompt few-shot builder 覆盖三类运维界面:
 
 1. 它示范了不依赖 CopilotKit 的完整自建链路: prompt 注入 (direct-json 模式) → 流式有状态过滤 → zod 校验 → 一次纠错重试 → 诚实降级, 每个环节都有明确失败语义.
 2. out-of-band action 管线 (/api/a2ui_action + filterInPlaceMessages + 增量 processMessages) 是协议文档里没有现成答案、但真实应用必须解决的问题——surface 交互如何原地更新而不污染聊天流. 其防御性细节 (只允许 updateComponents/updateDataModel、只保留同一 surfaceId、防 "Surface already exists") 都是踩过坑后的经验.
-3. yukino-agent 通过 @yukino.js/a2ui-shadcn 依赖该组件库 (调研时为 file: 本地链接, 2026-08-24 起改为 npm latest 依赖), 说明这两个仓库是协同演进的: 协议库提供能力, 应用侧反哺真实场景需求.
+3. yukino-agent 通过 @yukino.js/a2ui-shadcn 依赖该组件库 (调研时为 file: 本地链接, 2026-08-24 起改为 npm latest 依赖; 现状已移除该依赖、prompt 改为内联 vendored), 说明这两个仓库曾深度协同演进: 协议库提供能力, 应用侧反哺真实场景需求.
 
 #### 4.4 需要注意的风险与坑
 
