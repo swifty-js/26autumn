@@ -31,7 +31,7 @@ Vite 快的三个关键点:
 
 1. 依赖预构建用 esbuild: node_modules 中的 CJS/UMD 依赖用 esbuild (Go 编写, 比 Babel 快 10-100 倍) 一次性转为 ESM, 缓存在 node_modules/.vite, 二次启动直接读缓存.
 2. 源码按需转译: 业务代码只在被请求时转译, 配合 HTTP 304 协商缓存, 未修改的模块不重复处理.
-3. HMR 粒度小: 修改一个模块只需重新请求该模块的 ESM, 不需要重新计算整个依赖图 (详见 Q5).
+3. HMR 粒度小: 修改一个模块只需重新请求该模块的 ESM, 不需要重新计算整个依赖图 (详见「Webpack HMR 和 Vite HMR 的实现原理有何不同?」).
 
 需要说明的边界: Vite dev 模式下首屏可能产生大量模块请求 (瀑布流), 深层依赖链的页面首次打开反而可能变慢, Vite 通过预构建合并依赖、`server.warmup` 预热高频模块来缓解. 生产构建两者都要完整打包, 差距主要在开发体验.
 
@@ -307,7 +307,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 
 1. 依赖治理 (通常收益最大): bundle 分析找出大头, moment 换 dayjs、lodash 换 lodash-es 按需导入、图表库按需注册组件; 重复依赖用 dedupe/resolutions 收敛到单版本.
 2. 代码分割 + 按需加载: 路由级动态 import, 低频功能 (导出 Excel、富文本编辑器) 交互时再加载.
-3. Tree Shaking 保障: 见 Q6, 重点是 sideEffects 声明和避免 CJS.
+3. Tree Shaking 保障: 见「Tree Shaking 的原理是什么? 哪些写法会导致失效?」, 重点是 sideEffects 声明和避免 CJS.
 4. 压缩: JS 用 esbuild/terser, CSS 用 cssnano/lightningcss; 产物开启 gzip/brotli (brotli 比 gzip 再小 15% 左右), 由 CDN 或网关下发.
 5. 资源优化: 小图内联 base64 阈值控制、大图 WebP/AVIF、字体子集化.
 
@@ -351,7 +351,7 @@ Vite 侧:
    - E2E 冒烟测试验证核心路径在真实构建产物上可用 (dev 模式跑通不代表生产产物没问题, 比如 Tree Shaking 误删副作用、动态 import 路径错误都只在 build 后暴露).
 4. 发布与回滚关卡:
    - 产物带 contenthash 全量上传 CDN 后再切换 html 引用, 保证原子发布; 旧版本产物保留, 回滚只需切回旧 html.
-   - Source map 随构建上传监控平台并与 release version 绑定 (见 Q8), 发布后观察错误率, 异常自动告警回滚.
+   - Source map 随构建上传监控平台并与 release version 绑定 (见「Source Map 有哪些类型? 生产环境如何选择与管理?」), 发布后观察错误率, 异常自动告警回滚.
 
 在字节的 Thrift IDL 类型包链路中还有一层契约关卡: IDL 变更时 CI 自动做新旧版本 diff, 识别 breaking change 并强制 major 版本升级, 防止接口契约漂移流入下游 BFF.
 

@@ -697,7 +697,7 @@ A: DOM 操作慢的原因:
 - 读写分离: 先读完所有需要的几何值, 再统一写 (FastDOM 库就是封装这个模式) .
 - 减少节点数量: 虚拟列表、分页、content-visibility: auto 跳过屏外渲染.
 - 变更类名代替逐条修改 style; 用 CSS 变量驱动批量样式变化.
-- 动画用 transform/opacity, 走合成层不触发布局 (见 Q45) .
+- 动画用 transform/opacity, 走合成层不触发布局 (见「合成层是什么 为什么 transform 动画更流畅」) .
 - 避免频繁访问会强制布局的属性, 必要时用 ResizeObserver/IntersectionObserver 代替轮询.
 
 ### Virtual DOM 的原理与 key 的作用
@@ -735,7 +735,7 @@ A: Web Component 是浏览器原生支持的组件化方案, 由三项技术组�
 
 补充能力:
 
-- 事件在 Shadow 边界做 retargeting (对外 target 显示为宿主) , composed: true 的事件可穿出 Shadow (见 Q34) .
+- 事件在 Shadow 边界做 retargeting (对外 target 显示为宿主) , composed: true 的事件可穿出 Shadow (见「Shadow DOM 的样式隔离与事件机制」) .
 - ElementInternals 让自定义元素参与表单 (formAssociated) 、管理可访问性状态.
 - Constructable Stylesheets (adoptedStyleSheets) 实现 Shadow 间共享样式表.
 - 生态: Lit 是最流行的开发库; 框架方面 Angular/Vue 可直接消费, React 19 起完善了对自定义元素属性与事件的支持. 浏览器原生、无框架锁定、可 SSR, 是其核心卖点.
@@ -947,7 +947,7 @@ A: 重排 (reflow/layout) : 几何属性变化导致重新计算布局, 之后�
 
 重绘 (repaint) : 外观变化但不影响几何, 如 color、background、visibility、box-shadow, 只重跑绘制阶段 (不经过布局) .
 
-成本关系: 重排 > 重绘 > 仅合成 (composite only, transform/opacity 变化由合成线程直接处理, 主线程空闲, 见 Q45) .
+成本关系: 重排 > 重绘 > 仅合成 (composite only, transform/opacity 变化由合成线程直接处理, 主线程空闲, 见「合成层是什么 为什么 transform 动画更流畅」) .
 
 优化清单:
 
@@ -1068,7 +1068,7 @@ A: 浏览器请求一个资源时的决策链: 先查强缓存, 命中且未过�
 协商缓存:
 
 - Last-Modified / If-Modified-Since: 秒级精度.
-- ETag / If-None-Match: 内容指纹, 优先级更高 (见 Q52) .
+- ETag / If-None-Match: 内容指纹, 优先级更高 (见「ETag 与 Last-Modified 的区别」) .
 - 命中返回 304 Not Modified, 无响应体.
 
 工程组合: HTML 用 no-cache (每次验证) 保证及时更新; 带内容 hash 的静态资源用 max-age=31536000, immutable 长期强缓存; API 按需使用 ETag 减少传输.
@@ -1134,7 +1134,7 @@ A: 完整链路 (以 HTTPS 站点为例) :
 4. 建立连接: TCP 三次握手; HTTPS 再做 TLS 握手 (TLS 1.3 为 1-RTT, 会话复用可 0-RTT) ; HTTP/2 通过 ALPN 协商, HTTP/3 则直接走 QUIC (UDP) .
 5. 发送请求: 浏览器自动带上 Cookie、缓存验证头等; 若命中协商缓存条件, 服务端返回 304.
 6. 服务端处理: 负载均衡、网关、应用服务、数据库, 返回响应 (可能经历 301/302/307/308 重定向链) .
-7. 渲染流水线: 流式解析 HTML 构建 DOM、解析 CSS 构建 CSSOM、执行 JS、布局、绘制、合成 (细节见 Q43) , 期间边下载边渲染.
+7. 渲染流水线: 流式解析 HTML 构建 DOM、解析 CSS 构建 CSSOM、执行 JS、布局、绘制、合成 (细节见「浏览器渲染流水线是怎样的」) , 期间边下载边渲染.
 8. 后续: DOMContentLoaded → 懒加载/异步数据请求 → load 事件 → 用户交互, 空闲时执行 prefetch 等低优先级任务.
 
 回答思路: 按“导航阶段 (1-4) → 请求响应 (5-6) → 解析渲染 (7-8) ”三段展开, 并把缓存、CDN、HTTP/2 多路复用、渲染流水线作为可深挖的延伸主动点出.
@@ -1192,7 +1192,7 @@ A: HTTP/1.1 中一个 TCP 连接上请求必须串行: 前一个响应完整返�
 - 资源合并 (雪碧图、打包合并 JS/CSS) 、内联小资源, 用“少请求”换性能.
 - 管线化 (pipelining) 允许连续发多个请求, 但响应仍需按序返回, 队头阻塞依旧, 且代理兼容性差, 默认被禁用.
 
-这些 workaround 带来新问题: 连接建立开销 (TCP+TLS 握手成本×6) 、拥塞控制互相竞争、缓存粒度变粗 (合并文件一改全改) . HTTP/2 的多路复用从协议层解决了应用层队头阻塞 (见 Q58) , 于是合并与域名分片在 H2 时代反而变成反模式. 注意 H2 只解决了 HTTP 层队头阻塞, TCP 层的队头阻塞 (丢包导致后续数据等待重传) 由 HTTP/3 解决 (见 Q59) .
+这些 workaround 带来新问题: 连接建立开销 (TCP+TLS 握手成本×6) 、拥塞控制互相竞争、缓存粒度变粗 (合并文件一改全改) . HTTP/2 的多路复用从协议层解决了应用层队头阻塞 (见「HTTP/2 的核心特性」) , 于是合并与域名分片在 H2 时代反而变成反模式. 注意 H2 只解决了 HTTP 层队头阻塞, TCP 层的队头阻塞 (丢包导致后续数据等待重传) 由 HTTP/3 解决 (见「HTTP/3 与 QUIC 解决了什么问题」) .
 
 ### HTTP/2 的核心特性
 
@@ -1269,7 +1269,7 @@ A: 语义层面 (规范定义的区别, 也是最本质的) :
 - 数据形式: GET 的 query 只能是 URL 编码文本; POST 的 body 支持多种 Content-Type (application/x-www-form-urlencoded、multipart/form-data、application/json、二进制) .
 - 长度限制: 规范不限 URL 长度, 但浏览器与服务器有实际限制 (数 KB 到数 MB 不等) , 所以“GET 有长度限制”是实现限制而非协议限制.
 - 安全误区: GET 参数出现在 URL, 会留在浏览器历史、服务器日志、Referer 中, 不宜放敏感信息; 但 POST 在 HTTP 下同样是明文, 安全性取决于 HTTPS 而非方法.
-- 跨域角度: GET/POST (满足简单请求条件) 不一定触发预检, 但携带 JSON 的 POST 会触发 OPTIONS 预检 (见 Q63) .
+- 跨域角度: GET/POST (满足简单请求条件) 不一定触发预检, 但携带 JSON 的 POST 会触发 OPTIONS 预检 (见「CORS 跨域机制」) .
 
 ### CORS 跨域机制
 
@@ -1292,7 +1292,7 @@ A: CORS 是浏览器实施、服务器配合的跨源放行机制. 核心事实:
 
 A: 生产环境方案:
 
-1. CORS: 标准做法, 服务端按 Q63 配置响应头, 首选.
+1. CORS: 标准做法, 服务端按「CORS 跨域机制」配置响应头, 首选.
 2. 反向代理: nginx/网关把 api.example.com 代理到前端同源的 /api 路径下, 对浏览器而言是同源请求; 开发期用 devServer proxy (webpack/vite) 同理.
 3. postMessage + iframe: 两个页面互嵌时通过 postMessage 通信 (需双方配合, 校验 origin) , 适合嵌入式 SDK.
 4. WebSocket: 不受同源策略限制, 服务端校验 Origin 头即可, 适合实时双向场景.
@@ -1446,7 +1446,7 @@ A: 按“减少体积 → 减少请求 → 加快传输 → 优化执行”四�
 减少请求与调度优先级:
 
 - HTTP/2/3 多路复用下不必强行合并, 但应控制请求总数与瀑布深度; 内联关键 CSS, defer 非关键 JS.
-- preload/prefetch/preconnect/fetchpriority 精准调度 (见 Q47) ; 路由跳转前预取数据与代码.
+- preload/prefetch/preconnect/fetchpriority 精准调度 (见「关键渲染路径与 preload prefetch preconnect」) ; 路由跳转前预取数据与代码.
 
 加快传输:
 

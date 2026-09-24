@@ -53,7 +53,7 @@ Tiktok 搜索推荐平台是一个 React SPA, 页面报错后排查链路长: �
 - window error 事件 (未捕获的运行时异常): 浏览器派发 ErrorEvent, HTML 规范规定事件对象直接携带 filename/lineno/colno 三个属性 (出错脚本 URL、行号、列号), 采集时直接解构取值, 无需解析
 - 运行时抛出的 Error 对象 (try-catch 捕获、Promise 拒绝的 reason、框架错误处理器的入参等): ECMAScript 规范只规定了 name 和 message, 没有 line/column 属性, 拿不到行列号; 但 stack 字符串 (非标准但 V8/SpiderMonkey/JSC 都实现) 里带帧信息, 每帧格式为 `at 函数名 (文件:行:列)`, 行列号藏在字符串里, 需要正则解析提取
 
-两类错误在实际页面中同时存在, 采集逻辑必须是两套兜底: 有 ErrorEvent 时优先用它的 filename/lineno/colno, 只有 Error 对象时退回解析 error.stack 的帧信息, 归一化成同一套数据模型 (name/message/line/column/stack) 后, 再交给 sourcemap 反解定位到源码 (见 Q8). 只写一种分支会漏掉另一类错误的行列号信息.
+两类错误在实际页面中同时存在, 采集逻辑必须是两套兜底: 有 ErrorEvent 时优先用它的 filename/lineno/colno, 只有 Error 对象时退回解析 error.stack 的帧信息, 归一化成同一套数据模型 (name/message/line/column/stack) 后, 再交给 sourcemap 反解定位到源码 (见「Sourcemap 反解与堆栈聚合策略是怎样的?」). 只写一种分支会漏掉另一类错误的行列号信息.
 
 第二层: 事件上下文 (归因)
 
@@ -127,7 +127,7 @@ TypeError: Cannot read properties of undefined (reading 'data')
 对监控为什么关键:
 
 1. 生产代码压缩混淆后, 函数名被改写, error.stack 里的业务信息基本不可读; 但 React 组件名 (类名/displayName) 可以保留, componentStack 在线上仍是业务可读的
-2. 它给出了「哪个组件挂的」这个维度, 可以做按组件归因: 同一组件树的错误聚合在一起, 比按 message 聚合更准确 (呼应 Q8 的堆栈聚合策略)
+2. 它给出了「哪个组件挂的」这个维度, 可以做按组件归因: 同一组件树的错误聚合在一起, 比按 message 聚合更准确 (呼应「Sourcemap 反解与堆栈聚合策略是怎样的?」)
 3. 它和 sourcemap 反解互补: JS 栈反解定位到代码行, componentStack 定位到组件层级, 两者一起用还原度更高
 
 注意点:
@@ -870,7 +870,7 @@ componentStack 顶行的出错组件名, 可替代「栈帧→符号」的第一
 第四层: 行为与现场 (复现)
 
 - 面包屑 (breadcrumbs): 错误前的用户行为序列, 按类型分为路由切换、HTTP 请求、点击、资源加载、代码错误等, 回答「报错前用户做了什么」
-- 录屏事件 (rrweb): 错误前 N 秒的 DOM 变更与交互事件流, 可直接回放, 见 Q2
+- 录屏事件 (rrweb): 错误前 N 秒的 DOM 变更与交互事件流, 可直接回放, 见「rrweb 是什么? 有什么作用?」
 - 关联 HTTP 数据: 错误前失败的接口请求 (状态码、耗时、请求响应体摘要), 很多前端报错的根因是接口异常
 
 yukino-sentry 中的实际组装过程:
@@ -1176,7 +1176,7 @@ self.MonacoEnvironment = {
 
 - worker 创建加容错: getWorkerUrl 加载失败时降级, monaco 会回退到主线程提供基础编辑能力, 编辑器不至于整体崩溃. 但回退能力有限——基础编辑、简单高亮可保留, TypeScript 的语义检查、跨文件类型推导等强依赖 worker 的能力会降级或缺失, 容错是保住编辑器不整体崩溃, 不是等价替代
 
-2. 错误兜底与重试 (治标, 与 Q1/Q4 的监控链路衔接)
+2. 错误兜底与重试 (治标, 与「JSError 上报应该携带哪些错误信息?」「跨域脚本错误只有 Script error, 如何解决?」的监控链路衔接)
    - 资源错误捕获: script/link 加载失败不冒泡到 window error, 需在 capture 阶段监听 error 事件 (yukino-sentry 的核心错误监听即这样做: decorates.ts 里 globalThis.addEventListener("error", listener, true) 注册捕获阶段监听, 错误进入 handleError 后由 reportResourceError 从 target 上取 src/href 归为 Resource 类型事件). 资源错误与 JS 运行时错误的捕获机制不同: 运行时错误触发 window.onerror 并携带 message/stack; 资源错误只触发目标元素的 error 事件, 且被标记为不冒泡, 只能在捕获阶段拦住:
 
 ```typescript
@@ -1328,7 +1328,7 @@ optimization: {
 
 monaco 体积大 (几百 KB), 拆成独立 chunk 后跨多个编辑器页面共享缓存——用户从规则配置页跳到 DSL 编辑页, monaco-vendor chunk 已在缓存, 不重复下载, 只有业务代码 chunk 变化
 
-总结: 竞态型错误靠「预加载 + worker 容错降级」缓解, 其余错误靠监控 SDK 的资源错误捕获与现场还原兜底. 这类问题无法百分之百消除 (用户可能离线、CDN 可能故障), 最终依赖 Q1 到 Q5 的上报与还原能力闭环排查.
+总结: 竞态型错误靠「预加载 + worker 容错降级」缓解, 其余错误靠监控 SDK 的资源错误捕获与现场还原兜底. 这类问题无法百分之百消除 (用户可能离线、CDN 可能故障), 最终依赖前文的 JSError 上报、rrweb 录屏还原、跨域错误解析等能力闭环排查.
 
 ### SPA 首屏渲染时间 (FSP) 如何计算?
 
@@ -1487,7 +1487,7 @@ Slardar 参考 Sentry 的策略, 利用 stack 信息做更精确的聚合:
 
 相同 fingerprint 的上报归为同一异常. 相比 name + message, 利用 stacktrace 能区分不同文件下触发相同 message 的情况, 聚合精度显著提高.
 
-与 yukino-sentry 的对比: yukino-sentry 在 SDK 侧用 `type-message-filename-line-column` 的 base64 编码做错误签名 (Q1 中提到的 LRU 去重), 这是客户端侧的轻量去重; Slardar/Sentry 的 fingerprint 是服务端侧的聚合, 基于反解后的完整 Frame 信息, 粒度更细. 两者解决不同层面的问题: 客户端去重防止循环报错打爆上报通道, 服务端聚合把同类错误归组供人消费.
+与 yukino-sentry 的对比: yukino-sentry 在 SDK 侧用 `type-message-filename-line-column` 的 base64 编码做错误签名 (「JSError 上报应该携带哪些错误信息?」中提到的 LRU 去重), 这是客户端侧的轻量去重; Slardar/Sentry 的 fingerprint 是服务端侧的聚合, 基于反解后的完整 Frame 信息, 粒度更细. 两者解决不同层面的问题: 客户端去重防止循环报错打爆上报通道, 服务端聚合把同类错误归组供人消费.
 
 ### 异常报警机制如何设计?
 
@@ -1511,7 +1511,7 @@ Slardar 参考 Sentry 的策略, 利用 stack 信息做更精确的聚合:
 - 微观报警是主动推送, 实时性更高
 - 适用于发版、灰度等对新问题极敏感的阶段
 
-如何判断「新增」: 基于版本维度. 业务代码关联版本概念 (Q8 中 sourcemap 上传时携带的版本), 错误也关联版本:
+如何判断「新增」: 基于版本维度. 业务代码关联版本概念 (「Sourcemap 反解与堆栈聚合策略是怎样的?」中 sourcemap 上传时携带的版本), 错误也关联版本:
 
 - 指定版本/最新版本: 分析该 fingerprint 是否为该版本代码中首次出现
 - 全体版本: 在「首次」基础上增加时间限制. 某个错误长期未出现后又突然出现, 仍有通知意义; 如果不加时间限制, 这个错误因为历史上出现过就不会通知, 可能遗漏
@@ -2412,7 +2412,7 @@ boot.ts 的监控代码由五个部分组成, 全部基于浏览器原生 Perfor
 
 boot.ts 的监控只用了 performance.mark/measure、PerformanceObserver、Navigation/Resource Timing 等浏览器原生 API, 不依赖任何第三方监控 SDK 的采集能力 (swr-demo 的 perf-monitor.ts 头部注释同样声明这一点). 选择手写有三个现实原因:
 
-1. 采集时机必须早于 SDK 本身. 监控对象是启动链路 (加载库文件、登录校验、菜单预取、prepare 执行), 而第三方 SDK 是 JS bundle 的一部分, 只有 bundle 下载执行后才就位; 依赖 SDK 就意味着 SDK 加载之前的启动阶段全部测不到. 引导脚本手写采集 + window 队列暂存, 让数据先于 SDK 产生, SDK 就位后异步消费队列——这与 Q12 中 Slardar 的预收集机制 (同步 JS Snippets + 全局队列) 是同一思路, 只是这里预收集的是性能打点而非错误.
+1. 采集时机必须早于 SDK 本身. 监控对象是启动链路 (加载库文件、登录校验、菜单预取、prepare 执行), 而第三方 SDK 是 JS bundle 的一部分, 只有 bundle 下载执行后才就位; 依赖 SDK 就意味着 SDK 加载之前的启动阶段全部测不到. 引导脚本手写采集 + window 队列暂存, 让数据先于 SDK 产生, SDK 就位后异步消费队列——这与「监控 SDK 的插件化架构如何设计?」中 Slardar 的预收集机制 (同步 JS Snippets + 全局队列) 是同一思路, 只是这里预收集的是性能打点而非错误.
 
 2. 指标是业务启动链路的私有定制. bizCode 归因长任务、指定接口 (checkAccess、findMenuList 等) 的单独耗时、四个并行菜单请求中找最慢的一个、0.003 采样率的模块路径上报——这些指标描述的是本系统特有的启动流程, 通用监控 SDK 的标准采集项 (PV、JS 错误、通用 Web Vitals) 覆盖不到, 硬套 SDK 的自定义事件 API 反而绕远.
 

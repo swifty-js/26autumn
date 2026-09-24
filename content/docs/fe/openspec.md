@@ -27,8 +27,8 @@ OpenSpec 是一个轻量级的"协议层"(agreement layer), 由 Fission AI 开�
 fluid not rigid         — 没有阶段门禁, 随时可以回头修改任何 artifact
 iterative not waterfall — 边做边学, 实现中发现设计有误就直接改
 easy not complex        — 轻量设置, 最少仪式感, 几秒初始化
-brownfield-first        — 为已有代码库设计, 用 delta 描述变化量而非重写全貌
-scalable                — 从个人项目到企业团队都适用
+built for brownfield not just greenfield — 为已有代码库设计, 用 delta 描述变化量而非重写全貌
+scalable from personal projects to enterprises — 从个人项目到企业团队都适用
 ```
 
 与同类工具的定位区别:
@@ -199,14 +199,14 @@ Delta 的好处: 清晰 (一眼看出改了什么)、避免冲突 (两个 change
 
 ### 4.2 Core Profile (默认安装)
 
-| 命令          | 作用                                                                         |
-| ------------- | ---------------------------------------------------------------------------- |
-| /opsx:explore | 无风险的思考伙伴: 读代码、比较方案、厘清需求, 不创建任何文件                 |
-| /opsx:propose | 一步创建 change 并生成全部规划 artifacts (proposal + specs + design + tasks) |
-| /opsx:apply   | 按 tasks.md 逐项实现, 勾选 checkbox                                          |
-| /opsx:update  | 修订已有 artifacts 并保持连贯性 (不写代码, 不创建缺失 artifact)              |
-| /opsx:sync    | 将 delta specs 合并进主 specs (不归档, change 保持活跃)                      |
-| /opsx:archive | 完成变更: 合并 delta + 移入 archive/                                         |
+| 命令          | 作用                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| /opsx:explore | 无风险的思考伙伴: 读代码、比较方案、厘清需求, 默认不创建任何文件 (除非用户明确要求把探索结论捕获为 artifacts) |
+| /opsx:propose | 一步创建 change 并生成全部规划 artifacts (proposal + specs + design + tasks)                                  |
+| /opsx:apply   | 按 tasks.md 逐项实现, 勾选 checkbox                                                                           |
+| /opsx:update  | 修订已有 artifacts 并保持连贯性 (不写代码, 不创建缺失 artifact)                                               |
+| /opsx:sync    | 将 delta specs 合并进主 specs (不归档, change 保持活跃)                                                       |
+| /opsx:archive | 完成变更: 合并 delta + 移入 archive/                                                                          |
 
 ### 4.3 Expanded Profile (手动开启)
 
@@ -304,7 +304,7 @@ artifacts:
 Schema 存放位置:
 
 - 项目级: `openspec/schemas/` (随代码版本控制, 推荐)
-- 用户全局: `~/.local/share/openspec/schemas/`
+- 用户全局: `$XDG_DATA_HOME/openspec/schemas/` (遵循 XDG Base Directory 规范; Unix/macOS 默认回退 `~/.local/share/openspec/schemas/`, Windows 为 `%LOCALAPPDATA%/openspec/schemas/`)
 
 ### 5.3 Schema 解析优先级
 
@@ -381,7 +381,7 @@ openspec new change add-login --store team-plans
 # 代码仓库声明引用 (只读)
 # web-app/openspec/config.yaml:
 references:
-  - platform-reqs
+  - team-plans
 ```
 
 核心原则:
@@ -480,7 +480,7 @@ $ openspec instructions specs --change "add-auth" --json
 /opsx:explore ──> /opsx:propose ──> /opsx:apply ──> /opsx:archive
 ```
 
-explore 不创建任何文件, 纯粹是思考: 读代码、分析瓶颈、比较方案. 当想法清晰后自然过渡到 propose.
+explore 默认不创建任何文件, 纯粹是思考: 读代码、分析瓶颈、比较方案; 例外是用户明确要求把探索结论捕获为 change/artifacts 时 (当前版本 skill 的约定). 当想法清晰后自然过渡到 propose.
 
 ### 9.3 并行变更
 

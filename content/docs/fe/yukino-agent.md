@@ -33,7 +33,7 @@ Yukino Agent 是一个 Next.js 16 App Router 全栈应用, 前后端同仓同进
 3. 部署单元单一: 一个 `next build` 产物同时包含前端页面与 API, 配合 `docker-compose.yml` 里的 Redis Stack/Prometheus/Grafana 即可完整运行, 运维成本低——这对 OnCall 工具的落地推广很重要.
 4. 类型端到端共享: 前端 `useChat` 直接 import 服务端的响应 zod schema(`lib/schemas.ts`, 见 `hooks/use-chat.ts:27-32`),API 契约变更时 TypeScript 编译期即可发现不一致.
 
-代价是: 长连接 SSE 对 Node 单进程的资源占用、多实例水平扩展时会话记忆 (内存 LRU) 不共享. 以当前"团队内部 OnCall 工具"的规模, 这些代价可接受; 需要扩展时的演进路径见 Q73.
+代价是: 长连接 SSE 对 Node 单进程的资源占用、多实例水平扩展时会话记忆 (内存 LRU) 不共享. 以当前"团队内部 OnCall 工具"的规模, 这些代价可接受; 需要扩展时的演进路径见「业务量增长时的架构瓶颈与演进」.
 
 ---
 
@@ -131,7 +131,7 @@ AI SDK v7 中, 一次 `generateText`/`streamText` 调用内部支持多步 (mult
 
 设计动机:
 
-1. 能力-成本匹配: 规划/重规划是"一次做错、步步错"的关键决策点, 值得用推理能力更强的模型 (甚至开启 extended thinking, 见 Q10); 而步骤执行和对话是高频调用, 延迟和成本敏感, 用快模型.
+1. 能力-成本匹配: 规划/重规划是"一次做错、步步错"的关键决策点, 值得用推理能力更强的模型 (甚至开启 extended thinking, 见「extended thinking 的开启与 budgetTokens」); 而步骤执行和对话是高频调用, 延迟和成本敏感, 用快模型.
 2. 延迟隔离:Plan-Execute-Replan 一轮迭代里 think 模型调用是串行瓶颈, 把它和执行模型解耦后, 可以独立地对 quick 模型选低延迟部署 (如火山引擎 Ark 国内节点) 而不影响思考质量.
 3. provider 灵活性: 每个槽位独立配置 baseURL/apiKey, 意味着 think 可以走 Anthropic、quick 走 OpenAI 兼容网关的混合部署——虽然当前 `LLM_PROVIDER` 是全局开关, 但配置结构已经为此留好余地.
 
@@ -224,7 +224,7 @@ ReAct(Reasoning + Acting) 是让 LLM 在"思考 → 调用工具 → 观察结�
 1. 上下文组装: 记忆历史 (滑动窗口 6 条) + RAG 检索文档注入 system prompt + 当前问题;
 2. 工具装配:`buildChatTools()` 合并内置四工具与 MCP 日志工具 (`chat.ts:98-101`);
 3. 循环托管: 交给 `generateText`/`streamText` + `stopWhen: isStepCount(25)`,SDK 内部完成 tool call 循环; 流式路径还通过 `onError` 捕获 streamText 吞掉的错误并在流末尾 rethrow (`chat.ts:170-186, 235-239`), 让 SSE 路由能发真正的 error 事件;
-4. A2UI 抽取: 回答末尾若带 `<a2ui-json>` 块, 非流式路径用 `extractA2ui` 抽取、校验失败时做一次纠错重试 (`chat.ts:135-147`); 流式路径由 `createA2uiStreamFilter` 把块从文本流剥离、以独立 a2ui 事件产出 (`chat.ts:189-234`), 见 Q79;
+4. A2UI 抽取: 回答末尾若带 `<a2ui-json>` 块, 非流式路径用 `extractA2ui` 抽取、校验失败时做一次纠错重试 (`chat.ts:135-147`); 流式路径由 `createA2uiStreamFilter` 把块从文本流剥离、以独立 a2ui 事件产出 (`chat.ts:189-234`), 见「A2UI 交互界面的生成链路」;
 5. 记忆回写: 非流式在返回后写入 user/assistant 两条消息 (`chat.ts:132-133`); 流式在 `finally` 中且仅当 `full` 非空时写入 (`chat.ts:240-244`)——流中断或出错时不污染记忆, 这是一个容易忽略但重要的细节. 记忆保存的是含 `<a2ui-json>` 标签的原始文本 (`chat.ts:129-130` 注释), 后续追问仍能看到界面上下文.
 
 与教科书的差异: 本项目没有显式的 Thought/Action/Observation 文本协议 (那是 prompt 级 ReAct), 而是利用 function calling 的结构化 ReAct——推理在模型侧 (Anthropic 路径甚至是加密 thinking block), 动作是 schema 化的 tool call, 工程上更可靠.
@@ -281,7 +281,7 @@ Replan prompt(`index.ts:159-178`) 包含四部分: 原始 Task、Original Plan(J
 | 回调/EventEmitter  | 消费方要维护事件注册与状态机, 背压 (backpressure) 无法控制, 错误传播路径不统一 (error 事件 vs throw)                 |
 | AsyncGenerator     | `for await` 消费天然顺序化; 生成器暂停即背压; `throw` 与 `return` 语义清晰; 判别联合类型让消费方 switch 完备性可检查 |
 
-实际收益在 `ai_ops` 路由可见 (`app/api/ai_ops/route.ts:39-59`):for-await 里遇到 `done`/`error` 直接 return 响应, 代码是线性的; 未来要把 ai_ops 改造成 SSE 流式 (见 Q75),route 只需把每个 event 写成 SSE 帧, 管线零改动——这就是"管线与传输解耦"的红利.
+实际收益在 `ai_ops` 路由可见 (`app/api/ai_ops/route.ts:39-59`):for-await 里遇到 `done`/`error` 直接 return 响应, 代码是线性的; 未来要把 ai_ops 改造成 SSE 流式 (见「AI Ops 流式化设计方案」),route 只需把每个 event 写成 SSE 帧, 管线零改动——这就是"管线与传输解耦"的红利.
 
 事件建模上还有一个细节:`done` 事件同时携带 `result` (给人看的报告) 和 `detail` (每步原始输出数组, 还可带 a2ui 界面消息) , 前端用 `<details>` 折叠展示步骤详情 (`msg-list.tsx:93-113`), 一份事件流同时服务"结果展示"和"过程审计"两个诉求.
 
@@ -310,7 +310,7 @@ Replan prompt(`index.ts:159-178`) 包含四部分: 原始 Task、Original Plan(J
 2. 超时风险:HTTP 请求挂数分钟, 中间任何代理 (Nginx、网关) 默认读超时都可能掐断连接;
 3. 过程信息浪费:step_done 事件已经携带了每步输出, 丢弃意味着丢失了"执行轨迹回放"能力, 出错时只能靠服务端日志排查.
 
-改进路径 (成本递增) :(a) 前端轮询 + 任务 ID 异步化;(b) 复用现有 SSE 基建把事件流实时推给前端——事件类型已是判别联合, route 里把每个 event 序列化为一帧即可, 前端按 type 渲染进度时间线, 这也是事件溯源式设计的预期演进方向 (见 Q75).
+改进路径 (成本递增) :(a) 前端轮询 + 任务 ID 异步化;(b) 复用现有 SSE 基建把事件流实时推给前端——事件类型已是判别联合, route 里把每个 event 序列化为一帧即可, 前端按 type 渲染进度时间线, 这也是事件溯源式设计的预期演进方向 (见「AI Ops 流式化设计方案」).
 
 ---
 
@@ -373,7 +373,7 @@ HNSW(Hierarchical Navigable Small World) 是一种基于图的近似最近邻 (A
 
 主流原因:① 召回率高: 在标准 benchmark 上可达 95%+ recall@10, 接近暴力检索; ② 查询快: 对数级复杂度, 百万级向量毫秒响应; ③ 支持增量插入, 不像 IVF 类索引需要定期重训练聚类中心.
 
-本项目中 RediSearch 创建 HNSW 索引(`client.ts:114-128`), 未显式调参 (用默认 M/ef)——对万级以下数据量, 默认值下 HNSW 与暴力结果几乎无差. 代价是内存: 图结构开销约为原始向量的 1.2~1.5 倍, Redis 又是纯内存存储, 数据规模大时需要评估 (这也呼应 Q4 的选型权衡) .
+本项目中 RediSearch 创建 HNSW 索引(`client.ts:114-128`), 未显式调参 (用默认 M/ef)——对万级以下数据量, 默认值下 HNSW 与暴力结果几乎无差. 代价是内存: 图结构开销约为原始向量的 1.2~1.5 倍, Redis 又是纯内存存储, 数据规模大时需要评估 (这也呼应「为什么用 Redis Stack 做向量库」的选型权衡) .
 
 ---
 
@@ -444,7 +444,7 @@ HNSW(Hierarchical Navigable Small World) 是一种基于图的近似最近邻 (A
 2. 混合检索: 向量召回 + RediSearch 全文检索 (BM25) 双路召回后融合 (RRF), 解决专有名词/告警代号精确匹配差的问题;
 3. Rerank: 召回 top10 后用 cross-encoder 重排取 top3, 精度提升明显, 成本是一次小模型推理;
 4. 查询改写: 用 quick 模型先把用户问题改写成检索友好的形式 (补全告警名、拆复合问题) , 再取向量;
-5. 评估先行: 建一个"问题 → 期望命中文档"的 eval 集, 用 Recall@K / MRR 量化每次改动的效果, 避免凭感觉调参 (见 Q72).
+5. 评估先行: 建一个"问题 → 期望命中文档"的 eval 集, 用 Recall@K / MRR 量化每次改动的效果, 避免凭感觉调参 (见「RAG/Agent 系统的质量度量与 eval 体系」).
 
 ---
 
@@ -472,7 +472,7 @@ HNSW(Hierarchical Navigable Small World) 是一种基于图的近似最近邻 (A
 2. 指令优先级声明:AI_OPS_QUERY 中"严格遵循内部文档"的语境是"处理流程", 而非全局指令覆盖;
 3. 来源可信: 文档来自内部上传 (upload 接口) , 非公开抓取, 攻击面相对小.
 
-但要说清楚:目前没有根治方案, 业界的纵深防御还包括——检索结果 sanitize (stripping 指令性语句模式) 、把文档放入独立 user message 而非 system prompt (降低指令权重) 、对工具调用做人工确认 (human-in-the-loop, 本项目 mysql_crud 的写操作尤其需要, 源项目的交互确认被 Web 版移除后防线少了一层, 见 Q61)、输出侧审计. 需要注意当前实现的残余风险.
+但要说清楚:目前没有根治方案, 业界的纵深防御还包括——检索结果 sanitize (stripping 指令性语句模式) 、把文档放入独立 user message 而非 system prompt (降低指令权重) 、对工具调用做人工确认 (human-in-the-loop, 本项目 mysql_crud 的写操作尤其需要, 源项目的交互确认被 Web 版移除后防线少了一层, 见「mysql_crud 允许任意 SQL 的评价与加固」)、输出侧审计. 需要注意当前实现的残余风险.
 
 ---
 
@@ -488,12 +488,12 @@ AI SDK 中工具三要素 (以 `mysqlCrudTool` 为例,`tools/index.ts:46-54`):
 
 四个内置工具的角色分工:
 
-| 工具                      | 角色                                                                    |
-| ------------------------- | ----------------------------------------------------------------------- |
-| `get_current_time`        | 时间锚点, 消除模型时间幻觉 (OnCall 场景大量"最近 1 小时"类查询依赖它)   |
-| `query_prometheus_alerts` | 告警事实源, AI Ops 流程的入口数据源                                     |
-| `query_internal_docs`     | 知识源, 把 RAG 检索暴露为模型可按需调用的能力 (与管线预检索互补)        |
-| `mysql_crud`              | 业务数据源, 允许模型对业务库执行任意 SQL——能力最强、风险也最高 (见 Q64) |
+| 工具                      | 角色                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `get_current_time`        | 时间锚点, 消除模型时间幻觉 (OnCall 场景大量"最近 1 小时"类查询依赖它)                                       |
+| `query_prometheus_alerts` | 告警事实源, AI Ops 流程的入口数据源                                                                         |
+| `query_internal_docs`     | 知识源, 把 RAG 检索暴露为模型可按需调用的能力 (与管线预检索互补)                                            |
+| `mysql_crud`              | 业务数据源, 允许模型对业务库执行任意 SQL——能力最强、风险也最高 (见「mysql_crud 允许任意 SQL 的评价与加固」) |
 
 设计启示: 工具集 = agent 的能力边界. 给什么工具, agent 就能诊断什么问题; 工具的描述与 schema 设计 (prompt 的延伸) 与底层实现同等重要.
 
@@ -507,7 +507,7 @@ AI SDK 中工具三要素 (以 `mysqlCrudTool` 为例,`tools/index.ts:46-54`):
 2. 响应 zod 宽松校验:`z.looseObject` 只声明关心的字段 (labels/annotations/state/activeAt), 其余字段容忍——Prometheus 版本间响应字段有差异, 严格 schema 会把兼容性变成脆弱性; 校验失败走 catch 返回错误结构而非抛异常;
 3. 同名去重: 同一 alertname 可能多条实例 (不同 instance 标签) , 按"首次出现保留"去重, 对齐源项目语义——对 LLM 而言 10 条同因告警是噪声, 压缩 token 也避免模型重复分析;
 4. duration 计算:`activeAt` 转人类可读的 `Xh Ym Zs`(`operations.ts:128-138`)——模型对"持续 3 小时"的判断远好于对 ISO 时间戳的心算, 等于把计算前置到工具侧;
-5. 错误即数据: 失败返回 `{success:false, error}` 而非 throw, 让模型能读到"Prometheus 不可用"并如实告知用户 (对应 Q13 的"面向 LLM 的错误要可读").
+5. 错误即数据: 失败返回 `{success:false, error}` 而非 throw, 让模型能读到"Prometheus 不可用"并如实告知用户 (对应「LLM 调用特点的错误处理设计」的"面向 LLM 的错误要可读").
 
 ---
 
@@ -568,7 +568,7 @@ MCP 是 Anthropic 主导的开放协议, 目标是标准化"应用向 LLM 提供
 3. wrapper(`tools/index.ts`):`tool({description, inputSchema, execute})` 包装, 并加入 `builtinTools` 导出——description 写清"何时该用、参数含义、返回结构";
 4. 验证: 因为 `buildChatTools()`(`chat.ts:98-101`) 和 plan-execute-replan 的 `buildTools()`(`index.ts:78-81`) 都是展开 `builtinTools`, 新工具自动对两条管线可用, 无需改管线代码.
 
-若能力由外部系统提供且会持续演进, 更优解是包成 MCP Server——此时 agent 侧零改动, 这再次体现 Q36 的"能力外置"思想. 选型判断: 稳定、核心、需深度定制的工具内置; 多变、跨团队维护、多应用复用的能力走 MCP.
+若能力由外部系统提供且会持续演进, 更优解是包成 MCP Server——此时 agent 侧零改动, 这再次体现「什么是 MCP 与本项目如何接入」的"能力外置"思想. 选型判断: 稳定、核心、需深度定制的工具内置; 多变、跨团队维护、多应用复用的能力走 MCP.
 
 ---
 
@@ -742,7 +742,7 @@ data: world
 4. hook 返回值 `useMemo`(`use-chat.ts:566`): 避免 page 组件因 hook 返回新对象而连带重渲;
 5. 回调全部 `useCallback`:`addMessage` 空依赖 (函数式更新,`use-chat.ts:558-561`),`sendMessage` 等依赖项精确.
 
-注意第 2 点的 trade-off: 流式中最后一条消息每帧都是新对象, 其 MdRender 必然重渲;Streamdown 的"已完成块 memo + 流中语法修复" (Q64) 把重复 parse 的成本限制在最后一个未完成块内, 比普通 react-markdown 全文重渲的方案更省.
+注意第 2 点的 trade-off: 流式中最后一条消息每帧都是新对象, 其 MdRender 必然重渲;Streamdown 的"已完成块 memo + 流中语法修复" (见「markdown 渲染为什么选 Streamdown」) 把重复 parse 的成本限制在最后一个未完成块内, 比普通 react-markdown 全文重渲的方案更省.
 
 ---
 
@@ -897,7 +897,7 @@ useEffect(() => {
 - upload 管线: 必然失败;
 - ai_ops:`retrieveDocs()`(`operations.ts:141-144`)与 `query_internal_docs` 的 wrapper(`tools/index.ts:57-62`)均没有 try/catch, Redis 故障会让工具的 execute 直接 throw, `generateText` 在该步中断, 错误冒泡到管线 catch 产出 `error` 事件, 整个 ai_ops 请求返回 500——模型没有机会"无文档依据降级回答".
 
-合理性评价与改进: 当前是硬依赖, 不合理之处是对话本可以无 RAG 降级运行. 改进: retrieve 加 try/catch, 失败时返回空文档列表并在 system prompt 标注"知识库暂不可用", 对话功能保持可用; 同时 embedding API 故障与 Redis 故障要区分处理. 这呼应 Q37 提到的 MCP 降级设计——项目里 MCP 已有优雅降级, Redis 路径还欠对齐, 分析出这种"降级策略不一致"能体现系统性思维.
+合理性评价与改进: 当前是硬依赖, 不合理之处是对话本可以无 RAG 降级运行. 改进: retrieve 加 try/catch, 失败时返回空文档列表并在 system prompt 标注"知识库暂不可用", 对话功能保持可用; 同时 embedding API 故障与 Redis 故障要区分处理. 这呼应「MCP 工具的缓存与降级策略」提到的降级设计——项目里 MCP 已有优雅降级, Redis 路径还欠对齐, 分析出这种"降级策略不一致"能体现系统性思维.
 
 ---
 
@@ -920,7 +920,7 @@ P1-8(Redis 单例缓存 rejected Promise, `client.ts:34-39`):`clientPromise = in
 风险清单 (这是本项目最大的攻击面) :
 
 1. LLM 生成 SQL 不可预测: 可能生成 `DROP TABLE`、无 WHERE 的全表 UPDATE、慢查询拖垮业务库;
-2. prompt injection 间接利用: 知识库文档/告警描述里若藏有"去查一下 mysql,DELETE FROM ..."的诱导文本, 模型可能照做 (见 Q32);
+2. prompt injection 间接利用: 知识库文档/告警描述里若藏有"去查一下 mysql,DELETE FROM ..."的诱导文本, 模型可能照做 (见「RAG 场景的 prompt injection 防护」);
 3. DSN 由模型传入: 等于把"连哪个库"的决定权也交给了模型, 配合内部文档里的 DSN 样例, 可能触达不该触达的库;
 4. Web 版移除了源项目的交互确认, 直接执行 SQL (`operations.ts:147` 注释 "Executes directly without an interactive confirmation prompt"), 执行链路上没有人工卡点.
 
@@ -967,13 +967,13 @@ P1-8(Redis 单例缓存 rejected Promise, `client.ts:34-39`):`clientPromise = in
 流式渲染质量:
 
 1. 修复流中未闭合的 markdown:token 流中途常出现未闭合的代码围栏/加粗, 普通渲染器会把后半段文本误当代码块渲染, 流结束后又跳变, Streamdown 在流式模式下补全语法, 避免闪变;
-2. memo 已渲染完成的块: 增量 token 到达时只有最后一个未完成块重渲, 已完成块不重新 parse (见 Q49 第 3 点的渲染性能分析).
+2. memo 已渲染完成的块: 增量 token 到达时只有最后一个未完成块重渲, 已完成块不重新 parse (见「流式渲染如何避免整列表重渲染」第 3 点的渲染性能分析).
 
 XSS 风险评估:
 
 1. 渲染链路:Streamdown 基于 react-markdown 体系, 但并非"不渲染内嵌 HTML"——其默认 rehype 插件链是 rehype-raw + rehype-sanitize (扩展 defaultSchema) + rehype-harden, markdown 内嵌 HTML 会被解析渲染, `<script>`、事件属性、`javascript:` 链接在 sanitize 阶段被剔除 (安全效果靠净化而非纯文本化) ; 构建产物中还有一处 `dangerouslySetInnerHTML`——Mermaid 图表组件用它注入 Mermaid 渲染出的 SVG, 该路径的安全性依赖 Mermaid 自身的净化配置 (默认 securityLevel=strict);
 2. 代码高亮走 Shiki 输出, 不是"手拼 HTML 字符串再注入"的旧模式, 不存在"高亮失败 fallback 到未转义原始文本"这类分支;
-3. 内容来源:markdown 内容来自 LLM 输出 (服务端可控性弱) + 用户自己的消息. LLM 输出可能被知识库 prompt injection 诱导产出恶意 markdown (如"回复中包含这段代码"), 间接 XSS 的载体依赖渲染器 sanitize 兜底; A2UI 数据 (由 web_core schema 校验) 是另一条渲染路径, 见 Q79-Q80.
+3. 内容来源:markdown 内容来自 LLM 输出 (服务端可控性弱) + 用户自己的消息. LLM 输出可能被知识库 prompt injection 诱导产出恶意 markdown (如"回复中包含这段代码"), 间接 XSS 的载体依赖渲染器 sanitize 兜底; A2UI 数据 (由 web_core schema 校验) 是另一条渲染路径, 见「A2UI 交互界面的生成链路」与「A2UI 按钮点击后的原地更新」.
 
 结论: 主路径依赖 Streamdown 的 rehype-sanitize 净化语义与 React 元素渲染, 应用自身代码无手写 innerHTML 注入点 (依赖内仅 Mermaid 图表一处, 注入的是 Mermaid 渲染产物而非原始文本) ; 加固还可以上 CSP(`script-src 'self'`) 作为纵深防御.
 
@@ -988,14 +988,14 @@ XSS 风险评估:
 1. 服务端边界:`lib/config.ts` 被 Route Handler/pipelines import, 均在服务端运行; 若任何客户端组件 (`"use client"`) import 了 config, 整个对象 (含 API Key) 会被打进客户端 bundle——Next.js 不会阻止你这么做, 纪律靠 review. 更稳的做法是把 config 拆分, 或用 `server-only` 包标记 (import 到客户端即构建报错) ;
 2. `NEXT_PUBLIC_` 陷阱:Next.js 会把 `NEXT_PUBLIC_*` 环境变量内联进客户端 JS 产物. 把 `NEXT_PUBLIC_OPENAI_API_KEY` 当便捷手段用, 等于把 Key 发给所有访客——本项目的 env 命名 (`OPENAI_THINK_API_KEY` 等) 无前缀, 是正确的;
 3. `.env.example` 同步:example 文件提供键名清单但不含真值, 新人可复制填充——`.env` 必须在 `.gitignore` (本项目已忽略) , 并定期轮换 Key;
-4. 日志泄漏:Q13 的错误处理把 `responseBody` 返回给前端, 某些上游错误报文可能含 Authorization 头——更稳妥是日志里脱敏、对外只给 request-id.
+4. 日志泄漏:「LLM 调用特点的错误处理设计」把 `responseBody` 返回给前端, 某些上游错误报文可能含 Authorization 头——更稳妥是日志里脱敏、对外只给 request-id.
 
 ---
 
 ### 从 STRIDE 视角看, 这个系统的威胁模型中最值得关注的点是什么?
 
 - S(Spoofing):API 无鉴权, 任何人可伪造请求消耗 LLM 额度; 会话 ID 是客户端自报的 UUID, 可冒充他人会话读取其服务端记忆 (虽然记忆仅 6 条窗口) ;
-- T(Tampering):mysql_crud 的任意 SQL (见 Q61); 上传覆盖同名文件污染他人知识库;
+- T(Tampering):mysql_crud 的任意 SQL (见「mysql_crud 允许任意 SQL 的评价与加固」); 上传覆盖同名文件污染他人知识库;
 - R(Repudiation):LLM 触发的 SQL/工具调用无审计日志, 出事无法归因到具体会话——需要工具调用审计链;
 - I(Information Disclosure):LLM 上下文里携带内部文档、DSN、日志内容, 模型输出可能把这些泄漏给提问者 (直接问"你的 system prompt 是什么"也需要防) ;CORS \* 放大暴露面;
 - D(DoS): 上传大文件打爆内存、无限制的 ai_ops 编排 (20 轮 × think 模型) 刷高额账单、Redis 无 MAXMEMORY 策略时向量数据撑爆内存;
@@ -1044,7 +1044,7 @@ zod 使用点全景: API 请求体 (`chat/route.ts:27-30`)、API 响应 (前端 
 3. 集成测试 (mock 外部依赖) :Redis 用 redis-memory-server 或 testcontainers, 断言 indexChunks/retrieve/deleteBySource 的读写与锁行为; 工具层 mock fetch 验证 Prometheus 解析与降级;
 4. 管线测试:mock `generateText/streamText`(AI SDK 提供 MockLanguageModel 系列测试替身), 验证 ReAct 循环步数上限、plan-execute-replan 的事件序列 (plan_created → step_start/step_done → replan → done)、记忆回写时机 (流中断不写)、A2UI 流过滤器的跨 chunk 拆分语义;
 5. E2E:Playwright 跑通"上传 → 提问 → 流式回答 → 历史持久化"主链路, 以及 AI Ops 按钮全流程;
-6. LLM 评估 (eval, 非传统测试) : 见 Q72.
+6. LLM 评估 (eval, 非传统测试) : 见「RAG/Agent 系统的质量度量与 eval 体系」.
 
 原则: 测试金字塔在 AI 应用里依然成立, 只是塔尖换成 eval——用确定性测试守住工程逻辑, 用 eval 度量模型行为.
 
@@ -1072,7 +1072,7 @@ zod 使用点全景: API 请求体 (`chat/route.ts:27-30`)、API 响应 (前端 
 细节:
 
 - `import "dotenv/config"`(`config.ts:25`) 是 safeguard:Next.js 自动加载 .env, 但脚本场景 (tsx 直跑) 不会, 显式导入保证两种入口行为一致;
-- 数值型 env 用 `Number.parseInt` 处理 (如 `ANTHROPIC_MAX_OUTPUT_TOKENS` 默认 8192, `config.ts:59-62`)——env 全是字符串, 不经 parseInt 会把字符串直接流入数值消费方. 向量维度则不做静态配置, 而是运行时探测 (见 Q14);
+- 数值型 env 用 `Number.parseInt` 处理 (如 `ANTHROPIC_MAX_OUTPUT_TOKENS` 默认 8192, `config.ts:59-62`)——env 全是字符串, 不经 parseInt 会把字符串直接流入数值消费方. 向量维度则不做静态配置, 而是运行时探测 (见「Embedding provider 抽象与维度管理」);
 - 布尔 env 用 `!== "false"` 语义 (默认开, 显式关,`config.ts:58`)——比 `"true" === value` 的默认关语义更匹配"thinking 默认启用"的意图.
 
 ---
@@ -1083,7 +1083,7 @@ zod 使用点全景: API 请求体 (`chat/route.ts:27-30`)、API 响应 (前端 
 
 分三层:
 
-1. 检索层 eval: 构建"问题 → 期望命中 chunk"标注集 (OnCall 场景可从历史工单/告警记录挖) ,指标 Recall@K、MRR、nDCG. 每次改动 (换 embedding 模型、调 topK、改切分策略) 跑一遍回归——把 Q30 提到的优化全部纳入数据驱动;
+1. 检索层 eval: 构建"问题 → 期望命中 chunk"标注集 (OnCall 场景可从历史工单/告警记录挖) ,指标 Recall@K、MRR、nDCG. 每次改动 (换 embedding 模型、调 topK、改切分策略) 跑一遍回归——把「retrieve topK 与 RAG 检索质量优化」提到的优化全部纳入数据驱动;
 2. 生成层 eval:① 事实性——答案中的处置步骤是否与检索文档一致 (可用另一个 LLM 做 faithfulness 裁判, RAGAS 框架思路) ;② 报告结构符合率 (AI Ops 报告是否包含规定的四个章节) ;③ 工具调用正确率 (参数是否符合 schema、时间参数是否先调 get_current_time);
 3. 端到端 eval: 录制真实告警场景 (mock Prometheus 响应) 回放, 断言 agent 完成 SOP 的步骤覆盖率与最终报告质量; 成本指标同步采集 (token 消耗、延迟 P50/P99、每次 AI Ops 的 LLM 调用次数) .
 
@@ -1095,12 +1095,12 @@ zod 使用点全景: API 请求体 (`chat/route.ts:27-30`)、API 响应 (前端 
 
 瓶颈与演进路径:
 
-1. 内存记忆不共享(Q56): 多实例下 sticky session 是勉强解, 正解是记忆外置 Redis(Hash 存消息数组 + TTL),getSimpleMemory 换成 RedisMemory 实现——接口已隔离, 改动局部;
+1. 内存记忆不共享(见「SimpleMemory 的滑动窗口与 LRU 淘汰」): 多实例下 sticky session 是勉强解, 正解是记忆外置 Redis(Hash 存消息数组 + TTL),getSimpleMemory 换成 RedisMemory 实现——接口已隔离, 改动局部;
 2. Next.js 单进程长连接:SSE 连接数受单实例 fd/内存限制; 演进: (a) Node 集群 + Redis pub/sub 做连接归属路由;(b) 把 LLM 管线拆成独立 worker 服务, Web 层只做网关;
 3. 上传/索引同步: 多实例各有本地 `data/docs` 目录, 文件与索引不一致——文件改存对象存储, 索引操作走消息队列单点执行 (deleteBySource 锁已是 Redis 分布式锁, 天然支持) ;
 4. 向量库容量:Redis 内存随知识库增长, 万级 chunk 后成本陡增——评估迁移 pgvector (已有 MySQL 的话也可考虑其向量能力) 或专用向量库, retriever/indexer 接口已收敛, 可插拔;
 5. 成本与配额: 多团队共用需要 per-team 的 token 配额与限流 (目前无任何限制) , 加 API 鉴权 + 用量计量;
-6. 可观测性: 管线级目前只有 console.log 的 logStart/logEnd(`callbacks.ts:24-30`), 升级为 OpenTelemetry trace——把 planner/executor/replanner/每次 tool call 作为 span, 否则多实例下排查"某次 AI Ops 为什么跑了 15 分钟"基本不可能; 系统级指标已有 yukino-sentry→Prometheus 桥 (见 Q81), 缺的是 LLM 调用粒度的追踪.
+6. 可观测性: 管线级目前只有 console.log 的 logStart/logEnd(`callbacks.ts:24-30`), 升级为 OpenTelemetry trace——把 planner/executor/replanner/每次 tool call 作为 span, 否则多实例下排查"某次 AI Ops 为什么跑了 15 分钟"基本不可能; 系统级指标已有 yukino-sentry→Prometheus 桥 (见「yukino-sentry 监控桥的接入与指标设计」), 缺的是 LLM 调用粒度的追踪.
 
 演进原则: 接口边界 (pipeline、retriever、memory) 已经画得不错, 替换实现即可, 这也是当初分层设计的回报.
 
@@ -1113,7 +1113,7 @@ zod 使用点全景: API 请求体 (`chat/route.ts:27-30`)、API 响应 (前端 
 - 长上下文的优势:100 万+ token 窗口下"整库塞进 prompt"成为可能, 省掉切分/embedding/检索的全部工程复杂度, 且没有检索失败导致的知识缺失; 对"需要跨多文档综合"的问题效果天然好;
 - RAG 的持续价值:① 成本与延迟——每轮对话塞 1M token 的账单和 TTFT 不可接受, prompt caching 缓解但不消除;② 数据时效与权限——知识库实时更新、按用户过滤文档, RAG 的 metadata 过滤 (本项目已有 `_source` TAG) 是天然的权限门;③ 可解释性——检索命中的 chunk 即引用来源, 长上下文模型"读没读到那段"不可审计, OnCall 场景需要答案可溯源.
 
-本项目的应对: 架构上已经做对了一件事——检索层被抽象在 `retrieve()` 接口后(`retriever.ts`). 应对策略:① 持续用 eval(Q72) 对比"RAG topK 扩大 + 长上下文模型"与"当前 topK=1"的效果/成本曲线;② 把 metadata 过滤 (按团队/系统过滤文档) 作为权限层保留——无论上下文多长, 权限过滤都必须前置;③ 混合策略: 重要文档全量入 prompt(SOP 核心手册) , 长尾知识走检索, 这可能就是下一代形态.
+本项目的应对: 架构上已经做对了一件事——检索层被抽象在 `retrieve()` 接口后(`retriever.ts`). 应对策略:① 持续用 eval(见「RAG/Agent 系统的质量度量与 eval 体系」)对比"RAG topK 扩大 + 长上下文模型"与"当前 topK=1"的效果/成本曲线;② 把 metadata 过滤 (按团队/系统过滤文档) 作为权限层保留——无论上下文多长, 权限过滤都必须前置;③ 混合策略: 重要文档全量入 prompt(SOP 核心手册) , 长尾知识走检索, 这可能就是下一代形态.
 
 ---
 
@@ -1121,14 +1121,14 @@ zod 使用点全景: API 请求体 (`chat/route.ts:27-30`)、API 响应 (前端 
 
 目标: 把 Plan-Execute-Replan 的分钟级编排变成用户可感知的实时进度. 方案:
 
-1. 传输复用:`/api/ai_ops` 改为 SSE——管线已是 AsyncGenerator 事件流 (Q19),route 只需 `for await` 中把每个 `PlanExecuteEvent` JSON 序列化为 SSE 帧, 与 chat_stream 共用 CORS/帧格式基建;
+1. 传输复用:`/api/ai_ops` 改为 SSE——管线已是 AsyncGenerator 事件流 (见「AsyncGenerator 产出编排事件」),route 只需 `for await` 中把每个 `PlanExecuteEvent` JSON 序列化为 SSE 帧, 与 chat_stream 共用 CORS/帧格式基建;
 2. 事件到 UI 的映射:
    - `plan_created` → 渲染计划清单 (步骤 checkbox 列表) ;
    - `step_start`/`step_done` → 对应步骤打勾 + 折叠面板填充输出;
    - `replan` → 显示"评估中, 剩余 N 步";
    - `done` → 渲染最终报告 (MdRender)+ 保留完整步骤时间线;
    - `error` → 错误横幅;
-3. 前端状态:useChat 增加 `aiOpsEvents` 状态数组, 或抽象一个通用 `useSSE` hook 同时服务 chat_stream 与 ai_ops——SSE 解析逻辑 (Q43) 抽出来复用;
+3. 前端状态:useChat 增加 `aiOpsEvents` 状态数组, 或抽象一个通用 `useSSE` hook 同时服务 chat_stream 与 ai_ops——SSE 解析逻辑 (见「客户端如何消费 SSE」) 抽出来复用;
 4. 工程细节:① abort 支持 (用户中途关闭, AbortController 全链路, 服务端把 request.signal 透传进编排循环——管线内每步之间检查 signal);② 心跳帧 (每 15s `: ping\n\n`) 防代理空闲断连;③ 断线恢复: 给编排任务发 taskId, 重连后从事件序号续传 (事件需持久化到 Redis 清单) ;
 5. 收益量化: 感知延迟从"全程转圈 N 分钟"变为"10 秒内看到计划", 长任务中途即可发现跑偏并人工中止——这对运维工具的信任度是质变.
 
@@ -1140,7 +1140,7 @@ OnCall 场景幻觉的代价是"值班人员按错误指引操作生产系统", 
 
 1. 知识锚定:AI_OPS_QUERY 已要求"严格遵循内部文档, 不使用文档外信息"(`index.ts:47`)——把输出约束在检索内容内; 可升级为要求模型在报告中标注引用来源(chunk title),UI 上渲染引用链接, 值班人员一键核对原文;
 2. 事实工具化: 时间、告警状态、日志这类事实全部来自工具 (get_current_time/query_prometheus_alerts/MCP 日志) 而非模型记忆——本项目已做到, 关键是 prompt 中禁用模型"凭印象"描述系统状态;
-3. 不确定性表达: 训练/引导模型在证据不足时说"知识库未覆盖该告警"而非编造——配合 Q30 的相似度阈值, 检索不到时明确告知;
+3. 不确定性表达: 训练/引导模型在证据不足时说"知识库未覆盖该告警"而非编造——配合「retrieve topK 与 RAG 检索质量优化」的相似度阈值, 检索不到时明确告知;
 4. 危险操作隔离: 当前 agent 只做"查询分析"不执行处置动作 (重启、回滚) , 这是正确的边界; 若未来加处置能力, 必须 human-in-the-loop 确认 + 审计;
 5. 输出校验: 对 AI Ops 报告做后处理检查——报告中提到的告警名是否都在 query_prometheus_alerts 的真实返回里 (程序比对, 不用模型) , 提到的时间是否与 get_current_time 一致, 不符则标注警告.
 
@@ -1152,8 +1152,8 @@ OnCall 场景幻觉的代价是"值班人员按错误指引操作生产系统", 
 
 成本构成: 每轮对话 = RAG embedding + (1~N 次 tool 循环) × quick 模型; 每次 AI Ops ≈ 2× think + 步骤数 × quick(×每步至多 10 次工具循环) . 优化手段:
 
-1. 模型分级 (已做) :think/quick 分离 (Q9), 保证 80% 调用走便宜模型——最大的单点优化已落地;
-2. 上下文瘦身:① 记忆窗口 6 条 (已做) ;② 工具输出裁剪 (Q38 提到的行数截断待做) ;③ replan prompt 的 detail 全量拼接改为滚动摘要 (Q18 局限) ;④ system prompt 模板压缩 (当前较精简) ;
+1. 模型分级 (已做) :think/quick 分离 (见「双模型 think/quick 分层」), 保证 80% 调用走便宜模型——最大的单点优化已落地;
+2. 上下文瘦身:① 记忆窗口 6 条 (已做) ;② 工具输出裁剪 (「execute 返回为什么要 JSON.stringify」提到的行数截断待做) ;③ replan prompt 的 detail 全量拼接改为滚动摘要 (「Replanner 的 prompt 设计」的已知局限) ;④ system prompt 模板压缩 (当前较精简) ;
 3. 缓存:① prompt caching——system prompt + 工具定义是每轮重复前缀,Anthropic/部分 OpenAI 兼容网关支持 cache_control,命中后 prefill 费用降至 1/10;② 检索结果缓存 (同 question hash 短期复用) ;③ MCP 工具清单缓存 (已做) ;
 4. 调用次数控制:① `isStepCount` 双层封顶 (已做) ;② 工具结果里明确"信息已足够"的信号, 减少模型无效再查;③ planner 产出步骤数设上限 (如 max 10 步) 防超长计划;
 5. 异步与降级: 非实时任务 (如索引构建) 用 embedding 批量接口 (已做) ;AI Ops 失败快速返回而不是 replan 空转 (给 replan 加"连续两轮无进展即终止"逻辑) ;
@@ -1165,9 +1165,9 @@ OnCall 场景幻觉的代价是"值班人员按错误指引操作生产系统", 
 
 (示例回答, 要求言之有据、有优先级)
 
-1. 补全可观测性与 eval 体系 (最高优先) : 管线级观测当前只有 `console.log` 的 start/end(`callbacks.ts:24-30`)——系统级已有 yukino-sentry→Prometheus 指标桥 (Q81), 但没有 LLM 调用粒度数据. v2 接入 OpenTelemetry: 每次 LLM 调用、tool 执行、检索操作打 span (含 token usage、延迟、cache 命中) , 配合 Q72 的三层 eval 入 CI. 理由:没有度量, 所有优化和 prompt 迭代都是盲人摸象——这是 AI 应用从 demo 走向生产的第一块拼图;
-2. 危险能力收权与审计:`mysql_crud` 改只读白名单 + SQL 静态解析 (Q61), 上传接口补服务端校验与路径防护 (Q63),API 加鉴权并收敛 CORS(Q62), 所有工具调用落审计日志. 理由: 能力越强的 agent 越接近"自动化运维账号", 安全不是功能而是上线门槛;
-3. 记忆与状态外置, 打通水平扩展: 记忆迁移 Redis、上传文件迁移对象存储、索引操作走队列 (Q73),AI Ops 改 SSE 流式 + taskId 可恢复 (Q75). 理由: 这三件事共同把应用从"单机 demo"变为"团队级服务", 且现有接口边界 (memory/retriever/事件流) 让改动可以渐进落地, 不需要推翻架构.
+1. 补全可观测性与 eval 体系 (最高优先) : 管线级观测当前只有 `console.log` 的 start/end(`callbacks.ts:24-30`)——系统级已有 yukino-sentry→Prometheus 指标桥 (见「yukino-sentry 监控桥的接入与指标设计」), 但没有 LLM 调用粒度数据. v2 接入 OpenTelemetry: 每次 LLM 调用、tool 执行、检索操作打 span (含 token usage、延迟、cache 命中) , 配合「RAG/Agent 系统的质量度量与 eval 体系」的三层 eval 入 CI. 理由:没有度量, 所有优化和 prompt 迭代都是盲人摸象——这是 AI 应用从 demo 走向生产的第一块拼图;
+2. 危险能力收权与审计:`mysql_crud` 改只读白名单 + SQL 静态解析 (见「mysql_crud 允许任意 SQL 的评价与加固」), 上传接口补服务端校验与路径防护 (见「文件上传接口的安全隐患与修复」),API 加鉴权并收敛 CORS(见「CORS 全开的问题与可接受场景」), 所有工具调用落审计日志. 理由: 能力越强的 agent 越接近"自动化运维账号", 安全不是功能而是上线门槛;
+3. 记忆与状态外置, 打通水平扩展: 记忆迁移 Redis、上传文件迁移对象存储、索引操作走队列 (见「业务量增长时的架构瓶颈与演进」),AI Ops 改 SSE 流式 + taskId 可恢复 (见「AI Ops 流式化设计方案」). 理由: 这三件事共同把应用从"单机 demo"变为"团队级服务", 且现有接口边界 (memory/retriever/事件流) 让改动可以渐进落地, 不需要推翻架构.
 
 贯穿的思路:v2 不是加功能, 而是补齐"生产级"的三个维度——可度量、可信任、可扩展. 功能 (对话/RAG/编排) v1 已经验证有效, v2 让它配得上"OnCall 关键系统"的定位.
 
@@ -1222,9 +1222,9 @@ AI Ops 报告另有一处"UI 化"后处理: replanner 判定完成后, `uiifyRep
 
 ### 服务启动时知识库如何自动就绪? 告警规则与处理文档之间为什么有"契约"?
 
-启动索引 (`instrumentation.ts`):Next.js instrumentation 的 `register()` 钩子在服务启动时执行一次, 守卫 `NEXT_RUNTIME === "nodejs"` 后动态 import `indexDataDir()` (`instrumentation.ts:26-37`)——把 `FILE_DIR` (默认 ./data/docs) 下全部 `.md/.markdown/.txt` 文件重建索引, 向量库无需手动上传即有数据; 索引失败只记 error, 绝不阻塞 server boot. `indexDataDir()` 逐文件容错, 单文件失败 log 后跳过, 目录不存在则 warn 跳过 (`knowledge-index.ts:105-132`). 这与 Redis 客户端的维度探测 (Q14) 组合, 构成"启动即自检自愈"的模式.
+启动索引 (`instrumentation.ts`):Next.js instrumentation 的 `register()` 钩子在服务启动时执行一次, 守卫 `NEXT_RUNTIME === "nodejs"` 后动态 import `indexDataDir()` (`instrumentation.ts:26-37`)——把 `FILE_DIR` (默认 ./data/docs) 下全部 `.md/.markdown/.txt` 文件重建索引, 向量库无需手动上传即有数据; 索引失败只记 error, 绝不阻塞 server boot. `indexDataDir()` 逐文件容错, 单文件失败 log 后跳过, 目录不存在则 warn 跳过 (`knowledge-index.ts:105-132`). 这与 Redis 客户端的维度探测 (见「Embedding provider 抽象与维度管理」) 组合, 构成"启动即自检自愈"的模式.
 
-告警-文档契约 (`prometheus.rules.yml:1-5` 头部注释): "Alert names are contract"——AI Ops 管线的 SOP 是 `query_prometheus_alerts` 拿到活跃告警名, 再用告警名调 `query_internal_docs` 检索处理手册, 所以每条告警规则的名字必须与 `data/docs/alert-handling-guide.md` 中的同名标题一一对应, 否则检索落空、模型失去知识锚点. 规则文件本身展示了运行时指标的正确用法: ServiceOffline(up == 0)、NodeHeapNearLimit(yukino_node_v8_heap_used_ratio > 0.9)、NodeHeapLeakSuspected(predict_linear 外推一小时内触及上限)、NodeDetachedContextLeak(detached contexts > 10)——全部基于 Q81 的 Node/V8 指标.
+告警-文档契约 (`prometheus.rules.yml:1-5` 头部注释): "Alert names are contract"——AI Ops 管线的 SOP 是 `query_prometheus_alerts` 拿到活跃告警名, 再用告警名调 `query_internal_docs` 检索处理手册, 所以每条告警规则的名字必须与 `data/docs/alert-handling-guide.md` 中的同名标题一一对应, 否则检索落空、模型失去知识锚点. 规则文件本身展示了运行时指标的正确用法: ServiceOffline(up == 0)、NodeHeapNearLimit(yukino_node_v8_heap_used_ratio > 0.9)、NodeHeapLeakSuspected(predict_linear 外推一小时内触及上限)、NodeDetachedContextLeak(detached contexts > 10)——全部基于「yukino-sentry 监控桥的接入与指标设计」的 Node/V8 指标.
 
 这条契约把四个模块串成一个闭环: yukino-sentry 采集 → `/api/log` 入库 → `/api/metrics` 暴露 → Prometheus 告警 → AI Ops 一键分析 (按告警名检索 runbook) → 报告与 A2UI 界面呈现. 可以把它作为"监控数据反哺 AI Agent"的完整案例.
 
@@ -1239,10 +1239,10 @@ AI Ops 报告另有一处"UI 化"后处理: replanner 判定完成后, `uiifyRep
 - [ ] 能解释向量维度不匹配为什么是静默故障及防御 (`client.ts:62-95`)
 - [ ] 能对比 ReAct 与 Plan-Execute-Replan 的选型逻辑
 - [ ] 能指出 mysql_crud 的至少 4 个风险及加固方案
-- [ ] 能解释 hydration 约束下浏览器状态的初始化范式 (Q47)
-- [ ] 能说出 setState updater 必须纯函数的原因及本项目解法 (Q48)
-- [ ] 能给出 RAG 质量优化的 5 个方向并按 ROI 排序 (Q30)
-- [ ] 能阐述 zod 在系统边界的 8 个使用点及价值 (Q67)
-- [ ] 能设计 AI Ops 流式化方案 (Q75) 与幻觉防控五层模型 (Q76)
-- [ ] 能描述 A2UI 块的"抽取-校验-流过滤-纠错"四步与原地更新闭环 (Q79-Q80)
-- [ ] 能说明 yukino-sentry→Prometheus 指标桥的两个防御设计: 标签基数上限与 registry 版本化 (Q81)
+- [ ] 能解释 hydration 约束下浏览器状态的初始化范式 (见「sessionId 与 histories 的初始化时机」)
+- [ ] 能说出 setState updater 必须纯函数的原因及本项目解法 (见「setState updater 里不能做副作用」)
+- [ ] 能给出 RAG 质量优化的 5 个方向并按 ROI 排序 (见「retrieve topK 与 RAG 检索质量优化」)
+- [ ] 能阐述 zod 在系统边界的 8 个使用点及价值 (见「系统边界的 zod 校验」)
+- [ ] 能设计 AI Ops 流式化方案 (见「AI Ops 流式化设计方案」) 与幻觉防控五层模型 (见「OnCall 场景的幻觉防控」)
+- [ ] 能描述 A2UI 块的"抽取-校验-流过滤-纠错"四步与原地更新闭环 (见「A2UI 交互界面的生成链路」与「A2UI 按钮点击后的原地更新」)
+- [ ] 能说明 yukino-sentry→Prometheus 指标桥的两个防御设计: 标签基数上限与 registry 版本化 (见「yukino-sentry 监控桥的接入与指标设计」)

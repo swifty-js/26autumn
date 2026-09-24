@@ -3,7 +3,7 @@ title: "yukino-cache 分布式缓存 -- 技术笔记"
 ---
 
 > 本机器路径: `$HOME/github/yukino.js/packages/cache`
-> 基于 npm 包 `@yukino.js/cache` (Node.js / TypeScript 实现, 与 Go 版 `yukino.go/yukino_cache` 对齐) 源码整理, 覆盖架构设计、存储引擎、一致性哈希、服务发现、并发模型、容错机制等核心主题.
+> 基于 npm 包 `@yukino.js/cache` (Node.js / TypeScript 实现, 与 Go 版 `yukino.go/yukino_cache` 对齐, 个别细节差异在正文相应位置标注) 源码整理, 覆盖架构设计、存储引擎、一致性哈希、服务发现、并发模型、容错机制等核心主题.
 
 ## 1. 项目整体架构
 
@@ -99,7 +99,7 @@ yukino-cache 是一个仿 Google groupcache 的分布式缓存框架 (TypeScript
 
 为什么统计计数和缓存填充放在 singleflight 回调内部?
 
-`loads`、`loadDuration` 等计数以及 `mainCache.add` 都写在 `do(key, fn)` 的回调里, 而不是 `get` 的外层. 这样每次实际加载只统计一次: N 个并发等待者共享同一个 Promise, 回调只执行一次, 避免了等待方重复计数、重复写缓存.
+`loads`、`loadDuration` 等计数以及 `mainCache.add` 都写在 `do(key, fn)` 的回调里, 而不是 `get` 的外层. 这样每次实际加载只统计一次: N 个并发等待者共享同一个 Promise, 回调只执行一次, 避免了等待方重复计数、重复写缓存. (Go 版口径不同: `loads`/`loadDuration` 在 `Do` 返回后对每个调用方各计一次, 即去重等待者也计入 loads, 且回调内多一次 `mainCache.Get` 二次检查.)
 
 ---
 
@@ -163,6 +163,8 @@ class LruStore implements Store {
 - 一次性扫描 (scan) 的数据只经过 L1, 不会被再次访问因此不会进入 L2, 避免挤占频繁访问的热数据
 - 字节预算淘汰时优先从 L1 淘汰 (`evictTail`), L1 淘汰不出有效条目才淘汰 L2
 
+兜底默认值的两版差异: Go 版 LruStore 的兜底默认与 Cache 层一致 (512/256), TS 版兜底为 1024/1024 — 由于 Cache 层总是显式传值, 该差异只在绕过 Cache 直接使用 LruStore 时可观察.
+
 底层 InternalCache 为什么用数组而非链表节点?
 
 ```ts
@@ -190,7 +192,7 @@ class InternalCache {
 2. 如果超出预算, 循环淘汰: 先尝试 L1 的 `evictTail()`, 返回 null 再用 L2 的 `evictTail()`
 3. 每次淘汰通过 `handleEviction` 扣减桶字节数, 直到回到预算以内或无可淘汰条目
 
-这保证了整个缓存的内存使用量不会超过配置的 `maxBytes` (Cache 默认 8MiB).
+这保证了全部条目的记账字节数 (key 长度 + value 长度) 不超过配置的 `maxBytes` (Cache 默认 8MiB). 注意预算约束的是记账口径而非进程真实内存: 节点对象、双向链表数组、哈希索引等结构开销不计入记账, 也不反映进程 RSS.
 
 ---
 
@@ -315,7 +317,7 @@ class ConHashMap {
 1. 地址规范化: `resolveAdvertiseAddr` 把 `:port` 或 `0.0.0.0:port` 形式的地址, 通过 `getLocalIP()` (取第一个非 internal 的 IPv4 网卡) 改写为 `IP:port`, 失败时退化为 `127.0.0.1`; Server 也可通过 `advertiseAddr` 选项显式指定对外地址
 2. 申请 Lease: `client.lease(leaseTTL)`, 默认 TTL 10 秒, etcd3 库内部自动续租
 3. 写入注册项: `lease.put(key).value(addr)`, key 为 `/services/{svcName}/{addr}`
-4. 租约丢失处理: 监听 lease 的 `lost` 事件, 未停止时延迟 1 秒后重新 acquire (固定间隔, 无指数退避)
+4. 租约丢失处理: 监听 lease 的 `lost` 事件, 未停止时延迟 1 秒后重新 acquire (固定间隔, 无指数退避; Go 版此处为指数退避 — 1s 起步、失败翻倍、封顶 30s, 属两版差异之一)
 5. 优雅下线: `stopSignal` (AbortSignal) 触发 abort 时, revoke lease、删除 key、关闭 etcd 客户端
 
 发现 (Client 侧, `ServiceDiscovery` + `ClientPicker`):
@@ -401,7 +403,7 @@ function isPeerRequest(call: grpc.ServerUnaryCall<any, any>): boolean {
 
 - 写路径: Server 收到远端 Set/Delete 时, 把 `isPeerRequest = true` 传给 `group.set` / `group.delete`; 方法内部只要该标记为 true 就跳过 `syncToPeers`, 不再二次传播
 - 读路径: Get handler 不读该标记, `loadData` 中也没有防转发检查; 一跳语义由环归属保证 — 所有节点基于同一份 etcd 数据构建哈希环, 被转发到的节点正是 key 的归属节点, 它 `pickPeer` 会得到 `isSelf = true`, 直接走本地 Getter
-- 读路径一跳成立的前提是各节点的环视图一致; 若 etcd 事件乱序导致视图短暂不一致, 理论上可能出现二次转发, 这是最终一致服务发现的固有代价
+- 读路径一跳成立的前提是各节点的环视图一致; 若 etcd 事件乱序导致视图短暂不一致, 理论上可能出现二次转发, 这是最终一致服务发现的固有代价. 对照: Go 版在读路径做了显式防转发 — server 侧对 Get 注入 peer-request 标记 (`withPeerRequest(ctx)`), `loadData` 检测到标记则跳过 `pickPeer` 强制本地回源, 把"环视图短暂不一致导致的二次转发"从理论上消除; TS 版没有该检查, 这是两版当前的一处实质性不对齐
 
 写传播最多一跳、读路径依赖环一致性, 两者结合在正常状态下杜绝了环路.
 
@@ -531,17 +533,17 @@ Group.close() 做了什么?
 
 yukino-cache 相比 Google groupcache 有哪些扩展?
 
-| 维度         | groupcache               | yukino-cache (TS)              |
-| ------------ | ------------------------ | ------------------------------ |
-| 存储引擎     | 单层 LRU + sync.Mutex    | 分桶双层 LRU, 字节预算淘汰     |
-| 服务发现     | 静态 peer 列表           | etcd 动态发现 + Watch          |
-| 写操作       | 不支持 (纯 read-through) | 支持 set/delete + 异步写传播   |
-| 传输层       | HTTP                     | 纯 gRPC (@grpc/grpc-js)        |
-| TTL          | 无内建 TTL               | 内建 TTL + 懒清理 + 定时清理   |
-| 负载均衡     | 静态哈希                 | 可选 auto-rebalance 动态副本数 |
-| 并发模型     | 锁 + goroutine           | 单线程事件循环 + Promise       |
-| SingleFlight | Mutex + map + WaitGroup  | Map + 共享 Promise             |
-| 健康检查     | 无                       | gRPC Health Service            |
+| 维度         | groupcache                            | yukino-cache (TS)              |
+| ------------ | ------------------------------------- | ------------------------------ |
+| 存储引擎     | 单层 LRU (Group 层 sync.RWMutex 保护) | 分桶双层 LRU, 字节预算淘汰     |
+| 服务发现     | 静态 peer 列表                        | etcd 动态发现 + Watch          |
+| 写操作       | 不支持 (纯 read-through)              | 支持 set/delete + 异步写传播   |
+| 传输层       | HTTP                                  | 纯 gRPC (@grpc/grpc-js)        |
+| TTL          | 无内建 TTL                            | 内建 TTL + 懒清理 + 定时清理   |
+| 负载均衡     | 静态哈希                              | 可选 auto-rebalance 动态副本数 |
+| 并发模型     | 锁 + goroutine                        | 单线程事件循环 + Promise       |
+| SingleFlight | Mutex + map + WaitGroup               | Map + 共享 Promise             |
+| 健康检查     | 无                                    | gRPC Health Service            |
 
 ---
 

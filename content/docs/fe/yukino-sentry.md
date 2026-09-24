@@ -1583,7 +1583,7 @@ enableHashChange: true, // 是否监听 hashchange
 handleHistory / handleHashChange 分别订阅 EventType.History / EventType.HashChange, 事件触发后:
 
 1. 记录面包屑 (`breadcrumb.push`, userAction 由 event2breadcrumb 生成)
-2. 调用 pv-lifecycle.ts 的路由 PV 处理: 先发送上一页停留时长, 再发送新页面 PV (详见 Q24)
+2. 调用 pv-lifecycle.ts 的路由 PV 处理: 先发送上一页停留时长, 再发送新页面 PV (详见下文「PV 和页面停留时长是如何追踪的?」)
 
 ---
 
