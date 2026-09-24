@@ -29,7 +29,7 @@ Webpack dev 启动时要扫描所有依赖、构建完整依赖图、全量转�
 
 Vite 快的三个关键点:
 
-1. 依赖预构建用 esbuild: node_modules 中的 CJS/UMD 依赖用 esbuild (Go 编写, 比 Babel 快 10-100 倍) 一次性转为 ESM, 缓存在 node_modules/.vite, 二次启动直接读缓存.
+1. 依赖预构建: node_modules 中的 CJS/UMD 依赖被一次性转为 ESM, 缓存在 node_modules/.vite, 二次启动直接读缓存; Vite 8 起该步骤由 Rolldown (Rust) 完成, Vite 7 及之前由 esbuild (Go, 比 Babel 快 10-100 倍) 完成.
 2. 源码按需转译: 业务代码只在被请求时转译, 配合 HTTP 304 协商缓存, 未修改的模块不重复处理.
 3. HMR 粒度小: 修改一个模块只需重新请求该模块的 ESM, 不需要重新计算整个依赖图 (详见「Webpack HMR 和 Vite HMR 的实现原理有何不同?」).
 
@@ -65,22 +65,24 @@ Loader 和 Plugin 的区别:
 
 ### esbuild 和 Rollup 在 Vite 中各自承担什么角色? 为什么生产构建不直接用 esbuild?
 
-分工:
+先说现状: 这道题在 Vite 8 起已成为历史. Vite 8 用 Rust 编写的 Rolldown 作为统一打包器, dev 预构建与生产打包都由它完成; TS/JSX 转译与产物压缩默认改用 oxc (`build.minify` 默认值即 `'oxc'`, terser/esbuild 仍可显式选用). 本机安装的 vite@8.3.0 中 rollup 已不在依赖列表, 官方迁移指南的表述是 "Vite 8 uses Rolldown and Oxc based tools instead of esbuild and Rollup".
+
+Vite 7 及之前版本的分工:
 
 - esbuild: dev 模式的依赖预构建 (CJS 转 ESM + 合并小模块)、TS/JSX 的单文件转译 (只做语法降级, 不做类型检查)、生产构建中的代码压缩 (minify 可选 esbuild, 比 terser 快一个数量级).
 - Rollup: 生产构建的打包核心. 负责完整的 bundle、Tree Shaking、代码分割 (manualChunks)、产物格式输出, Vite 的插件 API 也是 Rollup 插件接口的超集.
 
-生产构建不直接用 esbuild 的原因 (Vite 团队的官方权衡):
+当时生产构建不直接用 esbuild 的原因 (Vite 团队的官方权衡):
 
 1. 灵活性差距: esbuild 为了极致速度牺牲了很多定制能力, 当时对代码分割的控制、CSS 处理、产物细粒度优化不如 Rollup 成熟.
 2. 插件生态: Rollup 插件生态成熟, Vite 大量能力 (如 legacy 降级、SSR 处理) 依赖插件链的灵活介入.
 3. 输出质量: Rollup 的 Tree Shaking 更精细, Scope Hoisting 产物更紧凑; 应用构建对产物质量的要求高于对构建速度的要求.
 
-补充趋势: Vite 团队用 Rust 编写的 Rolldown 目标是统一 dev 和 build 的引擎, 兼具 esbuild 的速度与 Rollup 的能力, 这正说明"双引擎"是历史权衡而非理想终态.
+这个权衡的结局是: Vite 团队没有继续二选一, 而是用 Rust 重写了兼具两者能力的新引擎 Rolldown, 在 Vite 8 中统一了 dev 与 build, "双引擎"正式成为历史. 另外, Vite 6 引入的 Environment API (为不同运行环境提供独立的模块图与配置) 在 Vite 8 仍处实验阶段, 官方正在推进稳定化.
 
 ### Vite 依赖预构建 (optimizeDeps) 的原理是什么? 遇到过哪些坑?
 
-原理: Vite 启动时扫描源码中的裸模块导入 (bare import, 如 `import React from 'react'`), 用 esbuild 将这些 node_modules 依赖打包成 ESM 并输出到 node_modules/.vite. 目的有两个:
+原理: Vite 启动时扫描源码中的裸模块导入 (bare import, 如 `import React from 'react'`), 用 Rolldown (Vite 7 及之前为 esbuild) 将这些 node_modules 依赖打包成 ESM 并输出到 node_modules/.vite. 目的有两个:
 
 1. 格式统一: 很多包只发布 CJS/UMD, 浏览器 ESM 无法直接消费, 预构建统一转为 ESM.
 2. 请求合并: 像 lodash-es 这种包内部有几百个小模块, 不合并的话一次导入会触发几百个 HTTP 请求, 预构建合并为单文件.
@@ -173,7 +175,7 @@ optimization: {
 2. 控制 chunk 数量与大小的平衡: chunk 太碎增加请求数与调度开销, 太大则缓存失效代价高. 经验值是单 chunk 压缩后 100-200KB 量级, 配合 HTTP/2 多路复用可以适当更碎.
 3. 异步路由页独立分割: 路由级 `React.lazy(() => import(...))`, 首屏只加载框架 + 首页 chunk.
 
-Vite (Rollup) 的 manualChunks 是函数式的等价物:
+Vite (Vite 7 及之前基于 Rollup) 的 manualChunks 是函数式的等价物:
 
 ```typescript
 build: {
@@ -192,6 +194,8 @@ build: {
 ```
 
 注意点: manualChunks 手动分组容易引入循环加载问题 (chunk A 的初始化依赖 chunk B 中的模块), Rollup 会警告 circular chunk, 需要保证分组边界与依赖方向一致.
+
+Vite 8 中的变化: `build.rollupOptions` 的类型已切换为 RolldownOptions, Rollup 的 manualChunks 不复存在, 对应能力由声明式的 `output.codeSplitting` 提供 (按 name/test 等条件分组), 过渡期 API `output.advancedChunks` 在 Rolldown 中已标记废弃.
 
 ### Source Map 有哪些类型? 生产环境如何选择与管理?
 
@@ -235,13 +239,13 @@ Vite 对应 `build.sourcemap: true | 'hidden' | 'inline'`, 语义一致.
 
 本质差异在于 runtime 基座不同:
 
-| 维度        | Webpack MF                            | Vite MF (@module-federation/vite)   |
-| ----------- | ------------------------------------- | ----------------------------------- |
-| 运行时      | 深度集成 webpack runtime (chunk 加载) | 无 Webpack runtime, 需在插件层自建  |
-| remoteEntry | 构建期生成的 JS 文件                  | dev 模式下运行时动态生成的 ESM 入口 |
-| 模块加载    | webpack 的 chunk loading 机制         | 原生 `import()` 动态导入            |
-| shared 依赖 | sharing scope 运行时版本协商          | 需要与 esbuild 预构建协调的协调层   |
-| 开发体验    | 需要完整构建                          | dev 免打包, 即时生效                |
+| 维度        | Webpack MF                            | Vite MF (@module-federation/vite)            |
+| ----------- | ------------------------------------- | -------------------------------------------- |
+| 运行时      | 深度集成 webpack runtime (chunk 加载) | 无 Webpack runtime, 需在插件层自建           |
+| remoteEntry | 构建期生成的 JS 文件                  | dev 模式下运行时动态生成的 ESM 入口          |
+| 模块加载    | webpack 的 chunk loading 机制         | 原生 `import()` 动态导入                     |
+| shared 依赖 | sharing scope 运行时版本协商          | 需要与依赖预构建 (optimizeDeps) 协调的协调层 |
+| 开发体验    | 需要完整构建                          | dev 免打包, 即时生效                         |
 
 Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container.get` 这套 runtime API; Vite 没有等价 runtime, @module-federation/vite 要在插件层实现模块注册表、remoteEntry 动态生成和 shared 版本协商, 且要处理与 optimizeDeps 预构建的时序关系.
 
@@ -308,7 +312,7 @@ Webpack 的 MF 依赖 `__webpack_init_sharing__` / `container.init` / `container
 1. 依赖治理 (通常收益最大): bundle 分析找出大头, moment 换 dayjs、lodash 换 lodash-es 按需导入、图表库按需注册组件; 重复依赖用 dedupe/resolutions 收敛到单版本.
 2. 代码分割 + 按需加载: 路由级动态 import, 低频功能 (导出 Excel、富文本编辑器) 交互时再加载.
 3. Tree Shaking 保障: 见「Tree Shaking 的原理是什么? 哪些写法会导致失效?」, 重点是 sideEffects 声明和避免 CJS.
-4. 压缩: JS 用 esbuild/terser, CSS 用 cssnano/lightningcss; 产物开启 gzip/brotli (brotli 比 gzip 再小 15% 左右), 由 CDN 或网关下发.
+4. 压缩: JS 用 oxc/esbuild/terser, CSS 用 cssnano/lightningcss; 产物开启 gzip/brotli (brotli 比 gzip 再小 15% 左右), 由 CDN 或网关下发.
 5. 资源优化: 小图内联 base64 阈值控制、大图 WebP/AVIF、字体子集化.
 
 浏览器兼容:
@@ -334,7 +338,7 @@ Vite 侧:
 
 1. 减少首屏模块瀑布: `server.warmup` 预热高频入口模块; barrel file 拆解, 避免一个 import 拉起几百个模块.
 2. 预构建稳定性: 显式 optimizeDeps.include 避免运行时二次预构建 reload.
-3. 生产构建: 大项目开启 `build.minify: 'esbuild'`; 关闭不必要的 `build.reportCompressedSize` (大项目上 gzip 计算很耗时).
+3. 生产构建: Vite 8 的 `build.minify` 默认即 oxc, 无需额外配置; 追求更高压缩率可评估 terser (需显式安装); 关闭不必要的 `build.reportCompressedSize` (大项目上 gzip 计算很耗时).
 
 组织级手段: monorepo 任务缓存 (Turborepo 远程缓存) 让 CI 只构建受影响的包; 产物增量发布, 未变更的 chunk 命中 CDN 缓存. 终极手段是换 Rust 工具链 (Rspack/Rolldown), 对存量 Webpack 项目 Rspack 基本兼容配置且构建速度提升 5-10 倍.
 

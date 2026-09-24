@@ -18,13 +18,13 @@ Priority Hints 是一项 Web 平台特性, 允许开发者向浏览器传达资�
 
 以 Chrome 为例, 资源被分为以下几个优先级层级 (从高到低) :
 
-| 优先级  | 典型资源                                                |
-| ------- | ------------------------------------------------------- |
-| Highest | 主 HTML 文档、关键 CSS (阻塞渲染的样式表)               |
-| High    | 字体 (`@font-face` 引用) 、同步脚本、`<img>` 在视口内时 |
-| Medium  | 较晚发现的 CSS 与脚本、部分图片                         |
-| Low     | `async` / `defer` 脚本、视口外的图片、音视频资源        |
-| Lowest  | `prefetch` 资源                                         |
+| 优先级  | 典型资源                                                            |
+| ------- | ------------------------------------------------------------------- |
+| Highest | 主 HTML 文档、关键 CSS (阻塞渲染的样式表)、字体 (`@font-face` 引用) |
+| High    | 同步脚本、`<img>` 在视口内时                                        |
+| Medium  | 较晚发现的 CSS 与脚本、部分图片                                     |
+| Low     | `async` / `defer` 脚本、视口外的图片、音视频资源                    |
+| Lowest  | `prefetch` 资源                                                     |
 
 这个模型在大多数情况下运作良好, 但存在局限:
 
@@ -83,7 +83,7 @@ const normal = await fetch("/api/page-content");
 - `<link>` — 预加载 (preload) 、预取 (prefetch) 、样式表等
 - `<script>` — 脚本资源
 
-注意: `<iframe>` 不支持 `fetchpriority`. 该属性在 HTML 规范中只定义于 `img`、`link`、`script` 三个元素 (早期提案曾包含 `iframe`, 标准化时被移除) , 主流浏览器均未实现 iframe 上的 fetchpriority.
+注意: `<iframe>` 不支持 `fetchpriority`. 该属性在 HTML 规范中只定义于 `img`、`link`、`script` 三个元素 (早期 Priority Hints 提案 (importance 属性) 曾覆盖 iframe, 最终标准未纳入) , 主流浏览器均未实现 iframe 上的 fetchpriority.
 
 ---
 
@@ -194,7 +194,7 @@ LCP (Largest Contentful Paint) 是 Core Web Vitals 指标之一. 如果 LCP 元�
 
 ### 4.5 iframe 优先级
 
-`<iframe>` 不支持 `fetchpriority`: 该属性只定义在 `img`、`link`、`script` 上, 早期提案中的 iframe 支持在标准化时被移除, 主流浏览器也没有实现. 对非关键 iframe (如社交媒体嵌入) , 可改用 `loading="lazy"` 延迟加载或在需要时再动态插入; 对关键 iframe (如支付组件) , 将其放在 HTML 靠前位置并减少前置的阻塞资源即可.
+`<iframe>` 不支持 `fetchpriority`: 该属性只定义在 `img`、`link`、`script` 上, 早期 Priority Hints 提案 (importance 属性) 曾覆盖 iframe, 最终标准未纳入, 主流浏览器也没有实现. 对非关键 iframe (如社交媒体嵌入) , 可改用 `loading="lazy"` 延迟加载或在需要时再动态插入; 对关键 iframe (如支付组件) , 将其放在 HTML 靠前位置并减少前置的阻塞资源即可.
 
 ### 4.6 动态 fetch 请求的优先级
 
@@ -275,7 +275,7 @@ HTTP/2 和 HTTP/3 协议层也有优先级机制 (Stream Priorities / Extensible
 
 ### 6.2 使用 Lighthouse
 
-Lighthouse 的 "Prioritize LCP image" 审计项会检测 LCP 图片是否被充分优先化. 如果 LCP 图片优先级偏低, Lighthouse 会给出优化建议.
+Lighthouse 的 "Preload Largest Contentful Paint image" 审计项 (audit id 为 prioritize-lcp-image) 检测 LCP 图片是否因缺少 preload 而发现过晚, 并建议 preload 配合 fetchpriority 使用; 新版 Lighthouse 已以 Performance Insights (如 lcp-discovery-insight) 取代该独立审计项.
 
 ### 6.3 使用 PerformanceObserver 度量 LCP
 
@@ -565,9 +565,9 @@ const supportsFetchPriority = "fetchPriority" in HTMLImageElement.prototype;
 
 ## 11. 规范与参考资源
 
-- Fetch Priority 规范: https://fetch.spec.whatwg.org/#fetch-priority
+- Fetch Priority 规范: https://fetch.spec.whatwg.org/#request-priority
 - HTML 规范中的 fetchpriority 属性: https://html.spec.whatwg.org/multipage/urls-and-fetching.html#fetch-priority-attribute
-- Chrome 开发者文档: https://developer.chrome.com/docs/devtools/network/reference#priority
+- Chrome 开发者文档: https://developer.chrome.com/docs/devtools/network/reference
 - web.dev 文章 "Optimize LCP": https://web.dev/articles/optimize-lcp
 - web.dev 文章 "Fetch Priority": https://web.dev/articles/fetch-priority
 - HTTP Extensible Priorities (RFC 9218): https://www.rfc-editor.org/rfc/rfc9218

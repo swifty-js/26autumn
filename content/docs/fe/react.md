@@ -602,7 +602,7 @@ SyncLane           → 用户输入、flushSync (最高优先级)
 InputContinuousLane → 拖拽、滚动等连续交互
 DefaultLane        → 普通 setState
 TransitionLane     → useTransition 标记的更新 (低优先级)
-IdleLane           → 空闲时执行 (最低优先级)
+IdleLane           → 空闲时执行 (简化示意; 源码中 OffscreenLane 的优先级比它更低)
 ```
 
 ### useTransition vs useDeferredValue
